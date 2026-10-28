@@ -10,7 +10,7 @@ import { TestBanner } from "./TestBanner";
 const ROLE_LABEL = { admin: "Admin", user: "Benutzer" } as const;
 
 const itemClass = ({ isActive }: { isActive: boolean }) =>
-  cn("flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/90 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground", isActive && "bg-sidebar-accent text-sidebar-foreground");
+  cn("flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/90 transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-foreground", isActive && "bg-sidebar-accent text-sidebar-foreground");
 
 function SidebarGroup({ group, onNavigate }: { group: NavGroup; onNavigate: () => void }) {
   const location = useLocation();
@@ -26,23 +26,23 @@ function SidebarGroup({ group, onNavigate }: { group: NavGroup; onNavigate: () =
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/90 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/90 transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-foreground"
       >
         <Icon className="size-5 shrink-0" aria-hidden />
         <span className="flex-1 text-left">{group.label}</span>
-        <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} aria-hidden />
+        <ChevronDown className={cn("size-4 transition-transform duration-200 ease-out", open && "rotate-180")} aria-hidden />
       </button>
-      {open && (
-        <ul className="mt-0.5 mb-1 ml-8 flex flex-col gap-0.5 border-l border-sidebar-foreground/20 pl-2">
+      <div className={cn("grid transition-[grid-template-rows,opacity] duration-200 ease-out", open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")} inert={!open}>
+        <ul className="mt-0.5 mb-1 ml-8 flex min-h-0 flex-col gap-0.5 overflow-hidden border-l border-sidebar-foreground/20 pl-2">
           {group.items.map((item) => (
             <li key={item.id}>
-              <NavLink to={`/bereich/${item.id}`} className={itemClass} onClick={onNavigate}>
+              <NavLink to={`/bereich/${item.id}`} viewTransition className={itemClass} onClick={onNavigate}>
                 {item.label}
               </NavLink>
             </li>
           ))}
         </ul>
-      )}
+      </div>
     </li>
   );
 }
@@ -50,10 +50,10 @@ function SidebarGroup({ group, onNavigate }: { group: NavGroup; onNavigate: () =
 function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const ListIcon = NAV_LISTS.icon;
   return (
-    <nav aria-label="Hauptnavigation" className="flex h-full flex-col gap-1 overflow-y-auto p-2">
+    <nav aria-label="Hauptnavigation" className="scroll-thin flex h-full flex-col gap-1 p-2 text-sidebar-foreground">
       <ul className="flex flex-col gap-0.5">
         <li>
-          <NavLink to="/" end className={itemClass} onClick={onNavigate}>
+          <NavLink to="/" end viewTransition className={itemClass} onClick={onNavigate}>
             <Home className="size-5 shrink-0" aria-hidden />
             Startseite
           </NavLink>
@@ -62,7 +62,7 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
           <SidebarGroup key={g.id} group={g} onNavigate={onNavigate} />
         ))}
         <li>
-          <NavLink to={`/bereich/${NAV_LISTS.id}`} className={itemClass} onClick={onNavigate}>
+          <NavLink to={`/bereich/${NAV_LISTS.id}`} viewTransition className={itemClass} onClick={onNavigate}>
             <ListIcon className="size-5 shrink-0" aria-hidden />
             {NAV_LISTS.label}
           </NavLink>
@@ -72,7 +72,7 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-const topButton = "inline-flex h-9 items-center gap-2 rounded-md bg-white/15 px-3 text-sm font-medium text-brand-foreground transition-colors hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60";
+const topButton = "inline-flex h-9 items-center gap-2 rounded-md bg-white/15 px-3 text-sm font-medium text-brand-foreground transition-all duration-150 ease-out hover:bg-white/25 active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60";
 
 /** App-Rahmen für angemeldete Personen: Kopfleiste mit Name, Rolle und Abmelden, Seitenleiste mit den Bereichen */
 export function AppShell() {
@@ -89,7 +89,7 @@ export function AppShell() {
     // Kopf- und Seitenleiste stehen fest, nur der Inhalt scrollt
     <div className="flex h-svh flex-col overflow-hidden">
       {testMode && <TestBanner />}
-      <header className="flex h-12 shrink-0 items-center gap-2 bg-brand px-2 text-brand-foreground shadow-sm">
+      <header className="vt-header flex h-12 shrink-0 items-center gap-2 bg-brand px-2 text-brand-foreground shadow-sm">
         <button type="button" className={cn(topButton, "px-2.5 lg:hidden")} onClick={() => setMenuOpen((o) => !o)} aria-label="Menü ein- oder ausblenden" aria-expanded={menuOpen}>
           <Menu className="size-5" aria-hidden />
         </button>
@@ -99,7 +99,7 @@ export function AppShell() {
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           {user.role === "admin" && (
-            <NavLink to="/verwaltung" aria-label="Verwaltung" className={({ isActive }) => cn(topButton, isActive && "bg-white/30")}>
+            <NavLink to="/verwaltung" viewTransition aria-label="Verwaltung" className={({ isActive }) => cn(topButton, isActive && "bg-white/30")}>
               <Settings className="size-4" aria-hidden />
               <span className="hidden sm:inline">Verwaltung</span>
             </NavLink>
@@ -116,19 +116,19 @@ export function AppShell() {
         </div>
       </header>
       <div className="relative flex min-h-0 flex-1">
-        <aside className="hidden w-60 shrink-0 bg-sidebar lg:block">
+        <aside className="vt-sidebar hidden w-60 shrink-0 bg-sidebar lg:block">
           <Sidebar onNavigate={closeMenu} />
         </aside>
         {menuOpen && (
           <>
             {/* Schmale Bildschirme: Seitenleiste über dem Inhalt, Klick daneben schliesst sie */}
-            <div className="absolute inset-0 z-10 bg-black/30 lg:hidden" onClick={closeMenu} aria-hidden />
-            <aside className="absolute inset-y-0 left-0 z-20 w-60 bg-sidebar shadow-lg lg:hidden">
+            <div className="animate-fade-in absolute inset-0 z-10 bg-black/30 lg:hidden" onClick={closeMenu} aria-hidden />
+            <aside className="animate-slide-in-left absolute inset-y-0 left-0 z-20 w-60 bg-sidebar shadow-lg lg:hidden">
               <Sidebar onNavigate={closeMenu} />
             </aside>
           </>
         )}
-        <main className="flex min-w-0 flex-1 flex-col overflow-y-auto p-4 lg:p-5">
+        <main className="scroll-thin flex min-w-0 flex-1 flex-col p-4 lg:p-5">
           <Outlet />
         </main>
       </div>

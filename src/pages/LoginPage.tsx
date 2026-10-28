@@ -39,7 +39,7 @@ export function LoginPage() {
     <div className="flex min-h-svh flex-col">
       {testMode && <TestBanner />}
       <main className="flex flex-1 items-center justify-center p-4">
-        <Card className="w-full max-w-sm">
+        <Card className="animate-appear w-full max-w-sm">
           <CardHeader>
             <div className="mb-2 flex items-center gap-2 text-muted-foreground">
               <Database className="size-5" aria-hidden />

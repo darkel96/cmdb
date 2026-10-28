@@ -6,9 +6,9 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { api } from "@/lib/api";
 import type { CheckResult, HealthResponse } from "@/lib/types";
 
-function StatusCard({ title, testId, result }: { title: string; testId: string; result: CheckResult }) {
+function StatusCard({ title, testId, result, index }: { title: string; testId: string; result: CheckResult; index: number }) {
   return (
-    <Card data-testid={testId}>
+    <Card data-testid={testId} className="animate-appear" style={{ "--i": index } as React.CSSProperties}>
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <CardTitle>{title}</CardTitle>
@@ -57,8 +57,8 @@ export function AdminPage() {
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {health?.details && (
         <div className="grid gap-4 md:grid-cols-2">
-          <StatusCard title="LDAP (Active Directory)" testId="status-ldap" result={health.details.ldap} />
-          <StatusCard title="Datenbank (SQL Server)" testId="status-db" result={health.details.db} />
+          <StatusCard title="LDAP (Active Directory)" testId="status-ldap" result={health.details.ldap} index={0} />
+          <StatusCard title="Datenbank (SQL Server)" testId="status-db" result={health.details.db} index={1} />
         </div>
       )}
       {health && !health.details && !busy && <p className="text-sm text-muted-foreground">Keine Details verfügbar.</p>}
