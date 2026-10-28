@@ -89,6 +89,8 @@ export async function ldapLogin(username: string, password: string): Promise<Ses
       displayName: first(entry.displayName) || name,
       mail: first(entry.mail),
       role: roleFor(name, all(entry.memberOf)),
+      // Für Rollen über AD-Gruppen: nur der CN, klein geschrieben, höchstens 100 (Größe des Session-Cookies)
+      groups: all(entry.memberOf).map((dn) => /^cn=([^,]+)/i.exec(dn)?.[1]?.toLowerCase() ?? "").filter(Boolean).slice(0, 100),
     };
   } finally {
     await client.unbind().catch(() => undefined);

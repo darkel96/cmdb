@@ -27,7 +27,7 @@ function csvCell(value: string): string {
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
@@ -40,10 +40,12 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   actions?: ReactNode;
   /** Kompakt für mehrere Tabellen untereinander (z. B. Kundenansicht): nicht über die ganze Höhe, 5/10/20 je Seite */
   compact?: boolean;
+  /** Anfangs-Sortierung, sonst erste Spalte aufsteigend */
+  defaultSort?: { key: string; desc: boolean };
 }) {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [sort, setSort] = useState<{ key: string; desc: boolean }>({ key: columns[0].key, desc: false });
+  const [sort, setSort] = useState<{ key: string; desc: boolean }>(defaultSort ?? { key: columns[0].key, desc: false });
   const sizes = compact ? COMPACT_PAGE_SIZES : PAGE_SIZES;
   const [pageSize, setPageSize] = useState(compact ? 10 : 30);
   const [page, setPage] = useState(0);

@@ -7,6 +7,7 @@ import { createServer as createHttpsServer } from "node:https";
 import { readFileSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, resolve, sep } from "node:path";
+import { initAdminStore } from "./admin";
 import { api, json } from "./api";
 import { ENV, checkEnv } from "./env";
 import { log } from "./log";
@@ -76,6 +77,9 @@ const listener = (req: IncomingMessage, res: ServerResponse) => void handle(req,
 const server = tls
   ? createHttpsServer({ cert: readFileSync(ENV.tlsCert), key: readFileSync(ENV.tlsKey), minVersion: "TLSv1.2" }, listener)
   : createHttpServer(listener);
+
+// Schema cmdb (Anmelde-Protokoll, Rollen) im Hintergrund einrichten; die Anmeldung geht auch ohne
+void initAdminStore();
 
 server.listen(ENV.port, () => {
   log(`CMDB-Dienst ${ENV.version} auf Port ${ENV.port} (${tls ? "HTTPS" : "HTTP"})${ENV.testMode ? " im TESTMODUS (Testbenutzer, erfundene Daten)" : ""}`);

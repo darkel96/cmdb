@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Database, Home, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, User } from "lucide-react";
+import { ChevronDown, Database, FilePlus2, Home, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, User } from "lucide-react";
 import { NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { Badge } from "@/components/ui/badge";
+import { AREAS } from "@/lib/areas";
 import { NAV_GROUPS, NAV_LISTS, type NavGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
@@ -74,6 +75,9 @@ function SidebarGroup({ group, onNavigate, collapsed, onExpand }: { group: NavGr
 
 function Sidebar({ onNavigate, collapsed = false, onExpand = () => undefined }: { onNavigate: () => void; collapsed?: boolean; onExpand?: () => void }) {
   const ListIcon = NAV_LISTS.icon;
+  const { can } = useAuth();
+  // „Anlage Vertrag“ für alle, die in mindestens einem Bereich anlegen dürfen
+  const mayCreate = Object.values(AREAS).some((a) => a.createFields && can(a.id, "create"));
   return (
     <nav aria-label="Hauptnavigation" className="scroll-thin flex h-full flex-col gap-1 overflow-x-hidden p-2 text-sidebar-foreground">
       <ul className="flex flex-col gap-0.5">
@@ -92,6 +96,14 @@ function Sidebar({ onNavigate, collapsed = false, onExpand = () => undefined }: 
             <ItemLabel collapsed={collapsed}>{NAV_LISTS.label}</ItemLabel>
           </NavLink>
         </li>
+        {mayCreate && (
+          <li className="mt-2 border-t border-sidebar-foreground/20 pt-2">
+            <NavLink to="/anlage-vertrag" viewTransition className={itemClass} onClick={onNavigate} title={collapsed ? "Anlage Vertrag" : undefined}>
+              <FilePlus2 className="size-5 shrink-0" aria-hidden />
+              <ItemLabel collapsed={collapsed}>Anlage Vertrag</ItemLabel>
+            </NavLink>
+          </li>
+        )}
       </ul>
     </nav>
   );

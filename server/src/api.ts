@@ -4,6 +4,8 @@ import { AREAS, type Area, type AreaCreateResponse, type AreaFormResponse, type 
 import type { CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
+import { deleteRole, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
+import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
 import { DbError, areaForm, createAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getCustomer, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
@@ -69,6 +71,35 @@ function sameOrigin(req: IncomingMessage): boolean {
   }
 }
 
+/** Antwort für /api/me und die Anmeldung: Person ohne Gruppen, dazu ihre Rechte */
+async function meResponse(user: SessionUser): Promise<MeResponse> {
+  const { groups: _groups, ...visible } = user;
+  return { user: visible, testMode: ENV.testMode, permissions: await permissionsFor(user) };
+}
+
+/** Angemeldete Person mit dem Recht für Bereich und Aktion, sonst Antwort 401/403 und null */
+async function allowed(req: IncomingMessage, res: ServerResponse, area: string, action: Action): Promise<SessionUser | null> {
+  const user = sessionFromRequest(req);
+  if (!user) {
+    fail(res, 401, "Nicht angemeldet.");
+    return null;
+  }
+  if (!can(await permissionsFor(user), area, action)) {
+    const label = PERMISSION_AREAS.find((a) => a.id === area)?.label ?? area;
+    fail(res, 403, `Keine Berechtigung (${label}: ${ACTIONS.find((a) => a.id === action)?.label}).`);
+    return null;
+  }
+  return user;
+}
+
+function adminOnly(req: IncomingMessage, res: ServerResponse): SessionUser | null {
+  const user = sessionFromRequest(req);
+  if (!user) fail(res, 401, "Nicht angemeldet.");
+  else if (user.role !== "admin") fail(res, 403, "Nur für Admins.");
+  else return user;
+  return null;
+}
+
 async function authenticate(username: string, password: string): Promise<SessionUser> {
   if (ENV.testMode) {
     const user = TEST_USERS[username];
@@ -92,6 +123,7 @@ async function login(req: IncomingMessage, res: ServerResponse): Promise<void> {
   if (wait > 0) {
     res.setHeader("Retry-After", String(wait));
     log(`Anmeldung gesperrt: ${username || "(ungültig)"} von ${address}`);
+    void recordLogin({ username: username || "(ungültig)", success: false, reason: "Gesperrt nach zu vielen Fehlversuchen", address });
     return fail(res, 429, `Zu viele Fehlversuche. Bitte in ${Math.ceil(wait / 60)} Minuten erneut versuchen.`);
   }
 
@@ -101,14 +133,17 @@ async function login(req: IncomingMessage, res: ServerResponse): Promise<void> {
     recordSuccess([`user:${username}`]);
     setSessionCookie(res, user, isSecure(req));
     log(`Anmeldung erfolgreich: ${user.username} (${user.role}) von ${address}`);
-    json(res, 200, { user, testMode: ENV.testMode } satisfies MeResponse);
+    void recordLogin({ username: user.username, displayName: user.displayName, success: true, address });
+    json(res, 200, await meResponse(user));
   } catch (e) {
     if (e instanceof LoginError) {
       if (e.status === 401 || e.status === 403) recordFailure(keys);
       log(`Anmeldung fehlgeschlagen: ${username || "(ungültig)"} von ${address} (${e.status})`);
+      void recordLogin({ username: username || "(ungültig)", success: false, reason: e.status === 403 ? "Konto nicht freigegeben" : "Benutzername oder Passwort falsch", address });
       return fail(res, e.status, e.message);
     }
     log(`Anmeldung nicht möglich: ${username} von ${address}: ${e instanceof Error ? e.message : String(e)}`);
+    void recordLogin({ username: username || "(ungültig)", success: false, reason: "Anmeldedienst nicht erreichbar", address });
     fail(res, 503, "Der Anmeldedienst ist gerade nicht erreichbar.");
   }
 }
@@ -353,6 +388,65 @@ async function removeCustomer(res: ServerResponse, user: SessionUser, id: number
   }
 }
 
+/** Kundenansicht: nur Bereiche, die die Person lesen darf */
+function withoutHiddenAreas(detail: CustomerDetailResponse, permissions: Permissions): CustomerDetailResponse {
+  const systems = Object.fromEntries(Object.entries(detail.systems).filter(([area]) => can(permissions, area, "read")));
+  const errors = Object.fromEntries(Object.entries(detail.errors).filter(([area]) => can(permissions, area, "read")));
+  return { ...detail, systems, errors };
+}
+
+/** Rolle aus der Anfrage prüfen: Name, Beschreibung, Rechte nur für bekannte Bereiche, Mitglieder Person oder Gruppe */
+function roleInput(raw: unknown) {
+  if (!raw || typeof raw !== "object") throw new LoginError("Ungültige Anfrage.", 400);
+  const r = raw as Record<string, unknown>;
+  const name = typeof r.name === "string" ? r.name.trim() : "";
+  if (!name || name.length > 100) throw new LoginError("Name: 1 bis 100 Zeichen.", 400);
+  const description = typeof r.description === "string" ? r.description.trim().slice(0, 500) : "";
+  const permissions: Permissions = {};
+  const rawPerms = (r.permissions ?? {}) as Record<string, Record<string, unknown>>;
+  for (const area of PERMISSION_AREAS) {
+    const x = rawPerms[area.id] ?? {};
+    permissions[area.id] = { read: x.read === true, create: x.create === true, edit: x.edit === true, delete: x.delete === true };
+    // Wer anlegen, bearbeiten oder löschen darf, muss auch lesen dürfen
+    if (permissions[area.id].create || permissions[area.id].edit || permissions[area.id].delete) permissions[area.id].read = true;
+  }
+  const members = (Array.isArray(r.members) ? r.members : []).map((m) => {
+    const kind = (m as { kind?: unknown }).kind;
+    const memberName = String((m as { name?: unknown }).name ?? "").trim().toLowerCase();
+    if ((kind !== "user" && kind !== "group") || !memberName || memberName.length > 256 || /[\x00-\x1f]/.test(memberName)) throw new LoginError("Ungültiges Mitglied.", 400);
+    return { kind, name: kind === "user" ? normalizeUsername(memberName) || memberName : memberName } as const;
+  });
+  return { name, description, permissions, members };
+}
+
+/** Verwaltung: Anmelde-Protokoll und Rollen, nur für Admins */
+async function adminApi(req: IncomingMessage, res: ServerResponse, path: string, method: string): Promise<void> {
+  const user = adminOnly(req, res);
+  if (!user) return;
+  const roleId = /^\/api\/admin\/roles\/(\d+)$/.exec(path)?.[1];
+  try {
+    if (path === "/api/admin/logins" && method === "GET") json(res, 200, { items: await listLogins(), schema: schemaState });
+    else if (path === "/api/admin/roles" && method === "GET") json(res, 200, { items: await listRoles(), areas: PERMISSION_AREAS, schema: schemaState });
+    else if (path === "/api/admin/roles" && method === "POST") {
+      const id = await saveRole(undefined, roleInput((await readJson(req)).role), user.username);
+      log(`Rolle ${id} angelegt von ${user.username}`);
+      json(res, 201, { id });
+    } else if (roleId && method === "PUT") {
+      await saveRole(Number(roleId), roleInput((await readJson(req)).role), user.username);
+      log(`Rolle ${roleId} geändert von ${user.username}`);
+      json(res, 200, { id: Number(roleId) });
+    } else if (roleId && method === "DELETE") {
+      await deleteRole(Number(roleId));
+      log(`Rolle ${roleId} gelöscht von ${user.username}`);
+      res.writeHead(204, { "Cache-Control": "no-store" });
+      res.end();
+    } else fail(res, 404, "Unbekannte Adresse.");
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    fail(res, e.status, e.message);
+  }
+}
+
 /** true, wenn die Anfrage zur API gehört und beantwortet wurde */
 export async function api(req: IncomingMessage, res: ServerResponse, path: string): Promise<boolean> {
   if (!path.startsWith("/api/")) return false;
@@ -371,12 +465,12 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       res.end();
     } else if (path === "/api/me" && method === "GET") {
       const user = sessionFromRequest(req);
-      if (user) json(res, 200, { user, testMode: ENV.testMode } satisfies MeResponse);
+      if (user) json(res, 200, await meResponse(user));
       else fail(res, 401, "Nicht angemeldet.");
     } else if (path === "/api/health" && method === "GET") await health(req, res);
     else if (path === "/api/customers" && method === "GET") {
-      if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
-      else if (ENV.testMode) json(res, 200, { source: "test", items: testCustomers } satisfies CustomerListResponse);
+      if (!(await allowed(req, res, "kunden", "read"))) return true;
+      if (ENV.testMode) json(res, 200, { source: "test", items: testCustomers } satisfies CustomerListResponse);
       else {
         try {
           json(res, 200, { source: "db", items: await listCustomers() } satisfies CustomerListResponse);
@@ -389,24 +483,23 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
     } else if (/^\/api\/areas\/[a-z-]+\/form$/.test(path) && method === "GET") {
       const areaId = path.split("/")[3];
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
-      const user = sessionFromRequest(req);
-      if (!user) fail(res, 401, "Nicht angemeldet.");
-      else if (user.role !== "admin") fail(res, 403, "Anlegen dürfen nur Admins.");
-      else if (!area?.createFields) fail(res, 404, "Dieser Bereich kann nicht angelegt werden.");
-      else await readDb(res, async () => (ENV.testMode ? testForm(area) : await areaForm(area)));
+      if (!area?.createFields) fail(res, 404, "Dieser Bereich kann nicht angelegt werden.");
+      else if (await allowed(req, res, area.id, "create")) await readDb(res, async () => (ENV.testMode ? testForm(area) : await areaForm(area)));
     } else if (/^\/api\/areas\/[a-z-]+$/.test(path) && method === "POST") {
       const areaId = path.split("/")[3];
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
-      const user = sessionFromRequest(req);
-      if (!user) fail(res, 401, "Nicht angemeldet.");
-      else if (user.role !== "admin") fail(res, 403, "Anlegen dürfen nur Admins.");
-      else if (!area?.createFields) fail(res, 404, "Dieser Bereich kann nicht angelegt werden.");
-      else await createInArea(req, res, area, user);
+      if (!area?.createFields) {
+        if (sessionFromRequest(req)) fail(res, 404, "Dieser Bereich kann nicht angelegt werden.");
+        else fail(res, 401, "Nicht angemeldet.");
+      } else {
+        const user = await allowed(req, res, area.id, "create");
+        if (user) await createInArea(req, res, area, user);
+      }
     } else if (/^\/api\/areas\/[a-z-]+(\/\d+)?$/.test(path) && method === "GET") {
       const [, , , areaId, rawId] = path.split("/");
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
-      if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
-      else if (!area) fail(res, 404, "Unbekannter Bereich.");
+      if (!area) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Unbekannter Bereich." : "Nicht angemeldet.");
+      else if (!(await allowed(req, res, area.id, "read"))) return true;
       else if (rawId === undefined)
         await readDb(res, async () => ({ source: ENV.testMode ? "test" : "db", items: ENV.testMode ? areaRows(area) : await listArea(area) }) satisfies AreaListResponse);
       else
@@ -417,25 +510,23 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
           return row;
         });
     } else if (path === "/api/customers" && method === "POST") {
-      const user = sessionFromRequest(req);
-      if (!user) fail(res, 401, "Nicht angemeldet.");
-      else if (user.role !== "admin") fail(res, 403, "Kunden anlegen dürfen nur Admins.");
-      else await saveCustomer(req, res, user);
+      const user = await allowed(req, res, "kunden", "create");
+      if (user) await saveCustomer(req, res, user);
     } else if (/^\/api\/customers\/\d+$/.test(path) && (method === "PUT" || method === "DELETE")) {
-      const user = sessionFromRequest(req);
       const id = Number(path.split("/")[3]);
-      if (!user) fail(res, 401, "Nicht angemeldet.");
-      else if (user.role !== "admin") fail(res, 403, "Kunden ändern dürfen nur Admins.");
-      else if (method === "PUT") await saveCustomer(req, res, user, id);
-      else await removeCustomer(res, user, id);
+      const user = await allowed(req, res, "kunden", method === "PUT" ? "edit" : "delete");
+      if (user && method === "PUT") await saveCustomer(req, res, user, id);
+      else if (user) await removeCustomer(res, user, id);
     } else if (/^\/api\/customers\/\d+$/.test(path) && method === "GET") {
-      if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
-      else await readDb(res, () => customerDetail(Number(path.split("/")[3])));
+      const user = await allowed(req, res, "kunden", "read");
+      if (user) {
+        const permissions = await permissionsFor(user);
+        await readDb(res, async () => withoutHiddenAreas(await customerDetail(Number(path.split("/")[3])), permissions));
+      }
     } else if (/^\/api\/customers\/\d+\/documents\/\d+$/.test(path) && method === "GET") {
       const parts = path.split("/");
-      const user = sessionFromRequest(req);
-      if (!user) fail(res, 401, "Nicht angemeldet.");
-      else {
+      const user = await allowed(req, res, "kunden", "read");
+      if (user) {
         try {
           await sendDocument(res, Number(parts[3]), Number(parts[5]));
           log(`Dokument ${parts[5]} (Kunde ${parts[3]}) geladen von ${user.username}`);
@@ -444,6 +535,8 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
           fail(res, e.status, e.message);
         }
       }
+    } else if (path.startsWith("/api/admin/")) {
+      await adminApi(req, res, path, method);
     } else if (path === "/api/cis" && method === "GET") {
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
       else json(res, 200, (ENV.testMode ? { source: "test", items: TEST_CIS } : { source: "none", items: [] }) satisfies CiListResponse);

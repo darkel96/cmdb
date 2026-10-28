@@ -8,12 +8,14 @@ import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { AREAS, type AreaField, type AreaFormResponse } from "@/lib/areas";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/state/auth";
 import { NotFoundPage } from "./NotFoundPage";
 
 /** Formular „Anlage“ eines Bereichs wie in GAPTEQ (nur Admins): füllt die nächste freie Zeile */
 export function AreaCreatePage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const { can } = useAuth();
   const area = Object.hasOwn(AREAS, id) ? AREAS[id] : undefined;
   const [form, setForm] = useState<AreaFormResponse | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -28,6 +30,7 @@ export function AreaCreatePage() {
   }, [area]);
 
   if (!area?.createFields) return <NotFoundPage />;
+  if (!can(area.id, "create")) return <p className="text-sm text-muted-foreground">Dafür fehlt die Berechtigung.</p>;
   const fields = area.createFields.map((key) => area.fields.find((f) => f.key === key)).filter((f): f is AreaField => Boolean(f));
 
   async function save(e: FormEvent) {

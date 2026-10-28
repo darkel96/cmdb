@@ -38,7 +38,7 @@ function config(max: number): sql.config {
 let shared: Promise<sql.ConnectionPool> | undefined;
 
 /** Gemeinsamer Pool für Abfragen; nach einem Verbindungsfehler wird beim nächsten Aufruf neu verbunden */
-function pool(): Promise<sql.ConnectionPool> {
+export function pool(): Promise<sql.ConnectionPool> {
   if (!ENV.dbServer || !ENV.dbUser) return Promise.reject(new DbError("Die Datenbank ist nicht eingerichtet.", 503));
   shared ??= new sql.ConnectionPool(config(5)).connect().catch((e) => {
     shared = undefined;

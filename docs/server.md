@@ -81,6 +81,24 @@ Aktuelles Zertifikat: ausgestellt am 28.10.2026, gültig bis **27.10.2028**. Vor
 | `CMDB_ADMINS` | Anmeldenamen mit Rolle admin, Standard `dario.keller` |
 | `CMDB_DB_*` | SQL Server `kingstown.aberle-it.loc`, Datenbank `CMDB`, Login `svc_cmdb`; **Passwort trägt nur der Betreiber ein** |
 
+**Eigenes Schema `cmdb`** (Anmelde-Protokoll, Rollen): einmalig vom DB-Betrieb anzulegen, danach legt der Dienst seine
+Tabellen dort selbst an (versionierte Skripte `server/migrations/NNN_*.sql`, eingespielt beim Start, vermerkt in
+`cmdb.SchemaVersion`). `svc_cmdb` kann damit nur im Schema `cmdb` Tabellen anlegen, nicht in `dbo`.
+
+```sql
+USE CMDB;
+CREATE SCHEMA cmdb AUTHORIZATION svc_cmdb;
+GRANT CREATE TABLE TO svc_cmdb;
+```
+
+**Rollen und Rechte:** Verwaltung › Rollen. Jede Rolle hat je Bereich (Kunden und alle Bereiche der Seitenleiste) die
+Rechte Lesen, Anlegen, Bearbeiten, Löschen; Mitglieder sind Personen (Anmeldename) oder AD-Gruppen (CN). Die Grundrolle
+„Alle Angemeldeten“ gilt für jede Person und darf anfangs alles lesen. Admins aus `CMDB_ADMINS`/`CMDB_ADMIN_GROUP`
+dürfen immer alles und als Einzige die Verwaltung öffnen. Der Dienst prüft die Rechte bei jeder Anfrage; Änderungen an
+Rollen gelten nach spätestens 30 Sekunden, neue AD-Gruppen einer Person nach der nächsten Anmeldung.
+**Anmelde-Protokoll:** Verwaltung › Anmeldungen, jede Anmeldung mit Zeit, Person, Ergebnis, Grund und Adresse, 365 Tage
+aufbewahrt, ohne Passwörter.
+
 Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Leserecht:
 
 | Bereich | Tabelle | Recht seit |

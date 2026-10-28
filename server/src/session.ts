@@ -35,7 +35,8 @@ export function readSessionValue(value: string | undefined, now = Date.now()): S
     const p = JSON.parse(Buffer.from(data, "base64url").toString("utf8")) as SessionPayload;
     if (typeof p.exp !== "number" || p.exp * 1000 <= now) return null;
     if (p.role !== "admin" && p.role !== "user") return null;
-    return { username: p.username, displayName: p.displayName, mail: p.mail, role: p.role };
+    const groups = Array.isArray(p.groups) ? p.groups.filter((g): g is string => typeof g === "string") : [];
+    return { username: p.username, displayName: p.displayName, mail: p.mail, role: p.role, groups };
   } catch {
     return null;
   }
