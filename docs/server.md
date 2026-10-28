@@ -97,6 +97,7 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | Kundenansicht › Dokumente | `dbo.Anhang` | 28.10.2026 |
 | Software › VMware, Veeam, TSPLUS, PRTG; Lizenzen › Oracle-ESL | `dbo.VMware_manuell`, `dbo.VEEAM_manuell`, `dbo.TSPLUS_manuell`, `dbo.PRTG_manuell`, `dbo.Vertragsdaten` | offen |
 | Kunden anlegen, bearbeiten, löschen (nur Admins) | `INSERT`, `UPDATE`, `DELETE` auf `dbo.DS_Kunden`; Lesen und Ändern nur der Namensspalte in 28 verknüpften Tabellen | offen |
+| Lizenzen › Windows-Lizenzen; Anlage VMware, VEEAM, TSPLUS, PRTG, Windows-Lizenzen (nur Admins) | `SELECT` auf `dbo.Lizenzen_manuell`, `UPDATE` auf `dbo.VMware_manuell`, `dbo.VEEAM_manuell`, `dbo.TSPLUS_manuell`, `dbo.PRTG_manuell`, `dbo.Lizenzen_manuell` | offen |
 | Anlage Vertrag › Server (nur Admins) | `UPDATE` auf `dbo.Server_manuell`, Leserecht auf `dbo.DD_Lieferant`, `dbo.DD_Hersteller`, `dbo.DD_Servertyp`, `dbo.DD_Vertragstyp`, `dbo.DD_Ja_Nein` | 28.10.2026 (erste Anlage: Server 10064) |
 
 ```sql
@@ -134,6 +135,13 @@ GRANT SELECT ON dbo.VEEAM_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.TSPLUS_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.PRTG_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.Vertragsdaten TO svc_cmdb;
+-- Lizenzen › Windows-Lizenzen lesen; Anlage VMware, VEEAM, TSPLUS, PRTG, Windows-Lizenzen
+GRANT SELECT ON dbo.Lizenzen_manuell TO svc_cmdb;
+GRANT UPDATE ON dbo.VMware_manuell TO svc_cmdb;
+GRANT UPDATE ON dbo.VEEAM_manuell TO svc_cmdb;
+GRANT UPDATE ON dbo.TSPLUS_manuell TO svc_cmdb;
+GRANT UPDATE ON dbo.PRTG_manuell TO svc_cmdb;
+GRANT UPDATE ON dbo.Lizenzen_manuell TO svc_cmdb;
 -- Kunden anlegen, bearbeiten, löschen (nur Admins in der CMDB)
 GRANT INSERT, UPDATE, DELETE ON dbo.DS_Kunden TO svc_cmdb;
 -- Umbenennen in allen verknüpften Tabellen und Prüfung vor dem Löschen: nur die Namensspalte

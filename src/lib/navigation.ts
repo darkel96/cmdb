@@ -58,7 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Lizenzen",
     icon: KeyRound,
     items: [
-      { id: "lizenzen", label: "Lizenzen" },
+      { id: "lizenzen", label: "Windows-Lizenzen" },
       { id: "servicevertraege", label: "Serviceverträge" },
       { id: "it-service", label: "IT-Service" },
       { id: "oracle-esl", label: "Oracle-ESL" },

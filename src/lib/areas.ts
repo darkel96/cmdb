@@ -36,6 +36,8 @@ export interface Area {
   typeValue: string;
   /** Plural für Überschriften in der Kundenansicht, z. B. „Server“, „MDEs“ */
   plural?: string;
+  /** Überschrift des Formulars, falls abweichend von „Anlage <singular>“ (wie in GAPTEQ) */
+  createTitle?: string;
   /** Felder im Formular „Anlage“ in der Reihenfolge wie in GAPTEQ; fehlt es, kann der Bereich nicht angelegt werden */
   createFields?: string[];
   /** Testmodus: Anzahl und erste ID der erfundenen Einträge */
@@ -100,6 +102,8 @@ const f = {
   company: { key: "company", column: "Firma", label: "Firma", width: 200, required: true, options: "customers" },
   supplier: { key: "supplier", column: "Lieferant", label: "Lieferant", width: 130, options: { table: "DD_Lieferant", column: "Lieferant" } },
   orderNumber: { key: "orderNumber", column: "Bestellnummer", label: "Bestellnummer", width: 130 },
+  // Lieferant als Freitext (bei den Software- und Lizenzbereichen in GAPTEQ ohne Auswahlliste)
+  supplierText: { key: "supplier", column: "Lieferant", label: "Lieferant", width: 130 },
   manufacturer: { key: "manufacturer", column: "Hersteller", label: "Hersteller", width: 100, required: true, options: { table: "DD_Hersteller", column: "Hersteller" } },
   model: { key: "model", column: "Modell", label: "Modell", width: 200, required: true },
   serviceTag: { key: "serviceTag", column: "Servicetag", label: "Servicetag", width: 120 },
@@ -303,11 +307,12 @@ export const AREAS: Record<string, Area> = {
     title: "Übersicht VMware",
     singular: "VMware",
     typeValue: "VMware",
+    createFields: ["company", "orderNumber", "supplier", "licensee", "licenseType", "license", "supportUntil", "notes"],
     testCount: 14,
     testIdBase: 40000,
     fields: [
       f.company,
-      f.supplier,
+      f.supplierText,
       f.orderNumber,
       { key: "licenseType", column: "Lizenztyp", label: "Lizenztyp", width: 230 },
       { key: "licensee", column: "Lizenznehmer", label: "Lizenznehmer", width: 210 },
@@ -326,11 +331,13 @@ export const AREAS: Record<string, Area> = {
     singular: "Veeam",
     plural: "Veeam",
     typeValue: "VEEAM",
+    createFields: ["company", "orderNumber", "supplier", "licensee", "licenseType", "license", "supportUntil", "notes"],
+    createTitle: "Anlage VEEAM",
     testCount: 13,
     testIdBase: 70000,
     fields: [
       f.company,
-      f.supplier,
+      f.supplierText,
       f.orderNumber,
       { key: "licenseType", column: "Lizenztyp", label: "Lizenztyp", width: 240 },
       { key: "licensee", column: "Lizenznehmer", label: "Lizenznehmer", width: 220 },
@@ -348,11 +355,12 @@ export const AREAS: Record<string, Area> = {
     title: "Übersicht TSPLUS",
     singular: "TSPLUS",
     typeValue: "TSPLUS",
+    createFields: ["company", "orderNumber", "supplier", "licenseType", "license", "licenseCount", "supportUntil", "notes"],
     testCount: 6,
     testIdBase: 50000,
     fields: [
       f.company,
-      f.supplier,
+      f.supplierText,
       f.orderNumber,
       { key: "licenseType", column: "Lizenztyp", label: "Lizenztyp", width: 200 },
       { key: "license", column: "Lizenz", label: "Lizenz", width: 250 },
@@ -370,11 +378,12 @@ export const AREAS: Record<string, Area> = {
     title: "Übersicht PRTG",
     singular: "PRTG",
     typeValue: "PRTG",
+    createFields: ["company", "orderNumber", "supplier", "deliveredOn", "sensorCount", "supportUntil", "eol", "notes"],
     testCount: 10,
     testIdBase: 60000,
     fields: [
       f.company,
-      f.supplier,
+      f.supplierText,
       { key: "deliveredOn", column: "Lieferdatum", label: "Lieferdatum", date: true, width: 100 },
       f.orderNumber,
       { key: "sensorCount", column: "Anzahl_Sensoren", label: "Anzahl Sensoren", width: 120 },
@@ -412,6 +421,29 @@ export const AREAS: Record<string, Area> = {
       { key: "goLive", column: "GoLive Datum", label: "GoLive", date: true, width: 100 },
       { key: "costsBooked", column: "Kosten gebucht Datum", label: "Kosten gebucht", date: true, width: 110 },
       { key: "oracleSystem", column: "Oracle System", label: "Oracle-System", width: 150 },
+    ],
+  },
+  lizenzen: {
+    id: "lizenzen",
+    table: "Lizenzen_manuell",
+    title: "Übersicht Windows-Lizenzen",
+    singular: "Lizenz",
+    plural: "Windows-Lizenzen",
+    typeValue: "Lizenz",
+    createTitle: "Anlage Windows-Lizenzen",
+    createFields: ["company", "orderNumber", "supplier", "licensee", "licenseType", "license", "supportUntil", "notes"],
+    testCount: 12,
+    testIdBase: 80000,
+    fields: [
+      f.company,
+      f.supplierText,
+      f.orderNumber,
+      { key: "licenseType", column: "Lizenztyp", label: "Lizenztyp", width: 240 },
+      { key: "licensee", column: "Lizenznehmer", label: "Lizenznehmer", width: 220 },
+      { key: "license", column: "Lizenz", label: "Lizenz", width: 260 },
+      f.supportUntil,
+      f.notes,
+      f.type,
     ],
   },
 };
