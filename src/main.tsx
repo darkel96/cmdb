@@ -1,0 +1,34 @@
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { createBrowserRouter, createHashRouter } from "react-router";
+import { RouterProvider } from "react-router/dom";
+import { AdminOnly, AppShell } from "@/components/layout/AppShell";
+import { AdminPage } from "@/pages/AdminPage";
+import { LoginPage } from "@/pages/LoginPage";
+import { NotFoundPage } from "@/pages/NotFoundPage";
+import { OverviewPage } from "@/pages/OverviewPage";
+import { AuthProvider } from "@/state/auth";
+import "./index.css";
+
+// GitHub Pages kennt keine SPA-Weiterleitung, dort laufen die Adressen über „#/…“
+const createRouter = import.meta.env.VITE_ROUTER === "hash" ? createHashRouter : createBrowserRouter;
+
+const router = createRouter([
+  { path: "/login", element: <LoginPage /> },
+  {
+    element: <AppShell />,
+    children: [
+      { path: "/", element: <OverviewPage /> },
+      { path: "/verwaltung", element: <AdminOnly><AdminPage /></AdminOnly> },
+      { path: "*", element: <NotFoundPage /> },
+    ],
+  },
+]);
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  </StrictMode>,
+);
