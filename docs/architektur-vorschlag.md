@@ -48,7 +48,8 @@ Der frühere Vorschlag ASP.NET Core / Blazor / IIS ist verworfen. Die CMDB nutzt
 
 - **charlestown** ist Entwicklungs- und Testserver mit echtem LDAP und echter Datenbank und wird später auch Produktivserver.
   Entwicklung/Test läuft als Compose-Projekt `cmdb-dev` auf Port 8790, der Betrieb später als eigenes Projekt `cmdb`.
-  Adresse `https://cmdb.aberle-it.loc:8790` (DNS-Alias auf charlestown, Zertifikat der internen CA).
+  Adresse heute `https://charlestown.aberle-it.loc:8790`, später `https://cmdb.aberle-it.loc:8790` (DNS-Alias auf charlestown).
+  Zertifikat der internen CA mit beiden Namen.
 - Datenbank: SQL Server 2022 auf `kingstown.aberle-it.loc:1433`, Datenbank `CMDB`, Login `svc_cmdb` (kein `sa`).
   In Phase 0 nur Verbindungstest. Für Phase 1 braucht der Login Leserechte auf die benötigten `dbo`-Tabellen und Rechte
   auf das Schema `cmdb`, keine Schreibrechte auf `dbo`.
@@ -124,7 +125,7 @@ Warum dieser Pilot:
 |---|---|---|
 | 1 | Gehören Zeiterfassung/SAP, Tickets und TPL in die neue CMDB? | Zunächst **nein**. Sie bleiben in GAPTEQ und kommen später eventuell als eigene Module. |
 | 2 | Blazor oder React? | **Entschieden:** React + Node wie im KI-Portal |
-| 3 | Hosting-Server und Service-Account | **Entschieden:** charlestown (Docker), DB-Login `svc_cmdb`, LDAP ohne Service-Account. Adresse `cmdb.aberle-it.loc:8790`. Offen: Rechte von `svc_cmdb` für Phase 1, Zertifikat der internen CA für den SQL Server (heute selbst signiert) |
+| 3 | Hosting-Server und Service-Account | **Entschieden:** charlestown (Docker), DB-Login `svc_cmdb`, LDAP ohne Service-Account. Adresse `charlestown.aberle-it.loc:8790`, später `cmdb.aberle-it.loc:8790`. Offen: Rechte von `svc_cmdb` für Phase 1, Zertifikat der internen CA für den SQL Server (heute selbst signiert) |
 | 4 | Sofortmassnahme `RMAN_Copy_Job_PW` | Passwörter in den Passwort-Manager verschieben und die Zugänge ändern |
 | 5 | Was steckt hinter den 1001 Zeilen? | Bestand vs. Leerzeilen prüfen |
 | 6 | Repo auf GitHub-Account `darkel96` (öffentlich) | später eventuell in eine Firmen-Organisation verschieben; bis dahin keine internen Daten ins Repo |

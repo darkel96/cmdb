@@ -31,10 +31,10 @@ Regeln:
 
 ## Aufruf
 
-- Adresse: **`https://cmdb.aberle-it.loc:8790`**. `cmdb.aberle-it.loc` ist ein DNS-Alias (CNAME) auf charlestown,
-  wie `ki-hub.aberle-it.loc` beim KI-Portal.
+- Adresse heute: **`https://charlestown.aberle-it.loc:8790`**
+- Später: **`https://cmdb.aberle-it.loc:8790`**, sobald der DNS-Alias (CNAME) `cmdb` → `charlestown.aberle-it.loc` angelegt ist
+  (wie `ki-hub.aberle-it.loc` beim KI-Portal). Das Zertifikat enthält beide Namen bereits.
 - Eigener Port statt 443: Port 443 gehört dem Caddy des KI-Portals. Die CMDB hängt sich wegen der Trennung nicht dort ein.
-- Bis das Zertifikat der internen CA da ist, läuft der Dienst mit einem selbst signierten Zertifikat (Browser-Warnung).
 
 ## Zertifikat (interne CA)
 
@@ -46,7 +46,7 @@ wird nicht mitbenutzt):
    ```bash
    cd /root/cmdb/server/certs
    openssl req -new -newkey rsa:2048 -nodes -keyout cmdb.key -out cmdb.csr \
-     -subj "/CN=cmdb.aberle-it.loc" -addext "subjectAltName=DNS:cmdb.aberle-it.loc"
+     -subj "/CN=charlestown.aberle-it.loc" -addext "subjectAltName=DNS:charlestown.aberle-it.loc,DNS:cmdb.aberle-it.loc"
    chown 1000:1000 cmdb.key && chmod 600 cmdb.key
    ```
 
@@ -63,11 +63,11 @@ wird nicht mitbenutzt):
    ```bash
    cd /root/cmdb/server/certs
    openssl x509 -in cmdb.crt -noout -subject -issuer -enddate -ext subjectAltName
-   cp cmdb.crt tls.crt && cp -p cmdb.key tls.key
+   \cp -f cmdb.crt tls.crt && \cp -fp cmdb.key tls.key
    cd /root/cmdb && docker compose up -d --force-recreate
    ```
 
-Erneuern vor Ablauf (WebServer-Vorlage: 2 Jahre) mit denselben Schritten.
+Aktuelles Zertifikat: ausgestellt am 28.10.2026, gültig bis **27.10.2028**. Vor Ablauf mit denselben Schritten erneuern.
 
 ## Konfiguration
 
@@ -85,7 +85,7 @@ Erneuern vor Ablauf (WebServer-Vorlage: 2 Jahre) mit denselben Schritten.
 
 - `ca.crt`: Zertifikat der internen CA (aus `/etc/pki/ca-trust/source/anchors/ABERLE-IT-CA-2019.crt`), prüft LDAPS und SQL Server
 - `tls.crt`, `tls.key`: Zertifikat des Dienstes, das gerade verwendet wird. `tls.key` gehört UID 1000 (Benutzer `node` im Container), Rechte `600`.
-- `cmdb.csr`, `cmdb.key`, `cmdb.crt`: Anfrage und Zertifikat der internen CA für `cmdb.aberle-it.loc` (siehe oben)
+- `cmdb.csr`, `cmdb.key`, `cmdb.crt`: Anfrage und Zertifikat der internen CA für `charlestown.aberle-it.loc` und `cmdb.aberle-it.loc` (siehe oben)
 
 ## Start und Stopp
 
@@ -112,7 +112,7 @@ Push vom Server geht über den Deploy-Key (in `.git/config` hinterlegt), z. B. `
 
 ## Prüfen
 
-- `curl -s https://cmdb.aberle-it.loc:8790/api/health` (bzw. `curl -sk https://localhost:8790/api/health`) liefert `{"status":"ok",…}`
+- `curl -s --cacert server/certs/ca.crt https://charlestown.aberle-it.loc:8790/api/health` liefert `{"status":"ok",…}`
 - E2E-Tests gegen den laufenden Dienst im Testmodus (ohne Node auf dem Server, im Playwright-Container):
 
   ```bash

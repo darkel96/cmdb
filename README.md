@@ -15,9 +15,9 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Tech-Stack festlegen: React + Vite + Node wie im KI-Portal → [docs/architektur-vorschlag.md](docs/architektur-vorschlag.md)
 - [x] Hosting und Authentifizierung: Docker auf charlestown, LDAP-Anmeldung gegen das AD → [docs/server.md](docs/server.md)
 - [x] Phase 0: Anmeldung, Rollen, App-Rahmen, Verwaltung mit Status von LDAP und DB, Testmodus, Docker, Testseite
-- [x] Zertifikat der internen CA für `cmdb.aberle-it.loc` (gültig bis 27.10.2028)
+- [x] Zertifikat der internen CA für `charlestown.aberle-it.loc` und `cmdb.aberle-it.loc` (gültig bis 27.10.2028)
+- [x] Echte AD-Anmeldung mit Rolle admin auf `https://charlestown.aberle-it.loc:8790` bestätigt
 - [ ] DNS-Alias `cmdb.aberle-it.loc` → charlestown anlegen
-- [ ] Echte Anmeldung auf `https://cmdb.aberle-it.loc:8790` bestätigen
 - [ ] DB-Verbindung: SQL Server auf kingstown braucht ein Zertifikat der internen CA (heute selbst signiert)
 - [ ] Phase 1: Schema `cmdb`, Sync aus `dbo`, CI-Liste read-only
 - [ ] Ersten Pilot-Bereich auswählen
