@@ -7,6 +7,7 @@ import { AdminPage } from "@/pages/AdminPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { SectionPage } from "@/pages/SectionPage";
+import { ServerDetailPage } from "@/pages/ServersPage";
 import { StartPage } from "@/pages/StartPage";
 import { AuthProvider } from "@/state/auth";
 import "./index.css";
@@ -21,6 +22,7 @@ const router = createRouter([
     children: [
       { path: "/", element: <StartPage /> },
       { path: "/bereich/:id", element: <SectionPage /> },
+      { path: "/bereich/server/:serverId", element: <ServerDetailPage /> },
       { path: "/verwaltung", element: <AdminOnly><AdminPage /></AdminOnly> },
       { path: "*", element: <NotFoundPage /> },
     ],

@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import type { Customer, CustomerListResponse } from "@/lib/types";
 
 const COLUMNS: Column<Customer>[] = [
-  { key: "name", label: "Kunde", value: (c) => c.name, className: "w-1/2" },
+  { key: "name", label: "Kunde", value: (c) => c.name },
   { key: "city", label: "Stadt", value: (c) => c.city },
 ];
 

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,10 @@ export interface Column<T> {
   key: string;
   label: string;
   value: (row: T) => string;
+  /** Wert zum Sortieren, falls er sich von der Anzeige unterscheidet (z. B. Datum als JJJJ-MM-TT) */
+  sortValue?: (row: T) => string;
+  /** Feste Breite in Pixeln; Spalten ohne Breite teilen sich den Rest */
+  width?: number;
   className?: string;
 }
 
@@ -22,13 +26,15 @@ function csvCell(value: string): string {
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge." }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
   rowKey: (row: T) => string | number;
   exportName: string;
   emptyText?: string;
+  /** Öffnet die markierte Zeile (Knopf „Öffnen“ oder Doppelklick) */
+  onOpen?: (row: T) => void;
 }) {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -44,13 +50,17 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
       (row) => (!search.trim() || columns.some((c) => includes(c.value(row), search))) && active.every((c) => includes(c.value(row), filters[c.key])),
     );
     const column = columns.find((c) => c.key === sort.key) ?? columns[0];
-    result.sort((a, b) => column.value(a).localeCompare(column.value(b), "de", { sensitivity: "base", numeric: true }) * (sort.desc ? -1 : 1));
+    const key = column.sortValue ?? column.value;
+    result.sort((a, b) => key(a).localeCompare(key(b), "de", { sensitivity: "base", numeric: true }) * (sort.desc ? -1 : 1));
     return result;
   }, [rows, columns, search, filters, sort]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = Math.min(page, pages - 1);
   const visible = filtered.slice(current * pageSize, (current + 1) * pageSize);
+  const selectedRow = selected === null ? undefined : rows.find((r) => rowKey(r) === selected);
+  // Bei festen Spaltenbreiten scrollt die Tabelle seitlich, statt die Spalten zu quetschen
+  const minWidth = columns.reduce((sum, c) => sum + (c.width ?? 140), 0);
 
   function exportCsv() {
     const lines = [columns.map((c) => csvCell(c.label)).join(";"), ...filtered.map((row) => columns.map((c) => csvCell(c.value(row))).join(";"))];
@@ -68,6 +78,12 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
       {/* Titel, Suche, Spaltenköpfe und Blättern bleiben stehen; nur die Zeilen scrollen */}
       <h1 className="shrink-0 bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{title}</h1>
       <div className="flex shrink-0 items-center justify-end gap-2 border-b px-3 py-2">
+        {onOpen && (
+          <Button size="sm" className="mr-auto" disabled={!selectedRow} onClick={() => selectedRow && onOpen(selectedRow)} title={selectedRow ? "Markierte Zeile öffnen" : "Zuerst eine Zeile anklicken"}>
+            <FolderOpen aria-hidden />
+            Öffnen
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={exportCsv} title="Als CSV exportieren (Excel)" aria-label="Als CSV exportieren">
           <FileSpreadsheet aria-hidden />
         </Button>
@@ -77,11 +93,16 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
         </div>
       </div>
       <div className="scroll-thin min-h-0 flex-1" data-testid="table-scroll">
-        <table className="w-full text-sm">
+        <table className="w-full table-fixed text-sm" style={{ minWidth }}>
+          <colgroup>
+            {columns.map((c) => (
+              <col key={c.key} style={c.width ? { width: c.width } : undefined} />
+            ))}
+          </colgroup>
           <thead className="sticky top-0 z-[1] bg-card shadow-[0_1px_0_var(--border)]">
             <tr className="border-b text-left text-muted-foreground">
               {columns.map((c) => (
-                <th key={c.key} className={cn("px-3 py-2 font-medium", c.className)} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
+                <th key={c.key} className={cn("truncate px-3 py-2 font-medium", c.className)} title={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
                   <button type="button" className="inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : false }))}>
                     {c.label}
                     {sort.key === c.key && (sort.desc ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden />)}
@@ -114,6 +135,10 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                   key={key}
                   aria-selected={isSelected}
                   onClick={() => setSelected(isSelected ? null : key)}
+                  onDoubleClick={() => {
+                    setSelected(key);
+                    onOpen?.(row);
+                  }}
                   className={cn(
                     "cursor-pointer border-b transition-colors duration-100 last:border-0",
                     isSelected ? "bg-brand text-brand-foreground" : "odd:bg-muted hover:bg-accent",
@@ -122,7 +147,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                   {columns.map((c) => {
                     const text = c.value(row);
                     return (
-                      <td key={c.key} title={text} className={cn("max-w-0 truncate px-3 py-1.5", c.className)}>{text}</td>
+                      <td key={c.key} title={text} className={cn("truncate px-3 py-1.5", c.className)}>{text}</td>
                     );
                   })}
                 </tr>

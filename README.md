@@ -20,7 +20,9 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [ ] DNS-Alias `cmdb.aberle-it.loc` → charlestown anlegen
 - [x] DB-Verbindung mit Zertifikatsprüfung: SQL Server auf kingstown nutzt ein Zertifikat der internen CA (gültig bis 27.10.2028)
 - [x] Startseite wie bisher in GAPTEQ: Seitenleiste mit Bereichen, Kundenübersicht aus `dbo.DS_Kunden` (nur lesend)
-- [ ] Leserecht für `svc_cmdb` auf `dbo.DS_Kunden` (siehe [docs/server.md](docs/server.md))
+- [x] Leserecht für `svc_cmdb` auf `dbo.DS_Kunden`
+- [x] Hardware › Server: Übersicht aus `dbo.Server_manuell` mit „Öffnen“ (nur lesend)
+- [ ] Leserecht für `svc_cmdb` auf `dbo.Server_manuell` (siehe [docs/server.md](docs/server.md))
 - [ ] Phase 1: Schema `cmdb`, Sync aus `dbo`, CI-Liste read-only
 - [ ] Ersten Pilot-Bereich auswählen
 

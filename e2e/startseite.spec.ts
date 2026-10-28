@@ -46,8 +46,8 @@ test("Seitenleiste führt zu Bereichen und Auflistungen", async ({ page }) => {
   await openMenu(page);
   const nav = page.getByRole("navigation", { name: "Hauptnavigation" }).locator("visible=true");
   await nav.getByRole("button", { name: "Hardware" }).click();
-  await nav.getByRole("link", { name: "Server" }).click();
-  await expect(page.getByText("Hardware · Server")).toBeVisible();
+  await nav.getByRole("link", { name: "Storage" }).click();
+  await expect(page.getByText("Hardware · Storage")).toBeVisible();
   await expect(page.getByText("Dieser Bereich folgt.")).toBeVisible();
 
   await openMenu(page);
