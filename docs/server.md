@@ -86,7 +86,7 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | Bereich | Tabelle | Recht seit |
 |---|---|---|
 | Startseite (Kundenübersicht) | `dbo.DS_Kunden` | 28.10.2026 |
-| Hardware › Server | `dbo.Server_manuell` | offen |
+| Hardware › Server | `dbo.Server_manuell` | 28.10.2026 |
 
 ```sql
 USE CMDB;

@@ -22,7 +22,7 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Startseite wie bisher in GAPTEQ: Seitenleiste mit Bereichen, Kundenübersicht aus `dbo.DS_Kunden` (nur lesend)
 - [x] Leserecht für `svc_cmdb` auf `dbo.DS_Kunden`
 - [x] Hardware › Server: Übersicht aus `dbo.Server_manuell` mit „Öffnen“ (nur lesend)
-- [ ] Leserecht für `svc_cmdb` auf `dbo.Server_manuell` (siehe [docs/server.md](docs/server.md))
+- [x] Leserecht für `svc_cmdb` auf `dbo.Server_manuell` (64 Server, 937 vorab angelegte Leerzeilen ausgeblendet)
 - [ ] Phase 1: Schema `cmdb`, Sync aus `dbo`, CI-Liste read-only
 - [ ] Ersten Pilot-Bereich auswählen
 
