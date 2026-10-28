@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Database, Home, LogOut, Menu, Settings, User } from "lucide-react";
+import { ChevronDown, Database, Home, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, User } from "lucide-react";
 import { NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { NAV_GROUPS, NAV_LISTS, type NavGroup } from "@/lib/navigation";
@@ -12,7 +12,22 @@ const ROLE_LABEL = { admin: "Admin", user: "Benutzer" } as const;
 const itemClass = ({ isActive }: { isActive: boolean }) =>
   cn("flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/90 transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-foreground", isActive && "bg-sidebar-accent text-sidebar-foreground");
 
-function SidebarGroup({ group, onNavigate }: { group: NavGroup; onNavigate: () => void }) {
+/** Text neben dem Symbol; eingeklappt nur für Screenreader */
+function ItemLabel({ collapsed, children, className }: { collapsed: boolean; children: React.ReactNode; className?: string }) {
+  return <span className={cn(collapsed ? "sr-only" : "truncate", className)}>{children}</span>;
+}
+
+const COLLAPSED_KEY = "cmdb-seitenleiste-eingeklappt";
+
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function SidebarGroup({ group, onNavigate, collapsed, onExpand }: { group: NavGroup; onNavigate: () => void; collapsed: boolean; onExpand: () => void }) {
   const location = useLocation();
   const containsActive = group.items.some((i) => location.pathname === `/bereich/${i.id}` || location.pathname.startsWith(`/bereich/${i.id}/`));
   const [open, setOpen] = useState(containsActive);
@@ -24,15 +39,25 @@ function SidebarGroup({ group, onNavigate }: { group: NavGroup; onNavigate: () =
     <li>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/90 transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+        onClick={() => {
+          // Eingeklappt: Leiste aufklappen und die Gruppe öffnen
+          if (collapsed) {
+            onExpand();
+            setOpen(true);
+          } else setOpen((o) => !o);
+        }}
+        aria-expanded={open && !collapsed}
+        title={collapsed ? group.label : undefined}
+        className={cn(
+          "flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/90 transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+          collapsed && containsActive && "bg-sidebar-accent text-sidebar-foreground",
+        )}
       >
         <Icon className="size-5 shrink-0" aria-hidden />
-        <span className="flex-1 text-left">{group.label}</span>
-        <ChevronDown className={cn("size-4 transition-transform duration-200 ease-out", open && "rotate-180")} aria-hidden />
+        <ItemLabel collapsed={collapsed} className="flex-1 text-left">{group.label}</ItemLabel>
+        {!collapsed && <ChevronDown className={cn("size-4 shrink-0 transition-transform duration-200 ease-out", open && "rotate-180")} aria-hidden />}
       </button>
-      <div className={cn("grid transition-[grid-template-rows,opacity] duration-200 ease-out", open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")} inert={!open}>
+      <div className={cn("grid transition-[grid-template-rows,opacity] duration-200 ease-out", open && !collapsed ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")} inert={!open || collapsed}>
         <ul className="mt-0.5 mb-1 ml-8 flex min-h-0 flex-col gap-0.5 overflow-hidden border-l border-sidebar-foreground/20 pl-2">
           {group.items.map((item) => (
             <li key={item.id}>
@@ -47,24 +72,24 @@ function SidebarGroup({ group, onNavigate }: { group: NavGroup; onNavigate: () =
   );
 }
 
-function Sidebar({ onNavigate }: { onNavigate: () => void }) {
+function Sidebar({ onNavigate, collapsed = false, onExpand = () => undefined }: { onNavigate: () => void; collapsed?: boolean; onExpand?: () => void }) {
   const ListIcon = NAV_LISTS.icon;
   return (
-    <nav aria-label="Hauptnavigation" className="scroll-thin flex h-full flex-col gap-1 p-2 text-sidebar-foreground">
+    <nav aria-label="Hauptnavigation" className="scroll-thin flex h-full flex-col gap-1 overflow-x-hidden p-2 text-sidebar-foreground">
       <ul className="flex flex-col gap-0.5">
         <li>
-          <NavLink to="/" end viewTransition className={itemClass} onClick={onNavigate}>
+          <NavLink to="/" end viewTransition className={itemClass} onClick={onNavigate} title={collapsed ? "Startseite" : undefined}>
             <Home className="size-5 shrink-0" aria-hidden />
-            Startseite
+            <ItemLabel collapsed={collapsed}>Startseite</ItemLabel>
           </NavLink>
         </li>
         {NAV_GROUPS.map((g) => (
-          <SidebarGroup key={g.id} group={g} onNavigate={onNavigate} />
+          <SidebarGroup key={g.id} group={g} onNavigate={onNavigate} collapsed={collapsed} onExpand={onExpand} />
         ))}
         <li>
-          <NavLink to={`/bereich/${NAV_LISTS.id}`} viewTransition className={itemClass} onClick={onNavigate}>
+          <NavLink to={`/bereich/${NAV_LISTS.id}`} viewTransition className={itemClass} onClick={onNavigate} title={collapsed ? NAV_LISTS.label : undefined}>
             <ListIcon className="size-5 shrink-0" aria-hidden />
-            {NAV_LISTS.label}
+            <ItemLabel collapsed={collapsed}>{NAV_LISTS.label}</ItemLabel>
           </NavLink>
         </li>
       </ul>
@@ -81,6 +106,16 @@ export function AppShell() {
   // Auf breiten Bildschirmen ist die Seitenleiste immer sichtbar, auf schmalen wird sie über das Menü eingeblendet
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = () => setMenuOpen(false);
+  // Breite Bildschirme: Seitenleiste einklappbar auf die Symbole (wie in GAPTEQ), der Browser merkt sich die Wahl
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const toggleCollapsed = (value: boolean) => {
+    setCollapsed(value);
+    try {
+      localStorage.setItem(COLLAPSED_KEY, value ? "1" : "0");
+    } catch {
+      /* ohne Speicher gilt die Wahl bis zum Neuladen */
+    }
+  };
 
   if (user === undefined) return <p className="p-8 text-sm text-muted-foreground">Wird geladen …</p>;
   if (user === null) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
@@ -93,7 +128,17 @@ export function AppShell() {
         <button type="button" className={cn(topButton, "px-2.5 lg:hidden")} onClick={() => setMenuOpen((o) => !o)} aria-label="Menü ein- oder ausblenden" aria-expanded={menuOpen}>
           <Menu className="size-5" aria-hidden />
         </button>
-        <div className="flex items-center gap-2 px-2 text-lg font-semibold lg:w-56">
+        <button
+          type="button"
+          className={cn(topButton, "hidden px-2.5 lg:inline-flex")}
+          onClick={() => toggleCollapsed(!collapsed)}
+          aria-label="Seitenleiste ein- oder ausklappen"
+          aria-expanded={!collapsed}
+          title={collapsed ? "Seitenleiste ausklappen" : "Seitenleiste einklappen"}
+        >
+          {collapsed ? <PanelLeftOpen className="size-5" aria-hidden /> : <PanelLeftClose className="size-5" aria-hidden />}
+        </button>
+        <div className="flex items-center gap-2 px-2 text-lg font-semibold">
           <Database className="size-5" aria-hidden />
           CMDB
         </div>
@@ -116,8 +161,8 @@ export function AppShell() {
         </div>
       </header>
       <div className="relative flex min-h-0 flex-1">
-        <aside className="vt-sidebar hidden w-60 shrink-0 bg-sidebar lg:block">
-          <Sidebar onNavigate={closeMenu} />
+        <aside data-testid="sidebar" className={cn("vt-sidebar hidden shrink-0 bg-sidebar transition-[width] duration-200 ease-out lg:block", collapsed ? "w-14" : "w-60")}>
+          <Sidebar onNavigate={closeMenu} collapsed={collapsed} onExpand={() => toggleCollapsed(false)} />
         </aside>
         {menuOpen && (
           <>

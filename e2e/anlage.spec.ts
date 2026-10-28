@@ -1,5 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 
+/** Eigene Auswahlliste: aufklappen und Eintrag wählen (nach Text oder als n-ter Eintrag ohne „keine Auswahl“) */
+async function choose(page: Page, label: string, option: string | number) {
+  await page.getByLabel(label).click();
+  const list = page.getByRole("listbox");
+  const entries = list.getByRole("option").filter({ hasNotText: "– keine Auswahl –" });
+  await (typeof option === "number" ? entries.nth(option) : list.getByRole("option", { name: option, exact: true })).click();
+  await expect(list).toBeHidden();
+}
+
 async function login(page: Page, username: "admin" | "user") {
   await page.goto("/login");
   await page.getByLabel("Benutzername").fill(username);
@@ -30,7 +39,7 @@ test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Anlage Server" })).toBeVisible();
   const nextId = (await page.getByTestId("next-id").textContent())?.trim();
   expect(nextId).toMatch(/^\d+$/);
-  await expect(page.getByLabel("EOL")).toHaveValue("Nein");
+  await expect(page.getByLabel("EOL")).toHaveText("Nein");
   // Hand über Auswahllisten und dem Kalendersymbol der Datumsfelder
   await expect(page.getByLabel("Hersteller")).toHaveCSS("cursor", "pointer");
   // Den Zeiger über dem Kalendersymbol meldet der Browser nicht; geprüft wird die Regel im Stylesheet
@@ -41,10 +50,10 @@ test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
   await expect(page.getByRole("alert")).toHaveText("Bitte alle Pflichtfelder (*) ausfüllen.");
   for (const label of ["Firma", "Hersteller", "Modell", "Servertyp"]) await expect(page.getByLabel(label)).toHaveAttribute("aria-invalid", "true");
 
-  await page.getByLabel("Firma").selectOption({ index: 1 });
-  await page.getByLabel("Hersteller").selectOption("Hersteller B");
+  await choose(page, "Firma", 0);
+  await choose(page, "Hersteller", "Hersteller B");
   await page.getByLabel("Modell").fill("Rack Test 1U");
-  await page.getByLabel("Servertyp").selectOption("Single Server");
+  await choose(page, "Servertyp", "Single Server");
   await page.getByLabel("Support bis").fill("2030-12-31");
   await page.getByLabel("Besonderheiten").fill("Angelegt im Test");
   await page.getByRole("button", { name: "Speichern" }).click();
@@ -76,11 +85,11 @@ test("Anlage Switch: Felder wie in GAPTEQ, LWL-Typ als Freitext", async ({ page 
   await expect(page.getByRole("heading", { name: "Anlage Switch" })).toBeVisible();
   const labels = (await page.locator("form label").allTextContents()).map((l) => l.replace("*", "").trim());
   expect(labels).toEqual(["Firma", "Bestellnummer", "Lieferant", "Hersteller", "Modell", "Servicetag", "LWL-Typ", "Support bis", "Besonderheiten"]);
-  await expect(page.getByLabel("Lieferant")).toHaveJSProperty("tagName", "SELECT");
+  await expect(page.getByLabel("Lieferant")).toHaveAttribute("role", "combobox");
   await expect(page.getByLabel("LWL-Typ")).toHaveJSProperty("tagName", "INPUT");
 
-  await page.getByLabel("Firma").selectOption({ index: 2 });
-  await page.getByLabel("Hersteller").selectOption("Hersteller A");
+  await choose(page, "Firma", 1);
+  await choose(page, "Hersteller", "Hersteller A");
   await page.getByLabel("Modell").fill("Switch 48 Port");
   await page.getByLabel("LWL-Typ").fill("Multimode SR");
   await page.getByRole("button", { name: "Speichern" }).click();
@@ -100,7 +109,7 @@ test("MDE: Übersicht mit Typ, Anlage mit Lieferant und Hersteller als Freitext"
   await expect(page.getByRole("heading", { name: "Anlage MDE" })).toBeVisible();
   await expect(page.getByLabel("Lieferant")).toHaveJSProperty("tagName", "INPUT");
   await expect(page.getByLabel("Hersteller")).toHaveJSProperty("tagName", "INPUT");
-  await page.getByLabel("Firma").selectOption({ index: 3 });
+  await choose(page, "Firma", 2);
   await page.getByLabel("Hersteller").fill("Scanner XT");
   await page.getByLabel("Seriennummer").fill("SN-TEST-1");
   await page.getByRole("button", { name: "Speichern" }).click();
@@ -120,12 +129,12 @@ test("Storage: Spalten wie in GAPTEQ, Anlage mit Lieferant als Pflicht und Herst
   const labels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
   expect(labels).toEqual(["Firma *", "Bestellnummer", "Lieferant *", "Hersteller *", "Modell", "Servicetag", "Wartungstyp", "Festplatten-Typ", "Anzahl Festplatten", "RAID", "IP-Adresse", "Subnetz", "Gateway", "Support bis", "Besonderheiten"]);
   await expect(page.getByLabel("Hersteller")).toHaveJSProperty("tagName", "INPUT");
-  await expect(page.getByLabel("RAID")).toHaveJSProperty("tagName", "SELECT");
+  await expect(page.getByLabel("RAID")).toHaveAttribute("role", "combobox");
 
-  await page.getByLabel("Firma").selectOption({ index: 4 });
-  await page.getByLabel("Lieferant").selectOption("Lieferant A");
+  await choose(page, "Firma", 3);
+  await choose(page, "Lieferant", "Lieferant A");
   await page.getByLabel("Hersteller").fill("HPE");
-  await page.getByLabel("RAID").selectOption("5+0");
+  await choose(page, "RAID", "5+0");
   await page.getByLabel("IP-Adresse").fill("192.0.2.200");
   await page.getByRole("button", { name: "Speichern" }).click();
   await expect(page.locator("main").getByRole("status")).toHaveText(/^Storage \d+ wurde angelegt\.$/);
@@ -143,10 +152,33 @@ test("Client: Monitor nur beim Öffnen, Anlage mit Monitor als Auswahl", async (
   await expect(page.getByRole("heading", { name: "Anlage Client" })).toBeVisible();
   const labels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
   expect(labels).toEqual(["Firma *", "Bestellnummer", "Lieferant", "Hersteller *", "Servicetag", "Monitor", "Besonderheiten"]);
-  await page.getByLabel("Firma").selectOption({ index: 5 });
+  await choose(page, "Firma", 4);
   await page.getByLabel("Hersteller").fill("Industrie-PC");
-  await page.getByLabel("Monitor").selectOption("Ja");
+  await choose(page, "Monitor", "Ja");
   await page.getByRole("button", { name: "Speichern" }).click();
   await expect(page.locator("main").getByRole("status")).toHaveText(/^Client \d+ wurde angelegt\.$/);
   await expect(page.locator("dt", { hasText: "Monitor" })).toBeVisible();
+});
+
+test("Auswahlliste: Suche filtert, Pfeiltasten und Enter wählen, Hand als Zeiger", async ({ page }) => {
+  await login(page, "admin");
+  await page.goto("/bereich/server/neu");
+  await expect(page.getByRole("heading", { name: "Anlage Server" })).toBeVisible();
+  const firma = page.getByLabel("Firma");
+  await expect(firma).toHaveCSS("cursor", "pointer");
+  await firma.click();
+  await page.getByLabel("Auswahl durchsuchen").fill("muster");
+  const options = page.getByRole("listbox").getByRole("option");
+  await expect(options).toHaveCount(6);
+  await expect(options.first()).toHaveCSS("cursor", "pointer");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  await expect(firma).toHaveText(/^Muster /);
+
+  // Nicht-Pflichtfeld lässt sich wieder leeren
+  await choose(page, "Lieferant", "Lieferant B");
+  await expect(page.getByLabel("Lieferant")).toHaveText("Lieferant B");
+  await page.getByLabel("Lieferant").click();
+  await page.getByRole("option", { name: "– keine Auswahl –" }).click();
+  await expect(page.getByLabel("Lieferant")).toHaveText("– bitte wählen –");
 });

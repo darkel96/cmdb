@@ -78,7 +78,9 @@ export function AreaPage({ area }: { area: Area }) {
 /** Ein Eintrag eines Bereichs mit allen Feldern, nur lesend (Bearbeiten kommt mit Phase 2) */
 export function AreaDetailPage() {
   const { id = "", itemId = "" } = useParams();
-  const created = (useLocation().state as { created?: boolean } | null)?.created;
+  // Woher der Eintrag geöffnet wurde (z. B. aus der Kundenansicht); „Zurück“ führt dorthin
+  const state = useLocation().state as { created?: boolean; back?: { to: string; label: string } } | null;
+  const created = state?.created;
   const area = Object.hasOwn(AREAS, id) ? AREAS[id] : undefined;
   const [row, setRow] = useState<AreaRow | null>(null);
   const [error, setError] = useState("");
@@ -93,9 +95,9 @@ export function AreaDetailPage() {
   return (
     <div className="flex w-full flex-col gap-3">
       <Button variant="outline" size="sm" className="self-start" asChild>
-        <Link to={`/bereich/${area.id}`} viewTransition>
+        <Link to={state?.back?.to ?? `/bereich/${area.id}`} viewTransition>
           <ArrowLeft aria-hidden />
-          Zurück zur Übersicht
+          {state?.back?.label ?? `Zurück zur ${area.title}`}
         </Link>
       </Button>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

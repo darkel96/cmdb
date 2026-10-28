@@ -2,15 +2,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, Save } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { AREAS, type AreaField, type AreaFormResponse } from "@/lib/areas";
 import { cn } from "@/lib/utils";
 import { NotFoundPage } from "./NotFoundPage";
-
-const selectClass =
-  "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm";
 
 /** Formular „Anlage“ eines Bereichs wie in GAPTEQ (nur Admins): füllt die nächste freie Zeile */
 export function AreaCreatePage() {
@@ -98,12 +96,17 @@ export function AreaCreatePage() {
                   {f.required && <span className="text-destructive"> *</span>}
                 </Label>
                 {f.options ? (
-                  <select {...common} className={cn(selectClass, invalid && "border-destructive")} value={values[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} disabled={!options}>
-                    <option value="">{options ? "– bitte wählen –" : "Wird geladen …"}</option>
-                    {options?.map((o) => (
-                      <option key={o} value={o}>{o}</option>
-                    ))}
-                  </select>
+                  <Combobox
+                    id={`f-${f.key}`}
+                    value={values[f.key] ?? ""}
+                    options={options ?? []}
+                    onChange={(v) => set(f.key, v)}
+                    placeholder={options ? "– bitte wählen –" : "Wird geladen …"}
+                    clearable={!f.required}
+                    required={f.required}
+                    invalid={invalid}
+                    disabled={!options}
+                  />
                 ) : (
                   <Input {...common} type={f.date ? "date" : "text"} maxLength={255} className={cn(invalid && "border-destructive")} value={values[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />
                 )}
