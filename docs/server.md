@@ -206,6 +206,11 @@ GRANT SELECT (Firma), UPDATE (Firma) ON dbo.NeueZielTabelle TO svc_cmdb;
 GRANT SELECT (Kunde), UPDATE (Kunde) ON dbo.Zeiterfassung TO svc_cmdb;
 ```
 
+**Einträge bearbeiten:** Detailansicht › Bearbeiten (Recht „Bearbeiten“ des Bereichs). Gespeichert werden nur geänderte
+Felder des Formulars; ID, Typ und feste Werte bleiben. Die CMDB vergleicht beim Speichern mit dem Stand beim Öffnen: Hat
+jemand den Eintrag inzwischen geändert (auch in GAPTEQ), speichert sie nicht und nennt die betroffenen Felder. Alte Werte,
+die nicht mehr in einer Auswahlliste stehen, dürfen unverändert bleiben. Rechte: das `UPDATE`-Recht wie bei der Anlage.
+
 **Kunden pflegen:** Anlegen fügt eine Zeile in `DS_Kunden` ein (die ID vergibt der SQL Server), gleiche Namen sind nicht
 erlaubt. Beim Umbenennen ändert die CMDB den Namen in einer Transaktion auch in allen Tabellen aus
 `server/src/customerLinks.ts` (Systeme, Dokumente, Kontakte, Verträge, Tickets, Zeiterfassung …); schlägt ein Teil fehl,
