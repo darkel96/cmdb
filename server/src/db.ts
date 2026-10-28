@@ -77,10 +77,15 @@ function areaSelect(area: Area): string {
 }
 
 // Vorab angelegte Leerzeilen gehören nicht zum Bestand. Sie sind nicht ganz leer (z. B. EOL ist vorbelegt),
-// haben aber weder Typ noch Firma; so zählt auch GAPTEQ (Server 64, Switche 34)
+// haben aber weder Typ noch Firma; so zählt auch GAPTEQ (Server 64, Switche 34). Ohne Typ-Spalte zählt nur die Firma.
 function areaNotEmpty(area: Area): string {
   const columns = area.fields.filter((f) => f.key === "type" || f.key === "company").map((f) => f.column);
   return "(" + columns.map((c) => `NULLIF(LTRIM(RTRIM(${quote(c)})), '') IS NOT NULL`).join(" OR ") + ")";
+}
+
+/** Spalte mit dem Kunden: meist Firma, bei Vertragsdaten Kunde */
+function companyColumn(area: Area): string {
+  return area.fields.find((f) => f.key === "company")?.column ?? "Firma";
 }
 
 function toAreaRow(area: Area, r: Record<string, unknown>): AreaRow {
@@ -203,7 +208,7 @@ export async function listAreaForCompany(area: Area, company: string): Promise<A
     const result = await (await pool())
       .request()
       .input("company", sql.NVarChar(255), company)
-      .query(`SELECT ${areaSelect(area)} FROM dbo.${quote(area.table)} WHERE LTRIM(RTRIM([Firma])) = @company AND ${areaNotEmpty(area)} ORDER BY ID`);
+      .query(`SELECT ${areaSelect(area)} FROM dbo.${quote(area.table)} WHERE LTRIM(RTRIM(${quote(companyColumn(area))})) = @company AND ${areaNotEmpty(area)} ORDER BY ID`);
     return result.recordset.map((r) => toAreaRow(area, r));
   } catch (e) {
     throw translate(e, `dbo.${area.table}`);

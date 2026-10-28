@@ -78,6 +78,11 @@ const VALUES: Record<string, string[]> = {
   wincc: ["", "V8.1", "V7.5"],
   hardware: ["VM", "VM", "Physisch"],
   providedBy: ["Kunde", "Kunde", "Projekt-IT"],
+  licenseType: ["vCenter Server 8 Standard", "vSphere 8 Essentials Plus", "System Edition", "Permanente Lizenz"],
+  licenseCount: ["1", "3", "25", "Unlimited"],
+  sensorCount: ["500", "1000"],
+  oracleSupportStatus: ["Aktiv", "Aktiv", "Gekündigt"],
+  hotlineStatus: ["Aktiv", "Gekündigt"],
 };
 
 /** Erfundene Einträge für einen Bereich; Firmen, Seriennummern und Bestellnummern sind ausgedacht */
@@ -96,6 +101,8 @@ export function testRows(area: Area): AreaRow[] {
       else if (field.key === "supplier" && !field.options) value = i % 2 ? "Händler A" : "Händler B";
       else if (field.key === "model") value = `${area.singular} ${String.fromCharCode(65 + (i % 4))}${100 + (i % 3) * 10}`;
       else if (field.key === "serviceTag" || field.key === "serialNumber") value = `TST${String(4711 + i * 13).padStart(6, "0")}`;
+      else if (field.key === "license") value = `TEST-${String(10000 + i * 7919).slice(-5)}-LIZENZ`;
+      else if (field.key === "licensee") value = TEST_CUSTOMERS[(i * 5) % TEST_CUSTOMERS.length].name;
       else if (field.key === "ipAddress") value = `192.0.2.${10 + i}`;
       else if (field.key === "hostname") value = `${area.id}-demo-${String(i + 1).padStart(2, "0")}`;
       else if (field.key === "eol") value = year + 4 < 2027 ? "Ja" : "Nein";
