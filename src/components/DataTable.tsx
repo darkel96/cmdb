@@ -35,6 +35,8 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   const [sort, setSort] = useState<{ key: string; desc: boolean }>({ key: columns[0].key, desc: false });
   const [pageSize, setPageSize] = useState(30);
   const [page, setPage] = useState(0);
+  // Ausgewählte Zeile (Klick), blau hervorgehoben wie in GAPTEQ
+  const [selected, setSelected] = useState<string | number | null>(null);
 
   const filtered = useMemo(() => {
     const active = columns.filter((c) => filters[c.key]?.trim());
@@ -104,13 +106,28 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
             </tr>
           </thead>
           <tbody>
-            {visible.map((row) => (
-              <tr key={rowKey(row)} className="border-b transition-colors duration-100 last:border-0 odd:bg-muted/40 hover:bg-accent">
-                {columns.map((c) => (
-                  <td key={c.key} className={cn("px-3 py-1.5", c.className)}>{c.value(row)}</td>
-                ))}
-              </tr>
-            ))}
+            {visible.map((row) => {
+              const key = rowKey(row);
+              const isSelected = key === selected;
+              return (
+                <tr
+                  key={key}
+                  aria-selected={isSelected}
+                  onClick={() => setSelected(isSelected ? null : key)}
+                  className={cn(
+                    "cursor-pointer border-b transition-colors duration-100 last:border-0",
+                    isSelected ? "bg-brand text-brand-foreground" : "odd:bg-muted hover:bg-accent",
+                  )}
+                >
+                  {columns.map((c) => {
+                    const text = c.value(row);
+                    return (
+                      <td key={c.key} title={text} className={cn("max-w-0 truncate px-3 py-1.5", c.className)}>{text}</td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
             {visible.length === 0 && (
               <tr>
                 <td colSpan={columns.length} className="px-3 py-6 text-center text-muted-foreground">{emptyText}</td>
