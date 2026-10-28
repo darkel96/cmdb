@@ -3,6 +3,7 @@
  */
 import sql from "mssql";
 import type { Area, AreaFormResponse, AreaRow, CustomerDocument } from "@/lib/areas";
+import type { LookupList } from "@/lib/stammdaten";
 import type { CheckResult, Customer } from "@/lib/types";
 import { CUSTOMER_LINKS } from "./customerLinks";
 import { DB_CA, ENV } from "./env";
@@ -397,6 +398,48 @@ export async function getDocument(customer: CustomerRecord, documentId: number):
     return r?.Data ? { name: (r.Filename ?? "").trim() || `anhang-${documentId}`, data: r.Data } : null;
   } catch (e) {
     throw translate(e, "dbo.Anhang");
+  }
+}
+
+// ---------- Stammdaten (DD_*-Tabellen ohne Schlüssel: Zeilen werden über ihren Wert angesprochen) ----------
+
+export async function lookupValues(list: LookupList): Promise<string[]> {
+  const column = quote(list.column);
+  try {
+    const r = await (await pool()).request().query<{ v: string }>(
+      `SELECT DISTINCT LTRIM(RTRIM(${column})) AS v FROM dbo.${quote(list.table)} WHERE NULLIF(LTRIM(RTRIM(${column})), '') IS NOT NULL ORDER BY v`,
+    );
+    return r.recordset.map((x) => x.v);
+  } catch (e) {
+    throw translate(e, `dbo.${list.table}`);
+  }
+}
+
+/** Wert hinzufügen, ändern (old → value) oder löschen (value leer); doppelte Werte werden abgelehnt */
+export async function changeLookup(list: LookupList, action: "add" | "rename" | "delete", value: string, old?: string): Promise<void> {
+  const table = `dbo.${quote(list.table)}`;
+  const column = quote(list.column);
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+  try {
+    const exists = async (v: string) =>
+      (await new sql.Request(tx).input("v", sql.VarChar(list.maxLength), v).query<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table} WITH (UPDLOCK) WHERE LTRIM(RTRIM(${column})) = @v`)).recordset[0].n > 0;
+    if (action === "add") {
+      if (await exists(value)) throw new DbError(`„${value}“ steht schon in der Liste ${list.label}.`, 409);
+      await new sql.Request(tx).input("v", sql.VarChar(list.maxLength), value).query(`INSERT INTO ${table} (${column}) VALUES (@v)`);
+    } else if (action === "rename") {
+      if (!old || !(await exists(old))) throw new DbError(`„${old ?? ""}“ steht nicht in der Liste ${list.label}.`, 404);
+      if (value !== old && (await exists(value))) throw new DbError(`„${value}“ steht schon in der Liste ${list.label}.`, 409);
+      await new sql.Request(tx).input("v", sql.VarChar(list.maxLength), value).input("old", sql.VarChar(list.maxLength), old)
+        .query(`UPDATE ${table} SET ${column} = @v WHERE LTRIM(RTRIM(${column})) = @old`);
+    } else {
+      if (!(await exists(value))) throw new DbError(`„${value}“ steht nicht in der Liste ${list.label}.`, 404);
+      await new sql.Request(tx).input("v", sql.VarChar(list.maxLength), value).query(`DELETE FROM ${table} WHERE LTRIM(RTRIM(${column})) = @v`);
+    }
+    await tx.commit();
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, `dbo.${list.table}`);
   }
 }
 

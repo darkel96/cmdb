@@ -4,6 +4,7 @@
  */
 import { AREAS, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
 import { READ_ALL, allPermissions, PERMISSION_AREAS, type LoginLogEntry, type Role } from "./permissions";
+import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
 import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
 
@@ -36,6 +37,9 @@ export interface Api {
   adminRoles(): Promise<AdminRolesResponse>;
   saveRole(id: number | undefined, role: RoleInput): Promise<{ id: number }>;
   deleteRole(id: number): Promise<void>;
+  stammdaten(): Promise<StammdatenResponse>;
+  /** Wert hinzufügen (add), umbenennen (rename, mit old) oder löschen (delete) */
+  changeLookup(listId: string, action: "add" | "rename" | "delete", value: string, old?: string): Promise<StammdatenResponse>;
 }
 
 export interface SchemaState {
@@ -94,6 +98,9 @@ const serverApi: Api = {
   saveRole: (id, role) =>
     request<{ id: number }>(id === undefined ? "/api/admin/roles" : `/api/admin/roles/${id}`, { method: id === undefined ? "POST" : "PUT", body: JSON.stringify({ role }) }),
   deleteRole: (id) => request<void>(`/api/admin/roles/${id}`, { method: "DELETE", body: "{}" }),
+  stammdaten: () => request<StammdatenResponse>("/api/stammdaten"),
+  changeLookup: (listId, action, value, old) =>
+    request<StammdatenResponse>(`/api/stammdaten/${listId}`, { method: action === "add" ? "POST" : action === "rename" ? "PUT" : "DELETE", body: JSON.stringify({ value, old }) }),
 };
 
 const STORAGE_KEY = "cmdb-test-session";
@@ -113,6 +120,10 @@ const browserRows = (areaId: string) =>
   [...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])]
     .map((r) => browserEdits.get(`${areaId}:${r.id}`) ?? r)
     .map((r) => (typeof r.company === "string" ? { ...r, company: renamed(r.company) } : r));
+const browserLookups = new Map<string, string[]>(LOOKUP_LISTS.map((l) => [l.id, [...(TEST_OPTIONS[l.testKey] ?? [])]]));
+const browserStammdaten = (): StammdatenResponse => ({
+  lists: LOOKUP_LISTS.map((l) => ({ id: l.id, label: l.label, maxLength: l.maxLength, values: [...(browserLookups.get(l.id) ?? [])].sort((a, b) => a.localeCompare(b, "de")) })),
+});
 let browserRoles: Role[] = [{ id: 1, name: "Alle Angemeldeten", description: "Gilt für jede angemeldete Person", isDefault: true, permissions: READ_ALL, members: [] }];
 const requireAdmin = () => {
   if (storedUser()?.user.role !== "admin") throw new ApiError("Nur Admins.", 403);
@@ -180,7 +191,9 @@ const browserTestApi: Api = {
     const area = AREAS[areaId];
     const options: Record<string, string[]> = {};
     for (const f of area.fields) {
-      if (f.options && area.createFields?.includes(f.key)) options[f.key] = f.options === "customers" ? browserCustomers.map((c) => c.name) : (TEST_OPTIONS[f.key] ?? []);
+      if (!f.options || !area.createFields?.includes(f.key)) continue;
+      const list = typeof f.options === "object" ? LOOKUP_LISTS.find((l) => l.table === (f.options as { table: string }).table) : undefined;
+      options[f.key] = f.options === "customers" ? browserCustomers.map((c) => c.name) : list ? [...(browserLookups.get(list.id) ?? [])] : (TEST_OPTIONS[f.key] ?? []);
     }
     return { nextId: Math.max(...browserRows(areaId).map((r) => r.id)) + 1, options };
   },
@@ -238,6 +251,14 @@ const browserTestApi: Api = {
     browserCustomers = browserCustomers.map((c) => (c.id === id ? { ...c, name, city: values.city } : c));
     browserExtra.set(id, { country: values.country, zip: values.zip ?? "", address: values.address ?? "", email: values.email ?? "" });
     return { id, renamed: result };
+  },
+  stammdaten: async () => browserStammdaten(),
+  changeLookup: async (listId, action, value, old) => {
+    requireAdmin();
+    const values = browserLookups.get(listId) ?? [];
+    if (action !== "delete" && values.includes(value) && value !== old) throw new ApiError(`„${value}“ steht schon in der Liste.`, 409);
+    browserLookups.set(listId, action === "add" ? [...values, value] : action === "rename" ? values.map((v) => (v === old ? value : v)) : values.filter((v) => v !== value));
+    return browserStammdaten();
   },
   adminLogins: async () => {
     requireAdmin();

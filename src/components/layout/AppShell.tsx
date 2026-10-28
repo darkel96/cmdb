@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Database, FilePlus2, Home, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, User } from "lucide-react";
+import { BookMarked, ChevronDown, Database, FilePlus2, Home, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, User } from "lucide-react";
 import { NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { AREAS } from "@/lib/areas";
@@ -96,11 +96,20 @@ function Sidebar({ onNavigate, collapsed = false, onExpand = () => undefined }: 
             <ItemLabel collapsed={collapsed}>{NAV_LISTS.label}</ItemLabel>
           </NavLink>
         </li>
+        {(mayCreate || can("stammdaten", "read")) && <li className="mt-2 border-t border-sidebar-foreground/20 pt-2" aria-hidden />}
         {mayCreate && (
-          <li className="mt-2 border-t border-sidebar-foreground/20 pt-2">
+          <li>
             <NavLink to="/anlage-vertrag" viewTransition className={itemClass} onClick={onNavigate} title={collapsed ? "Anlage Vertrag" : undefined}>
               <FilePlus2 className="size-5 shrink-0" aria-hidden />
               <ItemLabel collapsed={collapsed}>Anlage Vertrag</ItemLabel>
+            </NavLink>
+          </li>
+        )}
+        {can("stammdaten", "read") && (
+          <li>
+            <NavLink to="/stammdaten" viewTransition className={itemClass} onClick={onNavigate} title={collapsed ? "Stammdaten" : undefined}>
+              <BookMarked className="size-5 shrink-0" aria-hidden />
+              <ItemLabel collapsed={collapsed}>Stammdaten</ItemLabel>
             </NavLink>
           </li>
         )}
