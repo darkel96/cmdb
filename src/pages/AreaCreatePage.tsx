@@ -71,8 +71,8 @@ export function AreaCreatePage() {
         </Button>
       </div>
       {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
-      <section className="animate-appear overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={`Anlage ${area.singular}`}>
-        <h1 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">Anlage {area.singular}</h1>
+      <section className="animate-appear overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={area.createTitle ?? `Anlage ${area.singular}`}>
+        <h1 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{area.createTitle ?? `Anlage ${area.singular}`}</h1>
         <div className="grid gap-x-6 gap-y-4 p-4 sm:grid-cols-2 2xl:grid-cols-3">
           {/* ID und Typ nur zur Anzeige, eigene Zeile über den Eingabefeldern */}
           <div className="flex flex-wrap gap-x-12 gap-y-3 sm:col-span-2 2xl:col-span-3">

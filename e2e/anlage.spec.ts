@@ -33,7 +33,7 @@ test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
   await page.getByRole("link", { name: "Verwaltung" }).click();
   await page.getByRole("link", { name: "Anlage Vertrag" }).click();
   await expect(page.getByRole("heading", { name: "Anlage Vertrag" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Anlage Vertrag" }).locator("[aria-disabled=true]", { hasText: "VMware" })).toContainText("folgt");
+  await expect(page.getByRole("region", { name: "Anlage Vertrag" }).locator("[aria-disabled=true]", { hasText: "Oracle" })).toContainText("folgt");
   await page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link", { name: "Server", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "Anlage Server" })).toBeVisible();
@@ -183,4 +183,30 @@ test("Auswahlliste: Suche filtert, Pfeiltasten und Enter wählen, Hand als Zeige
   await page.getByLabel("Lieferant").click();
   await page.getByRole("option", { name: "– keine Auswahl –" }).click();
   await expect(page.getByLabel("Lieferant")).toHaveText("– bitte wählen –");
+});
+
+test("Software- und Lizenzanlagen: Felder wie in GAPTEQ, Lieferant als Freitext", async ({ page }) => {
+  await login(page, "admin");
+  const forms: Record<string, { title: string; labels: string[] }> = {
+    vmware: { title: "Anlage VMware", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
+    tsplus: { title: "Anlage TSPLUS", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenztyp", "Lizenz", "Anzahl Lizenzen", "Support bis", "Besonderheiten"] },
+    prtg: { title: "Anlage PRTG", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lieferdatum", "Anzahl Sensoren", "Support bis", "EOL", "Besonderheiten"] },
+    veeam: { title: "Anlage VEEAM", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
+    lizenzen: { title: "Anlage Windows-Lizenzen", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
+  };
+  for (const [id, form] of Object.entries(forms)) {
+    await page.goto(`/bereich/${id}/neu`);
+    await expect(page.getByRole("heading", { name: form.title })).toBeVisible();
+    await expect(page.getByTestId("next-id")).toHaveText(/^\d+$/);
+    expect((await page.locator("form label").allTextContents()).map((l) => l.trim()), id).toEqual(form.labels);
+    await expect(page.getByLabel("Lieferant")).toHaveJSProperty("tagName", "INPUT");
+  }
+  await expect(page.getByLabel("Firma")).toHaveAttribute("role", "combobox");
+
+  await choose(page, "Firma", 6);
+  await page.getByLabel("Lieferant").fill("Händler X");
+  await page.getByLabel("Lizenztyp").fill("Windows Server 2025 Standard");
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(page.locator("main").getByRole("status")).toHaveText(/^Lizenz \d+ wurde angelegt\.$/);
+  await expect(page.locator("dd", { hasText: "Windows Server 2025 Standard" })).toBeVisible();
 });
