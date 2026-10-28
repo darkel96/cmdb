@@ -1,0 +1,10 @@
+node_modules
+dist
+server/dist
+server/.env
+server/certs
+test-results
+playwright-report
+.git
+.env.local
+*.tsbuildinfo
