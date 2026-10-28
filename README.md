@@ -30,7 +30,7 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Hardware › MDE: Übersicht aus `dbo.MDE_manuell`; Anlage Switch und Anlage MDE wie in GAPTEQ
 - [x] Leserecht `dbo.MDE_manuell` (26 MDEs), Schreibrecht `dbo.Switche_manuell` und `dbo.MDE_manuell` für `svc_cmdb`
 - [x] Hardware › Storage und Client: Übersicht und Anlage wie in GAPTEQ
-- [ ] Lese- und Schreibrecht `dbo.Storage_manuell`, `dbo.Client_manuell`, Leserecht `dbo.DD_RAID`, `dbo.DD_Client_Monitor`
+- [x] Lese- und Schreibrecht `dbo.Storage_manuell` (14), `dbo.Client_manuell` (23), Leserecht `dbo.DD_RAID`, `dbo.DD_Client_Monitor`
 - [ ] Phase 1: Schema `cmdb`, Sync aus `dbo`, CI-Liste read-only
 - [ ] Ersten Pilot-Bereich auswählen
 

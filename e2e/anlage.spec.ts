@@ -125,7 +125,7 @@ test("Storage: Spalten wie in GAPTEQ, Anlage mit Lieferant als Pflicht und Herst
   await page.getByLabel("Firma").selectOption({ index: 4 });
   await page.getByLabel("Lieferant").selectOption("Lieferant A");
   await page.getByLabel("Hersteller").fill("HPE");
-  await page.getByLabel("RAID").selectOption("RAID 6");
+  await page.getByLabel("RAID").selectOption("5+0");
   await page.getByLabel("IP-Adresse").fill("192.0.2.200");
   await page.getByRole("button", { name: "Speichern" }).click();
   await expect(page.locator("main").getByRole("status")).toHaveText(/^Storage \d+ wurde angelegt\.$/);

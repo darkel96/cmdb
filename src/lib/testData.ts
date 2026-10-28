@@ -41,7 +41,7 @@ export const TEST_OPTIONS: Record<string, string[]> = {
   serverType: ["Multi Site Cluster", "Single Server", "Single Site Cluster", "Windows Cluster"],
   maintenanceType: ["Servicevertrag", "Wartungsvertrag"],
   eol: ["Ja", "Nein"],
-  raid: ["RAID 1", "RAID 5", "RAID 6", "RAID 10"],
+  raid: ["0", "1", "1+0", "5", "5+0"],
   monitor: ["Ja", "Nein"],
 };
 
@@ -53,7 +53,7 @@ const VALUES: Record<string, string[]> = {
   supplier: ["Lieferant A", "Lieferant A", "Lieferant A", "Lieferant A", "Lieferant B"],
   manufacturer: ["Hersteller A", "Hersteller A", "Hersteller A", "Hersteller B"],
   status: ["Aktiv", "Aktiv", "Aktiv", "Abgeschlossen"],
-  raid: ["RAID 5", "RAID 5", "RAID 6", "RAID 10"],
+  raid: ["5", "5", "5", "1+0"],
   diskType: ["SSD", "SAS HDD", "SSD SAS"],
   diskCount: ["4", "5", "8", "13"],
   // Adressen aus dem Dokumentationsbereich (RFC 5737), keine echten Netze

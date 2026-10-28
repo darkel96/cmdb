@@ -90,8 +90,8 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | Hardware › Switche | `dbo.Switche_manuell` | 28.10.2026 |
 | Hardware › MDE | `dbo.MDE_manuell` | 28.10.2026 |
 | Anlage Vertrag › Switch, MDE (nur Admins) | `UPDATE` auf `dbo.Switche_manuell`, `dbo.MDE_manuell` | 28.10.2026 |
-| Hardware › Storage, Client | `dbo.Storage_manuell`, `dbo.Client_manuell` | offen |
-| Anlage Vertrag › Storage, Client (nur Admins) | `UPDATE` auf `dbo.Storage_manuell`, `dbo.Client_manuell`, Leserecht auf `dbo.DD_RAID`, `dbo.DD_Client_Monitor` | offen |
+| Hardware › Storage, Client | `dbo.Storage_manuell`, `dbo.Client_manuell` | 28.10.2026 |
+| Anlage Vertrag › Storage, Client (nur Admins) | `UPDATE` auf `dbo.Storage_manuell`, `dbo.Client_manuell`, Leserecht auf `dbo.DD_RAID`, `dbo.DD_Client_Monitor` | 28.10.2026 |
 | Anlage Vertrag › Server (nur Admins) | `UPDATE` auf `dbo.Server_manuell`, Leserecht auf `dbo.DD_Lieferant`, `dbo.DD_Hersteller`, `dbo.DD_Servertyp`, `dbo.DD_Vertragstyp`, `dbo.DD_Ja_Nein` | 28.10.2026 (erste Anlage: Server 10064) |
 
 ```sql
