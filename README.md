@@ -40,7 +40,8 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [ ] Datei-Upload bei Windows-Lizenzen (Anhang)
 - [x] Verwaltung: Anmelde-Protokoll, Rollen mit Rechten je Bereich (Personen und AD-Gruppen)
 - [x] Schema `cmdb` angelegt (28.10.2026)
-- [ ] Bearbeiten und Löschen bestehender Einträge (Rechte sind schon vorgesehen)
+- [x] Bearbeiten bestehender Einträge in allen anlegbaren Bereichen (Recht Bearbeiten, Schutz vor zwischenzeitlichen Änderungen)
+- [ ] Löschen bestehender Einträge (Recht ist vorgesehen; Verhalten wie in GAPTEQ klären)
 - [ ] KI-Assistent mit den CMDB-Daten (Anbindung wie im KI-Portal)
 - [x] Rechte für Kundenpflege (`DS_Kunden` und Namensspalten der 28 verknüpften Tabellen)
 - [x] Leserechte Oracle (86, Spalten ohne Passwort), Windows-Systeme (314), Anhang (16) für `svc_cmdb`

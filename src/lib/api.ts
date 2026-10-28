@@ -25,6 +25,7 @@ export interface Api {
   areaRow(areaId: string, id: number): Promise<AreaRow>;
   areaForm(areaId: string): Promise<AreaFormResponse>;
   createAreaRow(areaId: string, values: Record<string, string>): Promise<AreaCreateResponse>;
+  updateAreaRow(areaId: string, id: number, values: Record<string, string>, original: Record<string, string>): Promise<{ id: number; changed: string[] }>;
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
   documentUrl(customerId: number, documentId: number): string | null;
@@ -81,6 +82,7 @@ const serverApi: Api = {
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
   areaForm: (areaId) => request<AreaFormResponse>(`/api/areas/${areaId}/form`),
   createAreaRow: (areaId, values) => request<AreaCreateResponse>(`/api/areas/${areaId}`, { method: "POST", body: JSON.stringify({ values }) }),
+  updateAreaRow: (areaId, id, values, original) => request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original }) }),
   customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
   documentUrl: (customerId, documentId) => `/api/customers/${customerId}/documents/${documentId}`,
   createCustomer: (values) => request<CustomerSaveResponse>("/api/customers", { method: "POST", body: JSON.stringify({ values }) }),
@@ -106,8 +108,11 @@ const renamed = (name: string) => {
   for (let i = 0; i < 10 && browserRenames.has(current); i++) current = browserRenames.get(current)!;
   return current;
 };
+const browserEdits = new Map<string, AreaRow>();
 const browserRows = (areaId: string) =>
-  [...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])].map((r) => (typeof r.company === "string" ? { ...r, company: renamed(r.company) } : r));
+  [...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])]
+    .map((r) => browserEdits.get(`${areaId}:${r.id}`) ?? r)
+    .map((r) => (typeof r.company === "string" ? { ...r, company: renamed(r.company) } : r));
 let browserRoles: Role[] = [{ id: 1, name: "Alle Angemeldeten", description: "Gilt für jede angemeldete Person", isDefault: true, permissions: READ_ALL, members: [] }];
 const requireAdmin = () => {
   if (storedUser()?.user.role !== "admin") throw new ApiError("Nur Admins.", 403);
@@ -186,6 +191,14 @@ const browserTestApi: Api = {
     for (const f of area.fields) row[f.key] = f.key === "type" ? area.typeValue : (values[f.key] ?? "");
     browserCreated.set(areaId, [...(browserCreated.get(areaId) ?? []), row]);
     return { id: row.id };
+  },
+  updateAreaRow: async (areaId, id, values) => {
+    requireAdmin();
+    const row = browserRows(areaId).find((r) => r.id === id);
+    if (!row) throw new ApiError("Diesen Eintrag gibt es nicht.", 404);
+    const changed = AREAS[areaId].fields.filter((f) => f.key in values && values[f.key] !== String(row[f.key] ?? "")).map((f) => f.label);
+    browserEdits.set(`${areaId}:${id}`, { ...row, ...values });
+    return { id, changed };
   },
   customer: async (id) => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);

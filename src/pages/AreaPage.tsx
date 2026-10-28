@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Pencil, Plus } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { DataTable, type Column } from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,8 @@ export function AreaPage({ area }: { area: Area }) {
 export function AreaDetailPage() {
   const { id = "", itemId = "" } = useParams();
   // Woher der Eintrag geöffnet wurde (z. B. aus der Kundenansicht); „Zurück“ führt dorthin
-  const state = useLocation().state as { created?: boolean; back?: { to: string; label: string } } | null;
+  const state = useLocation().state as { created?: boolean; saved?: boolean; changed?: string[]; back?: { to: string; label: string } } | null;
+  const { can } = useAuth();
   const created = state?.created;
   const area = Object.hasOwn(AREAS, id) ? AREAS[id] : undefined;
   const [row, setRow] = useState<AreaRow | null>(null);
@@ -94,13 +95,29 @@ export function AreaDetailPage() {
 
   return (
     <div className="flex w-full flex-col gap-3">
-      <Button variant="outline" size="sm" className="self-start" asChild>
+      <div className="flex items-center justify-between gap-2">
+      <Button variant="outline" size="sm" asChild>
         <Link to={state?.back?.to ?? `/bereich/${area.id}`} viewTransition>
           <ArrowLeft aria-hidden />
           {state?.back?.label ?? `Zurück zur ${area.title}`}
         </Link>
       </Button>
+      {row && area.createFields && can(area.id, "edit") && (
+        <Button size="sm" asChild>
+          <Link to={`/bereich/${area.id}/${row.id}/bearbeiten`} viewTransition state={{ back: state?.back }}>
+            <Pencil aria-hidden />
+            Bearbeiten
+          </Link>
+        </Button>
+      )}
+      </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {row && state?.saved && (
+        <p role="status" className="flex items-center gap-2 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          <CheckCircle2 className="size-4" aria-hidden />
+          {state.changed?.length ? `${area.singular} ${row.id} wurde gespeichert (geändert: ${state.changed.join(", ")}).` : `${area.singular} ${row.id}: keine Änderung.`}
+        </p>
+      )}
       {row && created && (
         <p role="status" className="flex items-center gap-2 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
           <CheckCircle2 className="size-4" aria-hidden />

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, Save } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
@@ -11,27 +11,43 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
 import { NotFoundPage } from "./NotFoundPage";
 
-/** Formular „Anlage“ eines Bereichs wie in GAPTEQ (nur Admins): füllt die nächste freie Zeile */
+/**
+ * Formular „Anlage“ eines Bereichs wie in GAPTEQ (füllt die nächste freie Zeile) und „Bearbeitung“ eines Eintrags
+ * (mit itemId: vorbelegt, ID und Typ bleiben). Rechte Anlegen bzw. Bearbeiten aus den Rollen.
+ */
 export function AreaCreatePage() {
-  const { id = "" } = useParams();
+  const { id = "", itemId } = useParams();
+  const editing = itemId !== undefined;
   const navigate = useNavigate();
+  const back = (useLocation().state as { back?: { to: string; label: string } } | null)?.back;
   const { can } = useAuth();
   const area = Object.hasOwn(AREAS, id) ? AREAS[id] : undefined;
   const [form, setForm] = useState<AreaFormResponse | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
+  // Werte beim Öffnen, damit der Dienst zwischenzeitliche Änderungen erkennt
+  const [original, setOriginal] = useState<Record<string, string> | null>(null);
   const [missing, setMissing] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!area?.createFields) return;
-    setValues(Object.fromEntries(area.fields.filter((f) => f.defaultValue).map((f) => [f.key, f.defaultValue!])));
-    api.areaForm(area.id).then(setForm, (e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, [area]);
+    const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+    if (editing) {
+      api.areaRow(area.id, Number(itemId)).then((row) => {
+        const current = Object.fromEntries(area.fields.map((f) => [f.key, String(row[f.key] ?? "")]));
+        setOriginal(current);
+        setValues(current);
+      }, fail);
+    } else setValues(Object.fromEntries(area.fields.filter((f) => f.defaultValue).map((f) => [f.key, f.defaultValue!])));
+    api.areaForm(area.id).then(setForm, fail);
+  }, [area, editing, itemId]);
 
   if (!area?.createFields) return <NotFoundPage />;
-  if (!can(area.id, "create")) return <p className="text-sm text-muted-foreground">Dafür fehlt die Berechtigung.</p>;
+  if (!can(area.id, editing ? "edit" : "create")) return <p className="text-sm text-muted-foreground">Dafür fehlt die Berechtigung.</p>;
   const fields = area.createFields.map((key) => area.fields.find((f) => f.key === key)).filter((f): f is AreaField => Boolean(f));
+  const title = editing ? `Bearbeitung ${area.singular} ${itemId}` : (area.createTitle ?? `Anlage ${area.singular}`);
+  const detail = `/bereich/${area.id}/${itemId}`;
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -45,8 +61,14 @@ export function AreaCreatePage() {
     setBusy(true);
     setError("");
     try {
-      const { id: newId } = await api.createAreaRow(area.id, Object.fromEntries(fields.map((f) => [f.key, values[f.key] ?? ""])));
-      navigate(`/bereich/${area.id}/${newId}`, { viewTransition: true, state: { created: true } });
+      const payload = Object.fromEntries(fields.map((f) => [f.key, values[f.key] ?? ""]));
+      if (editing && original) {
+        const { changed } = await api.updateAreaRow(area.id, Number(itemId), payload, original);
+        navigate(detail, { viewTransition: true, state: { saved: true, changed, back } });
+      } else {
+        const { id: newId } = await api.createAreaRow(area.id, payload);
+        navigate(`/bereich/${area.id}/${newId}`, { viewTransition: true, state: { created: true } });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -62,26 +84,26 @@ export function AreaCreatePage() {
   return (
     <form onSubmit={save} noValidate className="flex w-full flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <Button type="submit" size="sm" disabled={busy || !form}>
+        <Button type="submit" size="sm" disabled={busy || !form || (editing && !original)}>
           <Save aria-hidden />
           {busy ? "Wird gespeichert …" : "Speichern"}
         </Button>
         <Button variant="outline" size="sm" asChild>
-          <Link to={`/bereich/${area.id}`} viewTransition>
+          <Link to={editing ? detail : `/bereich/${area.id}`} viewTransition state={editing ? { back } : undefined}>
             <ArrowLeft aria-hidden />
             Zurück
           </Link>
         </Button>
       </div>
       {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
-      <section className="animate-appear overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={area.createTitle ?? `Anlage ${area.singular}`}>
-        <h1 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{area.createTitle ?? `Anlage ${area.singular}`}</h1>
+      <section className="animate-appear overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={title}>
+        <h1 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{title}</h1>
         <div className="grid gap-x-6 gap-y-4 p-4 sm:grid-cols-2 2xl:grid-cols-3">
           {/* ID und Typ nur zur Anzeige, eigene Zeile über den Eingabefeldern */}
           <div className="flex flex-wrap gap-x-12 gap-y-3 sm:col-span-2 2xl:col-span-3">
             <div className="flex flex-col gap-1.5">
-              <span className="text-xs text-muted-foreground">ID (voraussichtlich)</span>
-              <span className="text-sm tabular-nums" data-testid="next-id">{form?.nextId ?? "…"}</span>
+              <span className="text-xs text-muted-foreground">{editing ? "ID" : "ID (voraussichtlich)"}</span>
+              <span className="text-sm tabular-nums" data-testid="next-id">{editing ? itemId : (form?.nextId ?? "…")}</span>
             </div>
             <div className="flex flex-col gap-1.5">
               <span className="text-xs text-muted-foreground">Typ</span>
@@ -90,13 +112,16 @@ export function AreaCreatePage() {
             {Object.entries(area.createFixed ?? {}).map(([key, value]) => (
               <div key={key} className="flex flex-col gap-1.5">
                 <span className="text-xs text-muted-foreground">{area.fields.find((f) => f.key === key)?.label ?? key}</span>
-                <span className="text-sm">{value}</span>
+                <span className="text-sm">{editing ? (original?.[key] ?? "…") : value}</span>
               </div>
             ))}
           </div>
           {fields.map((f) => {
             const invalid = missing.includes(f.key);
-            const options = form?.options[f.key];
+            // Beim Bearbeiten bleibt ein alter Wert wählbar, auch wenn er nicht mehr in der Liste steht
+            const listed = form?.options[f.key];
+            const old = original?.[f.key];
+            const options = listed && old && !listed.includes(old) ? [old, ...listed] : listed;
             const common = { id: `f-${f.key}`, "aria-invalid": invalid || undefined, "aria-required": f.required || undefined };
             return (
               <div key={f.key} className="flex flex-col gap-1.5">
@@ -124,7 +149,9 @@ export function AreaCreatePage() {
           })}
         </div>
         <p className="border-t px-4 py-2 text-xs text-muted-foreground">
-          Gespeichert wird in die nächste freie Zeile von dbo.{area.table}, wie in GAPTEQ. Die ID kann sich ändern, wenn gleichzeitig jemand anderes anlegt.
+          {editing
+            ? `Gespeichert wird in dbo.${area.table}, ID ${itemId}. Hat jemand den Eintrag inzwischen geändert (auch in GAPTEQ), speichert die CMDB nicht und meldet das.`
+            : `Gespeichert wird in die nächste freie Zeile von dbo.${area.table}, wie in GAPTEQ. Die ID kann sich ändern, wenn gleichzeitig jemand anderes anlegt.`}
         </p>
       </section>
     </form>

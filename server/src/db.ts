@@ -183,6 +183,40 @@ export async function areaForm(area: Area): Promise<AreaFormResponse> {
   }
 }
 
+/**
+ * Eintrag bearbeiten. Nur belegte Zeilen, nur die übergebenen Felder. Hat sich ein Feld seit dem Öffnen geändert
+ * (z. B. parallel in GAPTEQ), wird nicht gespeichert: Abgleich mit den Werten, die die Person gesehen hat.
+ */
+export async function updateAreaRow(area: Area, id: number, values: Record<string, string>, original: Record<string, string>): Promise<string[]> {
+  const table = `dbo.${quote(area.table)}`;
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
+  try {
+    const current = await new sql.Request(tx).input("id", sql.Int, id)
+      .query(`SELECT ${areaSelect(area)} FROM ${table} WITH (UPDLOCK, ROWLOCK) WHERE ID = @id AND ${areaNotEmpty(area)}`);
+    if (!current.recordset[0]) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
+    const row = toAreaRow(area, current.recordset[0]);
+    const changedMeanwhile = area.fields.filter((f) => f.key in values && String(row[f.key] ?? "") !== String(original[f.key] ?? ""));
+    if (changedMeanwhile.length)
+      throw new DbError(`Der Eintrag wurde inzwischen geändert (${changedMeanwhile.map((f) => f.label).join(", ")}). Bitte neu laden und erneut bearbeiten.`, 409);
+    const changed = area.fields.filter((f) => f.key in values && values[f.key] !== String(row[f.key] ?? ""));
+    if (changed.length) {
+      const request = new sql.Request(tx).input("id", sql.Int, id);
+      const sets = changed.map((f, i) => {
+        const value = values[f.key];
+        request.input(`v${i}`, f.date ? sql.Date : sql.NVarChar(255), value === "" ? null : f.date ? new Date(`${value}T00:00:00Z`) : value);
+        return `${quote(f.column)} = @v${i}`;
+      });
+      await request.query(`UPDATE ${table} SET ${sets.join(", ")} WHERE ID = @id`);
+    }
+    await tx.commit();
+    return changed.map((f) => f.label);
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, `dbo.${area.table}`);
+  }
+}
+
 export async function getAreaRow(area: Area, id: number): Promise<AreaRow | null> {
   try {
     const result = await (await pool()).request().input("id", sql.Int, id).query(`SELECT ${areaSelect(area)} FROM dbo.${quote(area.table)} WHERE ID = @id`);

@@ -28,6 +28,7 @@ const router = createRouter([
       { path: "/bereich/:id", element: <SectionPage /> },
       { path: "/bereich/:id/neu", element: <AreaCreatePage /> },
       { path: "/bereich/:id/:itemId", element: <AreaDetailPage /> },
+      { path: "/bereich/:id/:itemId/bearbeiten", element: <AreaCreatePage /> },
       { path: "/kunden/neu", element: <CustomerFormPage /> },
       { path: "/kunden/:customerId", element: <CustomerPage /> },
       { path: "/kunden/:customerId/bearbeiten", element: <CustomerFormPage /> },

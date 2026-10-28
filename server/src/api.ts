@@ -6,7 +6,7 @@ import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, 
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
-import { DbError, areaForm, createAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getCustomer, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
+import { DbError, areaForm, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getCustomer, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -177,8 +177,9 @@ async function readDb(res: ServerResponse, read: () => Promise<unknown>): Promis
   }
 }
 
-// Testmodus: neu angelegte Einträge, Kunden und Umbenennungen nur im Speicher (bis zum Neustart)
+// Testmodus: neu angelegte und geänderte Einträge, Kunden und Umbenennungen nur im Speicher (bis zum Neustart)
 const testCreated = new Map<string, AreaRow[]>();
+const testEdits = new Map<string, AreaRow>();
 let testCustomers: Customer[] = [...TEST_CUSTOMERS];
 const testRenames = new Map<string, string>();
 const testExtra = new Map<number, { zip: string; address: string; email: string; country?: string }>();
@@ -190,7 +191,9 @@ function renamedCompany(name: string): string {
 }
 
 function areaRows(area: Area): AreaRow[] {
-  return [...testRows(area), ...(testCreated.get(area.id) ?? [])].map((r) => (typeof r.company === "string" ? { ...r, company: renamedCompany(r.company) } : r));
+  return [...testRows(area), ...(testCreated.get(area.id) ?? [])]
+    .map((r) => testEdits.get(`${area.id}:${r.id}`) ?? r)
+    .map((r) => (typeof r.company === "string" ? { ...r, company: renamedCompany(r.company) } : r));
 }
 
 
@@ -208,7 +211,7 @@ function testForm(area: Area): AreaFormResponse {
  * Eingaben prüfen: nur Felder des Formulars, Pflichtfelder gefüllt, Text bis 255 Zeichen, Datum als JJJJ-MM-TT,
  * Auswahlfelder nur mit Werten aus der Liste (wie in GAPTEQ)
  */
-function validValues(area: Area, raw: unknown, form: AreaFormResponse): Record<string, string> {
+function validValues(area: Area, raw: unknown, form: AreaFormResponse, original?: Record<string, string>): Record<string, string> {
   if (!raw || typeof raw !== "object") throw new LoginError("Ungültige Anfrage.", 400);
   const values: Record<string, string> = {};
   for (const f of area.fields) {
@@ -220,7 +223,8 @@ function validValues(area: Area, raw: unknown, form: AreaFormResponse): Record<s
     if (value.length > 255) throw new LoginError(`${f.label}: höchstens 255 Zeichen.`, 400);
     if (f.date && value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value)))) throw new LoginError(`${f.label}: ungültiges Datum.`, 400);
     const allowed = form.options[f.key];
-    if (value && allowed?.length && !allowed.includes(value)) throw new LoginError(`${f.label}: „${value}“ steht nicht in der Auswahlliste.`, 400);
+    // Beim Bearbeiten darf ein alter Wert, der nicht mehr in der Liste steht, unverändert bleiben
+    if (value && allowed?.length && !allowed.includes(value) && value !== (original?.[f.key] ?? "")) throw new LoginError(`${f.label}: „${value}“ steht nicht in der Auswahlliste.`, 400);
     values[f.key] = value;
   }
   return values;
@@ -450,6 +454,35 @@ async function adminApi(req: IncomingMessage, res: ServerResponse, path: string,
   }
 }
 
+/** Original-Werte aus der Anfrage (was die Person beim Öffnen gesehen hat) */
+function originalValues(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object") throw new LoginError("Ungültige Anfrage (Ausgangswerte fehlen).", 400);
+  return Object.fromEntries(Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k, typeof v === "string" ? v : String(v ?? "")]));
+}
+
+async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser, id: number): Promise<void> {
+  const body = await readJson(req);
+  try {
+    const original = originalValues(body.original);
+    const values = validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area), original);
+    let changed: string[];
+    if (ENV.testMode) {
+      const row = areaRows(area).find((r) => r.id === id);
+      if (!row) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
+      const meanwhile = area.fields.filter((f) => f.key in values && String(row[f.key] ?? "") !== (original[f.key] ?? ""));
+      if (meanwhile.length) throw new DbError(`Der Eintrag wurde inzwischen geändert (${meanwhile.map((f) => f.label).join(", ")}). Bitte neu laden und erneut bearbeiten.`, 409);
+      changed = area.fields.filter((f) => f.key in values && values[f.key] !== String(row[f.key] ?? "")).map((f) => f.label);
+      testEdits.set(`${area.id}:${id}`, { ...row, ...values });
+    } else changed = await updateAreaRow(area, id, values, original);
+    log(`Geändert: ${area.singular} ${id} von ${user.username}${changed.length ? ` (${changed.join(", ")})` : " (keine Änderung)"}`);
+    json(res, 200, { id, changed });
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    log(`Ändern nicht möglich (${area.singular} ${id}, ${user.username}): ${e.message}`);
+    fail(res, e.status, e.message);
+  }
+}
+
 /** true, wenn die Anfrage zur API gehört und beantwortet wurde */
 export async function api(req: IncomingMessage, res: ServerResponse, path: string): Promise<boolean> {
   if (!path.startsWith("/api/")) return false;
@@ -497,6 +530,14 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       } else {
         const user = await allowed(req, res, area.id, "create");
         if (user) await createInArea(req, res, area, user);
+      }
+    } else if (/^\/api\/areas\/[a-z-]+\/\d+$/.test(path) && method === "PUT") {
+      const [, , , areaId, rawId] = path.split("/");
+      const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
+      if (!area?.createFields) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Dieser Bereich kann nicht bearbeitet werden." : "Nicht angemeldet.");
+      else {
+        const user = await allowed(req, res, area.id, "edit");
+        if (user) await editInArea(req, res, area, user, Number(rawId));
       }
     } else if (/^\/api\/areas\/[a-z-]+(\/\d+)?$/.test(path) && method === "GET") {
       const [, , , areaId, rawId] = path.split("/");
