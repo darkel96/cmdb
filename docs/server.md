@@ -18,7 +18,7 @@ KI-Portal. **Beide Anwendungen sind strikt getrennt.**
 | Volumes | keine (Phase 0 speichert nichts) | eigene |
 | Port | **8790** (HTTPS) | 443 (Caddy), intern 8787 |
 | Konfiguration | `/root/cmdb/server/.env`, `/root/cmdb/server/certs/` | eigene `.env`-Dateien und Zertifikate |
-| GitHub-Zugang | Deploy-Key `/root/.ssh/cmdb_deploy` (nur `darkel96/cmdb`, mit Schreibrecht), eigene `known_hosts` `/root/.ssh/cmdb_known_hosts`, eingetragen per `core.sshCommand` nur in `/root/cmdb/.git/config` | eigene Zugangsdaten, werden nicht verwendet |
+| GitHub-Zugang | Push: Deploy-Key `/root/.ssh/cmdb_deploy` (nur `darkel96/cmdb`, mit Schreibrecht), eigene `known_hosts` `/root/.ssh/cmdb_known_hosts`, eingetragen per `core.sshCommand` nur in `/root/cmdb/.git/config`. PRs und Pages über die API: Fine-grained Token nur für `darkel96/cmdb` in `/root/.config/cmdb/github-token` (Rechte 600) | eigene Zugangsdaten, werden nicht verwendet |
 
 Regeln:
 
@@ -109,6 +109,11 @@ docker compose ps
 ```
 
 Push vom Server geht über den Deploy-Key (in `.git/config` hinterlegt), z. B. `git push -u origin <branch>`.
+
+Pull Requests legt Claude Code über die GitHub-API mit dem Token aus `/root/.config/cmdb/github-token` an
+(Fine-grained Token „cmdb charlestown“, nur `darkel96/cmdb`: Pull requests, Pages, Administration, Actions lesen).
+Der Token wird nie angezeigt oder geloggt. Erneuern auf https://github.com/settings/personal-access-tokens und mit
+`read -rsp` neu in die Datei schreiben.
 
 ## Prüfen
 

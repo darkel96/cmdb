@@ -35,4 +35,6 @@ KI-Portal und CMDB laufen beide auf charlestown, sind aber strikt getrennt (Deta
   eigene Volumes, eigene `.env`-Dateien, eigener Port 8790.
 - Container, Netze, Volumes, Ports und Zugangsdaten des KI-Portals nie stoppen, ändern oder mitbenutzen. Keine globalen
   Docker-Aufräumbefehle (`docker system prune` usw.).
-- GitHub-Zugang nur über den Deploy-Key der CMDB (`/root/.ssh/cmdb_deploy`), nicht über Zugangsdaten des KI-Portals.
+- GitHub-Zugang nur über die Zugänge der CMDB, nicht über Zugangsdaten des KI-Portals: Push per Deploy-Key
+  (`/root/.ssh/cmdb_deploy`), PRs und Pages per API mit dem Token in `/root/.config/cmdb/github-token`.
+  Den Token nie ausgeben, nur per `curl -H @<(printf 'Authorization: Bearer %s\n' "$(cat …)")` verwenden.
