@@ -18,7 +18,7 @@ export function StartPage() {
   }, []);
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       {error && (
         <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
@@ -26,7 +26,7 @@ export function StartPage() {
       )}
       {!data && !error && <p className="text-sm text-muted-foreground">Wird geladen …</p>}
       {data && <DataTable title="Kundenübersicht" columns={COLUMNS} rows={data.items} rowKey={(c) => c.id} exportName="kunden" emptyText="Keine Kunden gefunden." />}
-      {data?.source === "test" && <p className="text-xs text-muted-foreground">Alle Kunden sind erfunden.</p>}
+      {data?.source === "test" && <p className="shrink-0 text-xs text-muted-foreground">Alle Kunden sind erfunden.</p>}
     </div>
   );
 }

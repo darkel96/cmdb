@@ -9,8 +9,9 @@ async function login(page: Page) {
 }
 
 async function openMenu(page: Page) {
+  // Nur auf schmalen Bildschirmen gibt es den Menü-Knopf, breit ist die Seitenleiste immer da
   const toggle = page.getByRole("button", { name: "Menü ein- oder ausblenden" });
-  if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
 }
 
 test("Kundenübersicht: Suche, Spaltenfilter, Seitengrösse und Blättern", async ({ page }) => {
@@ -43,7 +44,7 @@ test("Kundenübersicht: Suche, Spaltenfilter, Seitengrösse und Blättern", asyn
 test("Seitenleiste führt zu Bereichen und Auflistungen", async ({ page }) => {
   await login(page);
   await openMenu(page);
-  const nav = page.getByRole("navigation", { name: "Hauptnavigation" });
+  const nav = page.getByRole("navigation", { name: "Hauptnavigation" }).locator("visible=true");
   await nav.getByRole("button", { name: "Hardware" }).click();
   await nav.getByRole("link", { name: "Server" }).click();
   await expect(page.getByText("Hardware · Server")).toBeVisible();
@@ -57,4 +58,23 @@ test("Seitenleiste führt zu Bereichen und Auflistungen", async ({ page }) => {
   await openMenu(page);
   await nav.getByRole("link", { name: "Startseite" }).click();
   await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
+});
+
+test("Kopf- und Seitenleiste bleiben beim Scrollen stehen", async ({ page }, testInfo) => {
+  await login(page);
+  const header = page.locator("header");
+  const scroll = page.getByTestId("table-scroll");
+  const before = await header.boundingBox();
+  // Nur die Tabellenzeilen scrollen, Seite und Kopfleiste bleiben stehen
+  await scroll.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  expect(await scroll.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  expect(await page.evaluate("document.scrollingElement.scrollTop")).toBe(0);
+  expect((await header.boundingBox())?.y).toBe(before?.y);
+  await expect(header).toBeInViewport();
+  await expect(page.getByTestId("table-status")).toBeInViewport();
+  await expect(page.getByLabel("Filter Kunde")).toBeInViewport();
+  if (testInfo.project.name === "desktop") {
+    await expect(page.getByRole("navigation", { name: "Hauptnavigation" })).toBeInViewport();
+    await expect(page.getByRole("button", { name: "Menü ein- oder ausblenden" })).toBeHidden();
+  }
 });

@@ -78,24 +78,22 @@ const topButton = "inline-flex h-9 items-center gap-2 rounded-md bg-white/15 px-
 export function AppShell() {
   const { user, testMode, logout } = useAuth();
   const location = useLocation();
-  // Auf breiten Bildschirmen ist die Seitenleiste offen, auf schmalen wird sie über das Menü eingeblendet
-  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window === "undefined" || window.matchMedia("(min-width: 1024px)").matches);
-  const isWide = () => window.matchMedia("(min-width: 1024px)").matches;
-  const closeOnNarrow = () => {
-    if (!isWide()) setSidebarOpen(false);
-  };
+  // Auf breiten Bildschirmen ist die Seitenleiste immer sichtbar, auf schmalen wird sie über das Menü eingeblendet
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = () => setMenuOpen(false);
 
   if (user === undefined) return <p className="p-8 text-sm text-muted-foreground">Wird geladen …</p>;
   if (user === null) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
   return (
-    <div className="flex min-h-svh flex-col">
+    // Kopf- und Seitenleiste stehen fest, nur der Inhalt scrollt
+    <div className="flex h-svh flex-col overflow-hidden">
       {testMode && <TestBanner />}
       <header className="flex h-12 shrink-0 items-center gap-2 bg-brand px-2 text-brand-foreground shadow-sm">
-        <button type="button" className={cn(topButton, "px-2.5")} onClick={() => setSidebarOpen((o) => !o)} aria-label="Menü ein- oder ausblenden" aria-expanded={sidebarOpen}>
+        <button type="button" className={cn(topButton, "px-2.5 lg:hidden")} onClick={() => setMenuOpen((o) => !o)} aria-label="Menü ein- oder ausblenden" aria-expanded={menuOpen}>
           <Menu className="size-5" aria-hidden />
         </button>
-        <div className="flex items-center gap-2 px-2 text-lg font-semibold">
+        <div className="flex items-center gap-2 px-2 text-lg font-semibold lg:w-56">
           <Database className="size-5" aria-hidden />
           CMDB
         </div>
@@ -117,17 +115,20 @@ export function AppShell() {
           </button>
         </div>
       </header>
-      <div className="relative flex flex-1">
-        {sidebarOpen && (
+      <div className="relative flex min-h-0 flex-1">
+        <aside className="hidden w-60 shrink-0 bg-sidebar lg:block">
+          <Sidebar onNavigate={closeMenu} />
+        </aside>
+        {menuOpen && (
           <>
             {/* Schmale Bildschirme: Seitenleiste über dem Inhalt, Klick daneben schliesst sie */}
-            <div className="fixed inset-0 z-10 bg-black/30 lg:hidden" onClick={() => setSidebarOpen(false)} aria-hidden />
-            <aside className="absolute inset-y-0 left-0 z-20 w-60 bg-sidebar shadow-lg lg:static lg:shadow-none">
-              <Sidebar onNavigate={closeOnNarrow} />
+            <div className="absolute inset-0 z-10 bg-black/30 lg:hidden" onClick={closeMenu} aria-hidden />
+            <aside className="absolute inset-y-0 left-0 z-20 w-60 bg-sidebar shadow-lg lg:hidden">
+              <Sidebar onNavigate={closeMenu} />
             </aside>
           </>
         )}
-        <main className="min-w-0 flex-1 p-4 lg:p-5">
+        <main className="flex min-w-0 flex-1 flex-col overflow-y-auto p-4 lg:p-5">
           <Outlet />
         </main>
       </div>
