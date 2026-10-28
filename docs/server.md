@@ -60,7 +60,7 @@ cd /root/cmdb
 docker compose up -d --build     # bauen und starten
 docker compose ps                # Zustand (healthy?)
 docker compose logs -f           # Protokoll (Anmeldungen ohne Passwörter)
-docker compose restart           # nach Änderung an server/.env
+docker compose up -d --force-recreate   # nach Änderung an server/.env (restart liest sie nicht neu)
 docker compose down              # stoppen und entfernen (nur CMDB)
 ```
 
@@ -87,7 +87,7 @@ Push vom Server geht über den Deploy-Key (in `.git/config` hinterlegt), z. B. `
   ```
 
   Die Tests lösen absichtlich die Sperre nach Fehlversuchen aus. Zweimal hintereinander innerhalb von 15 Minuten
-  sperrt das auch die Adresse; dann `docker compose restart`.
+  sperrt das auch die Adresse; dann `docker compose restart` (setzt die Sperren zurück).
 - Node ist auf charlestown nicht installiert. Bauen und Prüfen ohne Container:
   `docker run --rm -v /root/cmdb:/app -w /app node:24-bookworm-slim npm run typecheck`
 
