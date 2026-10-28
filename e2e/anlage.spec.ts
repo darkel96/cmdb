@@ -24,7 +24,7 @@ test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
   await page.getByRole("link", { name: "Verwaltung" }).click();
   await page.getByRole("link", { name: "Anlage Vertrag" }).click();
   await expect(page.getByRole("heading", { name: "Anlage Vertrag" })).toBeVisible();
-  await expect(page.getByText("MDEs (folgt)")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Anlage Vertrag" }).locator("[aria-disabled=true]", { hasText: "MDEs" })).toContainText("folgt");
   await page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link", { name: "Server", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "Anlage Server" })).toBeVisible();

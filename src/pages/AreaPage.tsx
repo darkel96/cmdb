@@ -89,7 +89,7 @@ export function AreaDetailPage() {
   const tag = row && (row.serviceTag || row.serialNumber);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
+    <div className="flex w-full flex-col gap-3">
       <Button variant="outline" size="sm" className="self-start" asChild>
         <Link to={`/bereich/${area.id}`} viewTransition>
           <ArrowLeft aria-hidden />
@@ -109,7 +109,7 @@ export function AreaDetailPage() {
             {area.singular} {row.id}
             {tag ? ` · ${tag}` : ""}
           </h1>
-          <dl className="grid gap-x-6 gap-y-3 p-4 text-sm sm:grid-cols-[10rem_1fr]">
+          <dl className="grid gap-x-6 gap-y-3 p-4 text-sm sm:grid-cols-[10rem_1fr] xl:grid-cols-[10rem_1fr_10rem_1fr]">
             <div className="contents">
               <dt className="text-muted-foreground">ID</dt>
               <dd className="tabular-nums">{row.id}</dd>

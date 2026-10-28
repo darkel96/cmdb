@@ -59,7 +59,7 @@ export function AreaCreatePage() {
   };
 
   return (
-    <form onSubmit={save} noValidate className="mx-auto flex w-full max-w-5xl flex-col gap-3">
+    <form onSubmit={save} noValidate className="flex w-full flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <Button type="submit" size="sm" disabled={busy || !form}>
           <Save aria-hidden />
@@ -75,14 +75,17 @@ export function AreaCreatePage() {
       {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
       <section className="animate-appear overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={`Anlage ${area.singular}`}>
         <h1 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">Anlage {area.singular}</h1>
-        <div className="grid gap-4 p-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">ID (voraussichtlich)</span>
-            <span className="text-sm tabular-nums" data-testid="next-id">{form?.nextId ?? "…"}</span>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-muted-foreground">Typ</span>
-            <span className="text-sm">{area.typeValue}</span>
+        <div className="grid gap-x-6 gap-y-4 p-4 sm:grid-cols-2 2xl:grid-cols-3">
+          {/* ID und Typ nur zur Anzeige, eigene Zeile über den Eingabefeldern */}
+          <div className="flex flex-wrap gap-x-12 gap-y-3 sm:col-span-2 2xl:col-span-3">
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-muted-foreground">ID (voraussichtlich)</span>
+              <span className="text-sm tabular-nums" data-testid="next-id">{form?.nextId ?? "…"}</span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs text-muted-foreground">Typ</span>
+              <span className="text-sm">{area.typeValue}</span>
+            </div>
           </div>
           {fields.map((f) => {
             const invalid = missing.includes(f.key);
