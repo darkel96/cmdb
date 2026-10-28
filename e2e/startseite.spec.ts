@@ -46,8 +46,8 @@ test("Seitenleiste führt zu Bereichen und Auflistungen", async ({ page }) => {
   await openMenu(page);
   const nav = page.getByRole("navigation", { name: "Hauptnavigation" }).locator("visible=true");
   await nav.getByRole("button", { name: "Hardware" }).click();
-  await nav.getByRole("link", { name: "Server" }).click();
-  await expect(page.getByText("Hardware · Server")).toBeVisible();
+  await nav.getByRole("link", { name: "Storage" }).click();
+  await expect(page.getByText("Hardware · Storage")).toBeVisible();
   await expect(page.getByText("Dieser Bereich folgt.")).toBeVisible();
 
   await openMenu(page);
@@ -109,4 +109,14 @@ test.describe("System im dunklen Modus", () => {
     await expect(page.locator("body")).toHaveCSS("background-color", "rgb(245, 246, 248)");
     await expect(page.getByRole("region", { name: "Kundenübersicht" })).toHaveCSS("background-color", "rgb(255, 255, 255)");
   });
+});
+
+test("Tabelle füllt immer die ganze Höhe, auch bei wenigen Zeilen", async ({ page }) => {
+  await login(page);
+  await page.getByLabel("Filter Kunde").fill("gibt es nicht");
+  await expect(page.getByTestId("table-status")).toHaveText("Seite 1 von 1 (0 Elemente)");
+  const main = await page.locator("main").boundingBox();
+  const table = await page.getByRole("region", { name: "Kundenübersicht" }).boundingBox();
+  // Bis auf den Abstand und den Hinweis zu den Testdaten reicht die Tabelle bis unten
+  expect(main!.y + main!.height - (table!.y + table!.height)).toBeLessThan(60);
 });

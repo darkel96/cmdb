@@ -2,7 +2,7 @@
  * Zugriff auf die SQL-Server-Datenbank, nur lesend. Bestehende dbo-Tabellen werden nie verändert (siehe CLAUDE.md).
  */
 import sql from "mssql";
-import type { CheckResult, Customer } from "@/lib/types";
+import type { CheckResult, Customer, Server } from "@/lib/types";
 import { DB_CA, ENV } from "./env";
 
 export class DbError extends Error {
@@ -62,6 +62,51 @@ export async function listCustomers(): Promise<Customer[]> {
     return result.recordset.map((r) => ({ id: r.ExportId, name: (r.Kunde ?? "").trim(), city: (r.Stadt ?? "").trim() }));
   } catch (e) {
     throw translate(e, "dbo.DS_Kunden");
+  }
+}
+
+const text = (v: string | null | undefined) => (v ?? "").trim();
+
+/** Datum aus SQL Server (date → Date um Mitternacht UTC) als JJJJ-MM-TT */
+function isoDate(v: Date | null): string | null {
+  return v ? v.toISOString().slice(0, 10) : null;
+}
+
+interface ServerRow {
+  ID: number; Typ: string | null; Firma: string | null; Bestellnummer: string | null; Lieferant: string | null;
+  Hersteller: string | null; Modell: string | null; Servertyp: string | null; Servicetag: string | null;
+  Wartungstyp: string | null; Support_bis: Date | null; Besonderheiten: string | null; Lieferdatum: Date | null;
+  EOL: string | null; Status: string | null;
+}
+
+const SERVER_COLUMNS = "ID, Typ, Firma, Bestellnummer, Lieferant, Hersteller, Modell, Servertyp, Servicetag, Wartungstyp, Support_bis, Besonderheiten, Lieferdatum, EOL, Status";
+// Vorab angelegte Leerzeilen (ohne Firma, Modell und Servicetag) gehören nicht zum Bestand
+const SERVER_NOT_EMPTY = "(NULLIF(LTRIM(RTRIM(Firma)), '') IS NOT NULL OR NULLIF(LTRIM(RTRIM(Modell)), '') IS NOT NULL OR NULLIF(LTRIM(RTRIM(Servicetag)), '') IS NOT NULL)";
+
+function toServer(r: ServerRow): Server {
+  return {
+    id: r.ID, type: text(r.Typ), company: text(r.Firma), orderNumber: text(r.Bestellnummer), supplier: text(r.Lieferant),
+    manufacturer: text(r.Hersteller), model: text(r.Modell), serverType: text(r.Servertyp), serviceTag: text(r.Servicetag),
+    maintenanceType: text(r.Wartungstyp), supportUntil: isoDate(r.Support_bis), notes: text(r.Besonderheiten),
+    deliveredOn: isoDate(r.Lieferdatum), eol: text(r.EOL), status: text(r.Status),
+  };
+}
+
+export async function listServers(): Promise<Server[]> {
+  try {
+    const result = await (await pool()).request().query<ServerRow>(`SELECT ${SERVER_COLUMNS} FROM dbo.Server_manuell WHERE ${SERVER_NOT_EMPTY} ORDER BY ID`);
+    return result.recordset.map(toServer);
+  } catch (e) {
+    throw translate(e, "dbo.Server_manuell");
+  }
+}
+
+export async function getServer(id: number): Promise<Server | null> {
+  try {
+    const result = await (await pool()).request().input("id", sql.Int, id).query<ServerRow>(`SELECT ${SERVER_COLUMNS} FROM dbo.Server_manuell WHERE ID = @id`);
+    return result.recordset[0] ? toServer(result.recordset[0]) : null;
+  } catch (e) {
+    throw translate(e, "dbo.Server_manuell");
   }
 }
 

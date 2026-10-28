@@ -14,7 +14,7 @@ const itemClass = ({ isActive }: { isActive: boolean }) =>
 
 function SidebarGroup({ group, onNavigate }: { group: NavGroup; onNavigate: () => void }) {
   const location = useLocation();
-  const containsActive = group.items.some((i) => location.pathname === `/bereich/${i.id}`);
+  const containsActive = group.items.some((i) => location.pathname === `/bereich/${i.id}` || location.pathname.startsWith(`/bereich/${i.id}/`));
   const [open, setOpen] = useState(containsActive);
   useEffect(() => {
     if (containsActive) setOpen(true);

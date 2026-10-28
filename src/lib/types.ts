@@ -49,6 +49,30 @@ export interface CustomerListResponse {
   items: Customer[];
 }
 
+/** Eintrag aus dbo.Server_manuell; Datumswerte als ISO-Text (JJJJ-MM-TT) */
+export interface Server {
+  id: number;
+  type: string;
+  company: string;
+  orderNumber: string;
+  supplier: string;
+  manufacturer: string;
+  model: string;
+  serverType: string;
+  serviceTag: string;
+  maintenanceType: string;
+  supportUntil: string | null;
+  notes: string;
+  deliveredOn: string | null;
+  eol: string;
+  status: string;
+}
+
+export interface ServerListResponse {
+  source: "test" | "db";
+  items: Server[];
+}
+
 export interface CiListResponse {
   /** "test" = erfundene Daten (Testmodus), "none" = Datenanbindung folgt in Phase 1 */
   source: "test" | "none";

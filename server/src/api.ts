@@ -1,8 +1,8 @@
 /** API des CMDB-Dienstes unter /api */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
-import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_USERS } from "@/lib/testData";
-import { DbError, dbCheck, listCustomers } from "./db";
+import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse, Server, ServerListResponse, SessionUser } from "@/lib/types";
+import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_SERVERS, TEST_USERS } from "@/lib/testData";
+import { DbError, dbCheck, getServer, listCustomers, listServers } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -129,6 +129,17 @@ async function health(req: IncomingMessage, res: ServerResponse): Promise<void> 
   json(res, 200, body);
 }
 
+/** Antwort aus der Datenbank; deren Fehler (fehlende Rechte, nicht erreichbar) gehen als verständliche Meldung zurück */
+async function readDb(res: ServerResponse, read: () => Promise<unknown>): Promise<void> {
+  try {
+    json(res, 200, await read());
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    if (e.status !== 404) log(`Datenbank: ${e.message}`);
+    fail(res, e.status, e.message);
+  }
+}
+
 /** true, wenn die Anfrage zur API gehört und beantwortet wurde */
 export async function api(req: IncomingMessage, res: ServerResponse, path: string): Promise<boolean> {
   if (!path.startsWith("/api/")) return false;
@@ -162,6 +173,18 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
           fail(res, e.status, e.message);
         }
       }
+    } else if (path === "/api/servers" && method === "GET") {
+      if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
+      else await readDb(res, async () => ({ source: ENV.testMode ? "test" : "db", items: ENV.testMode ? TEST_SERVERS : await listServers() }) satisfies ServerListResponse);
+    } else if (/^\/api\/servers\/\d+$/.test(path) && method === "GET") {
+      const id = Number(path.split("/").pop());
+      if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
+      else
+        await readDb(res, async () => {
+          const server: Server | null | undefined = ENV.testMode ? TEST_SERVERS.find((s) => s.id === id) : await getServer(id);
+          if (!server) throw new DbError("Diesen Server gibt es nicht.", 404);
+          return server;
+        });
     } else if (path === "/api/cis" && method === "GET") {
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
       else json(res, 200, (ENV.testMode ? { source: "test", items: TEST_CIS } : { source: "none", items: [] }) satisfies CiListResponse);

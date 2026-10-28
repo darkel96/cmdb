@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { findNavLeaf, NAV_LISTS } from "@/lib/navigation";
 import type { CiListResponse, ConfigurationItem } from "@/lib/types";
 import { NotFoundPage } from "./NotFoundPage";
+import { ServersPage } from "./ServersPage";
 
 function formatDate(iso: string): string {
   const [y, m, d] = iso.split("-");
@@ -51,5 +52,6 @@ export function SectionPage() {
   const found = findNavLeaf(id);
   if (!found) return <NotFoundPage />;
   if (id === NAV_LISTS.id) return <ListsPage />;
+  if (id === "server") return <ServersPage />;
   return <Placeholder title={found.leaf.label} group={found.group?.label} />;
 }

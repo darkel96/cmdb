@@ -81,11 +81,17 @@ Aktuelles Zertifikat: ausgestellt am 28.10.2026, gültig bis **27.10.2028**. Vor
 | `CMDB_ADMINS` | Anmeldenamen mit Rolle admin, Standard `dario.keller` |
 | `CMDB_DB_*` | SQL Server `kingstown.aberle-it.loc`, Datenbank `CMDB`, Login `svc_cmdb`; **Passwort trägt nur der Betreiber ein** |
 
-Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Die Startseite (Kundenübersicht) braucht:
+Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Leserecht:
+
+| Bereich | Tabelle | Recht seit |
+|---|---|---|
+| Startseite (Kundenübersicht) | `dbo.DS_Kunden` | 28.10.2026 |
+| Hardware › Server | `dbo.Server_manuell` | 28.10.2026 |
 
 ```sql
 USE CMDB;
 GRANT SELECT ON dbo.DS_Kunden TO svc_cmdb;
+GRANT SELECT ON dbo.Server_manuell TO svc_cmdb;
 ```
 
 Das ändert nur Rechte, keine Tabellen; GAPTEQ ist nicht betroffen. Weitere Leserechte kommen mit den Bereichen in Phase 1.
