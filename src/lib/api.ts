@@ -2,8 +2,8 @@
  * Zugriff auf den CMDB-Dienst. Im Build-Modus „pages“ (VITE_TESTMODE=1) gibt es keinen Dienst:
  * Dann beantwortet eine Attrappe im Browser alle Anfragen mit den Testbenutzern und erfundenen Daten.
  */
-import type { CiListResponse, HealthResponse, MeResponse } from "./types";
-import { TEST_CIS, TEST_PASSWORD, TEST_USERS } from "./testData";
+import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
+import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_USERS } from "./testData";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -18,6 +18,7 @@ export interface Api {
   me(): Promise<MeResponse | null>;
   health(): Promise<HealthResponse>;
   cis(): Promise<CiListResponse>;
+  customers(): Promise<CustomerListResponse>;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -41,6 +42,7 @@ const serverApi: Api = {
   },
   health: () => request<HealthResponse>("/api/health"),
   cis: () => request<CiListResponse>("/api/cis"),
+  customers: () => request<CustomerListResponse>("/api/customers"),
 };
 
 const STORAGE_KEY = "cmdb-test-session";
@@ -87,6 +89,10 @@ const browserTestApi: Api = {
   cis: async () => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
     return { source: "test", items: TEST_CIS };
+  },
+  customers: async () => {
+    if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
+    return { source: "test", items: TEST_CUSTOMERS };
   },
 };
 

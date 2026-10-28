@@ -6,7 +6,8 @@ import { AdminOnly, AppShell } from "@/components/layout/AppShell";
 import { AdminPage } from "@/pages/AdminPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
-import { OverviewPage } from "@/pages/OverviewPage";
+import { SectionPage } from "@/pages/SectionPage";
+import { StartPage } from "@/pages/StartPage";
 import { AuthProvider } from "@/state/auth";
 import "./index.css";
 
@@ -18,7 +19,8 @@ const router = createRouter([
   {
     element: <AppShell />,
     children: [
-      { path: "/", element: <OverviewPage /> },
+      { path: "/", element: <StartPage /> },
+      { path: "/bereich/:id", element: <SectionPage /> },
       { path: "/verwaltung", element: <AdminOnly><AdminPage /></AdminOnly> },
       { path: "*", element: <NotFoundPage /> },
     ],

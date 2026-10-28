@@ -2,7 +2,7 @@
  * Erfundene Daten für den Testmodus (Dienst mit CMDB_TESTMODE=1 und GitHub Pages).
  * Keine echten Hostnamen, IP-Adressen, Firmen oder Personen.
  */
-import type { ConfigurationItem, SessionUser } from "./types";
+import type { ConfigurationItem, Customer, SessionUser } from "./types";
 
 export const TEST_PASSWORD = "test";
 
@@ -21,3 +21,14 @@ export const TEST_CIS: ConfigurationItem[] = [
   { id: 7, name: "mde-demo-07", type: "MDE", company: "Demo KG", manufacturer: "Hersteller F", model: "Scanner X", status: "Ausser Betrieb", supportUntil: "2025-12-31" },
   { id: 8, name: "lic-demo-backup", type: "Lizenz", company: "Muster GmbH", manufacturer: "Hersteller G", model: "Backup Suite", status: "Aktiv", supportUntil: "2027-01-31" },
 ];
+
+const COMPANY_PARTS = ["Beispiel", "Muster", "Demo", "Test", "Probe", "Vorlage", "Modell", "Schema"];
+const COMPANY_FORMS = ["AG", "GmbH", "KG", "GmbH & Co. KG", "SE"];
+const CITIES = ["Nordstadt", "Südheim", "Westdorf", "Ostfeld", "Bergtal", "Seeburg", "Waldau", "Flussingen", "Hafenstadt", "Talheim"];
+
+/** 42 erfundene Kunden; Namen und Orte sind ausgedacht */
+export const TEST_CUSTOMERS: Customer[] = Array.from({ length: 42 }, (_, i) => ({
+  id: i + 1,
+  name: `${COMPANY_PARTS[i % COMPANY_PARTS.length]} ${String.fromCharCode(65 + (i % 26))}${i >= 26 ? "2" : ""} ${COMPANY_FORMS[i % COMPANY_FORMS.length]}`,
+  city: CITIES[(i * 3) % CITIES.length],
+})).sort((a, b) => a.name.localeCompare(b.name, "de"));
