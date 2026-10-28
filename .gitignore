@@ -1,0 +1,46 @@
+# Geheimnisse und lokale Konfiguration
+.env
+.env.*
+!.env.example
+appsettings.*.local.json
+*.local.json
+secrets.json
+*.pfx
+*.key
+
+# Datenbank-Exporte mit Daten
+*.bak
+*.bacpac
+*.mdf
+*.ldf
+data/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+
+# Node
+node_modules/
+dist/
+.npm/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editoren und OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Claude Code (lokale Einstellungen)
+.claude/settings.local.json
