@@ -26,7 +26,7 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Hardware › Switche: Übersicht aus `dbo.Switche_manuell` mit „Öffnen“ (nur lesend)
 - [x] Leserecht für `svc_cmdb` auf `dbo.Switche_manuell` (34 Switche)
 - [x] Anlage Vertrag › Server (nur Admins): Formular wie in GAPTEQ, füllt die nächste freie Zeile
-- [ ] Schreibrecht und Auswahllisten für `svc_cmdb` (siehe [docs/server.md](docs/server.md)), Anlage live testen
+- [x] Schreibrecht und Auswahllisten für `svc_cmdb`, Anlage live getestet (Server 10064)
 - [ ] Phase 1: Schema `cmdb`, Sync aus `dbo`, CI-Liste read-only
 - [ ] Ersten Pilot-Bereich auswählen
 

@@ -88,7 +88,7 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | Startseite (Kundenübersicht) | `dbo.DS_Kunden` | 28.10.2026 |
 | Hardware › Server | `dbo.Server_manuell` | 28.10.2026 |
 | Hardware › Switche | `dbo.Switche_manuell` | 28.10.2026 |
-| Anlage Vertrag › Server (nur Admins) | `UPDATE` auf `dbo.Server_manuell`, Leserecht auf `dbo.DD_Lieferant`, `dbo.DD_Hersteller`, `dbo.DD_Servertyp`, `dbo.DD_Vertragstyp`, `dbo.DD_Ja_Nein` | offen |
+| Anlage Vertrag › Server (nur Admins) | `UPDATE` auf `dbo.Server_manuell`, Leserecht auf `dbo.DD_Lieferant`, `dbo.DD_Hersteller`, `dbo.DD_Servertyp`, `dbo.DD_Vertragstyp`, `dbo.DD_Ja_Nein` | 28.10.2026 (erste Anlage: Server 10064) |
 
 ```sql
 USE CMDB;
@@ -109,6 +109,9 @@ GRANT SELECT ON dbo.DD_Ja_Nein TO svc_cmdb;
 `READPAST`) und nur geschrieben, solange sie noch leer ist; sonst nimmt die CMDB die nächste. Jede Anlage steht im
 Protokoll (`docker compose logs`): `Angelegt: Server <ID> von <Anmeldename>`. Löschen oder Ändern gibt es in der CMDB
 noch nicht, das geht weiterhin in GAPTEQ.
+
+Auswahllisten und Altdaten (Stand 28.10.2026): `DD_Servertyp` schreibt „Multi/Single Site Cluster“, 46 ältere Server
+haben noch „Side“; ein Lieferant ist als „Hochwart“ statt „Hochwarth“ erfasst. Die CMDB ändert Altdaten nicht.
 
 Das ändert nur Rechte, keine Tabellen; GAPTEQ ist nicht betroffen. Weitere Leserechte kommen mit den Bereichen in Phase 1.
 Vorab angelegte Leerzeilen (ohne Typ und Firma, EOL ist teils vorbelegt) blendet die CMDB aus, wie GAPTEQ.
