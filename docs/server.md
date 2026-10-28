@@ -31,10 +31,43 @@ Regeln:
 
 ## Aufruf
 
-- Testumgebung: `https://charlestown.aberle-it.loc:8790`
-- Das Zertifikat ist vorerst **selbst signiert** (Browser-Warnung). Für den Betrieb ein Zertifikat der internen CA
-  (ABERLE-IT-CA-2019) für `charlestown.aberle-it.loc` bzw. einen eigenen DNS-Namen ausstellen und als
-  `server/certs/tls.crt` und `server/certs/tls.key` ablegen. Das Zertifikat des KI-Portals wird nicht mitbenutzt.
+- Adresse: **`https://cmdb.aberle-it.loc:8790`**. `cmdb.aberle-it.loc` ist ein DNS-Alias (CNAME) auf charlestown,
+  wie `ki-hub.aberle-it.loc` beim KI-Portal.
+- Eigener Port statt 443: Port 443 gehört dem Caddy des KI-Portals. Die CMDB hängt sich wegen der Trennung nicht dort ein.
+- Bis das Zertifikat der internen CA da ist, läuft der Dienst mit einem selbst signierten Zertifikat (Browser-Warnung).
+
+## Zertifikat (interne CA)
+
+Gleiches Verfahren wie beim KI-Portal, aber mit eigenem Schlüssel und eigener Anfrage (das Zertifikat des KI-Portals
+wird nicht mitbenutzt):
+
+1. Schlüssel und Anfrage auf charlestown erzeugen (der Schlüssel verlässt den Server nie):
+
+   ```bash
+   cd /root/cmdb/server/certs
+   openssl req -new -newkey rsa:2048 -nodes -keyout cmdb.key -out cmdb.csr \
+     -subj "/CN=cmdb.aberle-it.loc" -addext "subjectAltName=DNS:cmdb.aberle-it.loc"
+   chown 1000:1000 cmdb.key && chmod 600 cmdb.key
+   ```
+
+2. Auf einem Windows-PC in der Domäne einreichen (Vorlage „WebServer“):
+
+   ```powershell
+   scp root@charlestown.aberle-it.loc:/root/cmdb/server/certs/cmdb.csr .
+   certreq -submit -config "LOWELL.aberle-it.loc\ABERLE-IT-CA-2019" -attrib "CertificateTemplate:WebServer" cmdb.csr cmdb.crt
+   scp cmdb.crt root@charlestown.aberle-it.loc:/root/cmdb/server/certs/
+   ```
+
+3. Auf charlestown einsetzen und den Container neu erstellen:
+
+   ```bash
+   cd /root/cmdb/server/certs
+   openssl x509 -in cmdb.crt -noout -subject -issuer -enddate -ext subjectAltName
+   cp cmdb.crt tls.crt && cp -p cmdb.key tls.key
+   cd /root/cmdb && docker compose up -d --force-recreate
+   ```
+
+Erneuern vor Ablauf (WebServer-Vorlage: 2 Jahre) mit denselben Schritten.
 
 ## Konfiguration
 
@@ -51,7 +84,8 @@ Regeln:
 `server/certs/` (nur lesend in den Container unter `/certs` eingebunden, nicht im Repository):
 
 - `ca.crt`: Zertifikat der internen CA (aus `/etc/pki/ca-trust/source/anchors/ABERLE-IT-CA-2019.crt`), prüft LDAPS und SQL Server
-- `tls.crt`, `tls.key`: Zertifikat des Dienstes. `tls.key` gehört UID 1000 (Benutzer `node` im Container), Rechte `600`.
+- `tls.crt`, `tls.key`: Zertifikat des Dienstes, das gerade verwendet wird. `tls.key` gehört UID 1000 (Benutzer `node` im Container), Rechte `600`.
+- `cmdb.csr`, `cmdb.key`, `cmdb.crt`: Anfrage und Zertifikat der internen CA für `cmdb.aberle-it.loc` (siehe oben)
 
 ## Start und Stopp
 
@@ -78,7 +112,7 @@ Push vom Server geht über den Deploy-Key (in `.git/config` hinterlegt), z. B. `
 
 ## Prüfen
 
-- `curl -sk https://localhost:8790/api/health` liefert `{"status":"ok",…}`
+- `curl -s https://cmdb.aberle-it.loc:8790/api/health` (bzw. `curl -sk https://localhost:8790/api/health`) liefert `{"status":"ok",…}`
 - E2E-Tests gegen den laufenden Dienst im Testmodus (ohne Node auf dem Server, im Playwright-Container):
 
   ```bash
