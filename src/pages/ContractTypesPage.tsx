@@ -13,9 +13,9 @@ const TYPES: { label: string; icon: LucideIcon; areaId?: string }[] = [
   { label: "PRTG", icon: Activity },
   { label: "VEEAM", icon: DatabaseBackup },
   { label: "Lizenzen", icon: KeyRound },
-  { label: "Storage", icon: HardDrive },
+  { label: "Storage", icon: HardDrive, areaId: "storage" },
   { label: "Oracle", icon: Database },
-  { label: "Client", icon: Laptop },
+  { label: "Client", icon: Laptop, areaId: "client" },
   { label: "Windows-Systeme", icon: Monitor },
 ];
 

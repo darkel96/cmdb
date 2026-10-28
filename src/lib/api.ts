@@ -4,7 +4,7 @@
  */
 import { AREAS, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow } from "./areas";
 import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
-import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
+import { TEST_CIS, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -59,13 +59,6 @@ const STORAGE_KEY = "cmdb-test-session";
 // Testseite: neu angelegte Einträge nur bis zum Neuladen
 const browserCreated = new Map<string, AreaRow[]>();
 const browserRows = (areaId: string) => [...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])];
-const BROWSER_OPTIONS: Record<string, string[]> = {
-  supplier: ["Lieferant A", "Lieferant B"],
-  manufacturer: ["Hersteller A", "Hersteller B", "Hersteller C"],
-  serverType: ["Multi Site Cluster", "Single Server", "Single Site Cluster", "Windows Cluster"],
-  maintenanceType: ["Garantie", "Wartungsvertrag"],
-  eol: ["Ja", "Nein"],
-};
 
 function storedUser(): MeResponse | null {
   try {
@@ -129,7 +122,7 @@ const browserTestApi: Api = {
     const area = AREAS[areaId];
     const options: Record<string, string[]> = {};
     for (const f of area.fields) {
-      if (f.options && area.createFields?.includes(f.key)) options[f.key] = f.options === "customers" ? TEST_CUSTOMERS.map((c) => c.name) : (BROWSER_OPTIONS[f.key] ?? []);
+      if (f.options && area.createFields?.includes(f.key)) options[f.key] = f.options === "customers" ? TEST_CUSTOMERS.map((c) => c.name) : (TEST_OPTIONS[f.key] ?? []);
     }
     return { nextId: Math.max(...browserRows(areaId).map((r) => r.id)) + 1, options };
   },
