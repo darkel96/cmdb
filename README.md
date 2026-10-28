@@ -18,7 +18,7 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Zertifikat der internen CA für `charlestown.aberle-it.loc` und `cmdb.aberle-it.loc` (gültig bis 27.10.2028)
 - [x] Echte AD-Anmeldung mit Rolle admin auf `https://charlestown.aberle-it.loc:8790` bestätigt
 - [ ] DNS-Alias `cmdb.aberle-it.loc` → charlestown anlegen
-- [ ] DB-Verbindung: SQL Server auf kingstown braucht ein Zertifikat der internen CA (heute selbst signiert)
+- [x] DB-Verbindung mit Zertifikatsprüfung: SQL Server auf kingstown nutzt ein Zertifikat der internen CA (gültig bis 27.10.2028)
 - [ ] Phase 1: Schema `cmdb`, Sync aus `dbo`, CI-Liste read-only
 - [ ] Ersten Pilot-Bereich auswählen
 
