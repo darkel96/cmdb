@@ -125,7 +125,7 @@ Warum dieser Pilot:
 |---|---|---|
 | 1 | Gehören Zeiterfassung/SAP, Tickets und TPL in die neue CMDB? | Zunächst **nein**. Sie bleiben in GAPTEQ und kommen später eventuell als eigene Module. |
 | 2 | Blazor oder React? | **Entschieden:** React + Node wie im KI-Portal |
-| 3 | Hosting-Server und Service-Account | **Entschieden:** charlestown (Docker), DB-Login `svc_cmdb`, LDAP ohne Service-Account. Adresse `charlestown.aberle-it.loc:8790`, später `cmdb.aberle-it.loc:8790`. Offen: Rechte von `svc_cmdb` für Phase 1, Zertifikat der internen CA für den SQL Server (heute selbst signiert) |
+| 3 | Hosting-Server und Service-Account | **Entschieden:** charlestown (Docker), DB-Login `svc_cmdb`, LDAP ohne Service-Account. Adresse `charlestown.aberle-it.loc:8790`, später `cmdb.aberle-it.loc:8790`. SQL Server mit Zertifikat der internen CA (seit 28.10.2026). Offen: Rechte von `svc_cmdb` für Phase 1 |
 | 4 | Sofortmassnahme `RMAN_Copy_Job_PW` | Passwörter in den Passwort-Manager verschieben und die Zugänge ändern |
 | 5 | Was steckt hinter den 1001 Zeilen? | Bestand vs. Leerzeilen prüfen |
 | 6 | Repo auf GitHub-Account `darkel96` (öffentlich) | später eventuell in eine Firmen-Organisation verschieben; bis dahin keine internen Daten ins Repo |

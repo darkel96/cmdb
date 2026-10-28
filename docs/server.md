@@ -81,6 +81,12 @@ Aktuelles Zertifikat: ausgestellt am 28.10.2026, gültig bis **27.10.2028**. Vor
 | `CMDB_ADMINS` | Anmeldenamen mit Rolle admin, Standard `dario.keller` |
 | `CMDB_DB_*` | SQL Server `kingstown.aberle-it.loc`, Datenbank `CMDB`, Login `svc_cmdb`; **Passwort trägt nur der Betreiber ein** |
 
+Der SQL Server auf kingstown (Instanz `KINGSTOWN`) nutzt seit 28.10.2026 ein Zertifikat der internen CA für
+`kingstown.aberle-it.loc` (Vorlage WebServer, gültig bis 27.10.2028, „Verschlüsselung erzwingen“ unverändert aus).
+Die CMDB prüft es über `CMDB_DB_CA=/certs/ca.crt`; `CMDB_DB_TRUST_CERT` bleibt `0`. Vor Ablauf auf kingstown neu
+anfordern (`certreq` mit `MachineKeySet = TRUE`), dem Dienstkonto `NT Service\MSSQL$KINGSTOWN` Leserecht auf den
+privaten Schlüssel geben, im Konfigurations-Manager zuweisen und den SQL-Dienst neu starten.
+
 `server/certs/` (nur lesend in den Container unter `/certs` eingebunden, nicht im Repository):
 
 - `ca.crt`: Zertifikat der internen CA (aus `/etc/pki/ca-trust/source/anchors/ABERLE-IT-CA-2019.crt`), prüft LDAPS und SQL Server
