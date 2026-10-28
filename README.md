@@ -32,7 +32,7 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Hardware › Storage und Client: Übersicht und Anlage wie in GAPTEQ
 - [x] Kundenansicht: Kunde öffnen zeigt Kundeninformation, Dokumente und alle Systeme je Bereich
 - [x] Software › Oracle (ohne Passwortspalte) und OS-Systeme › Windows, nur lesend
-- [ ] Leserechte Oracle (Spalten ohne Passwort), Windows-Systeme, Anhang für `svc_cmdb`
+- [x] Leserechte Oracle (86, Spalten ohne Passwort), Windows-Systeme (314), Anhang (16) für `svc_cmdb`
 - [x] Lese- und Schreibrecht `dbo.Storage_manuell` (14), `dbo.Client_manuell` (23), Leserecht `dbo.DD_RAID`, `dbo.DD_Client_Monitor`
 - [ ] Phase 1: Schema `cmdb`, Sync aus `dbo`, CI-Liste read-only
 - [ ] Ersten Pilot-Bereich auswählen
