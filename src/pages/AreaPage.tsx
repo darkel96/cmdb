@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, Pencil, Plus } from "lucide-react";
-import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { DataTable, type Column } from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -32,6 +32,12 @@ export function areaColumns(area: Area, options: { withoutCompany?: boolean } = 
 /** Übersicht eines Bereichs (z. B. Hardware › Server), nur lesend */
 export function AreaPage({ area }: { area: Area }) {
   const navigate = useNavigate();
+  // Filter aus der Adresse, z. B. ?filter.dbVersion=19.11.0.0 aus einer Auflistung
+  const [params] = useSearchParams();
+  const initialFilters = useMemo(
+    () => Object.fromEntries([...params].filter(([k]) => k.startsWith("filter.")).map(([k, v]) => [k.slice(7), v])),
+    [params],
+  );
   const { can } = useAuth();
   const [data, setData] = useState<AreaListResponse | null>(null);
   const [error, setError] = useState("");
@@ -50,8 +56,9 @@ export function AreaPage({ area }: { area: Area }) {
       {!data && !error && <p className="text-sm text-muted-foreground">Wird geladen …</p>}
       {data && (
         <DataTable
-          key={area.id}
+          key={`${area.id}?${params}`}
           title={area.title}
+          initialFilters={initialFilters}
           columns={columns}
           rows={data.items}
           rowKey={(r) => r.id}

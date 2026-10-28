@@ -52,8 +52,8 @@ test("Seitenleiste führt zu Bereichen und Auflistungen", async ({ page }) => {
 
   await openMenu(page);
   await nav.getByRole("link", { name: "Auflistungen" }).click();
-  await expect(page.getByRole("heading", { name: "Configuration Items" })).toBeVisible();
-  await expect(page.getByTestId("table-status")).toHaveText("Seite 1 von 1 (8 Elemente)");
+  await expect(page.getByRole("heading", { name: "Auflistungen" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Aufstellung Server/ })).toBeVisible();
 
   await openMenu(page);
   await nav.getByRole("link", { name: "Startseite" }).click();

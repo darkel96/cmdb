@@ -19,6 +19,9 @@ const PAGE_SIZES = [10, 20, 30, 100];
 const COMPACT_PAGE_SIZES = [5, 10, 20];
 
 function includes(haystack: string, needle: string): boolean {
+  // In Anführungszeichen: genau dieser Wert ("" = leer), z. B. aus einer Auflistung
+  const exact = /^"(.*)"$/.exec(needle.trim());
+  if (exact) return haystack.trim().toLocaleLowerCase("de") === exact[1].trim().toLocaleLowerCase("de");
   return haystack.toLocaleLowerCase("de").includes(needle.trim().toLocaleLowerCase("de"));
 }
 
@@ -27,7 +30,7 @@ function csvCell(value: string): string {
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
@@ -42,9 +45,11 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   compact?: boolean;
   /** Anfangs-Sortierung, sonst erste Spalte aufsteigend */
   defaultSort?: { key: string; desc: boolean };
+  /** Anfangs-Filter je Spalte (z. B. aus einer Auflistung) */
+  initialFilters?: Record<string, string>;
 }) {
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>(initialFilters ?? {});
   const [sort, setSort] = useState<{ key: string; desc: boolean }>(defaultSort ?? { key: columns[0].key, desc: false });
   const sizes = compact ? COMPACT_PAGE_SIZES : PAGE_SIZES;
   const [pageSize, setPageSize] = useState(compact ? 10 : 30);

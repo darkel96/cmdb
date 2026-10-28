@@ -13,6 +13,7 @@ import { ContractTypesPage } from "@/pages/ContractTypesPage";
 import { CustomerPage } from "@/pages/CustomerPage";
 import { CustomerFormPage } from "@/pages/CustomerFormPage";
 import { StammdatenPage } from "@/pages/StammdatenPage";
+import { ReportPage } from "@/pages/ReportsPage";
 import { StartPage } from "@/pages/StartPage";
 import { AuthProvider } from "@/state/auth";
 import "./index.css";
@@ -34,6 +35,7 @@ const router = createRouter([
       { path: "/kunden/:customerId", element: <CustomerPage /> },
       { path: "/kunden/:customerId/bearbeiten", element: <CustomerFormPage /> },
       { path: "/stammdaten", element: <StammdatenPage /> },
+      { path: "/auflistungen/:reportId", element: <ReportPage /> },
       { path: "/anlage-vertrag", element: <ContractTypesPage /> },
       { path: "/verwaltung", element: <AdminOnly><AdminPage /></AdminOnly> },
       { path: "*", element: <NotFoundPage /> },
