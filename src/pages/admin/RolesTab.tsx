@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Shield, Trash2, User, Users, X } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Save, Shield, Trash2, User, Users, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,10 +65,25 @@ function RoleEditor({ role, areas, onSave, onCancel }: { role?: Role; areas: Adm
     }
   }
 
+  // Rechte-Tabelle in zwei Hälften nebeneinander, damit alles ohne Scrollen passt
+  const half = Math.ceil(areas.length / 2);
+  const columns = [areas.slice(0, half), areas.slice(half)];
+
   return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>
+          <Save aria-hidden />
+          {busy ? "Wird gespeichert …" : "Rolle speichern"}
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+          <ArrowLeft aria-hidden />
+          Abbrechen
+        </Button>
+      </div>
     <section className="animate-appear overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={role ? `Rolle ${role.name} bearbeiten` : "Neue Rolle"}>
       <h2 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{role ? `Rolle bearbeiten: ${role.name}` : "Neue Rolle"}</h2>
-      <div className="flex flex-col gap-5 p-4">
+      <div className="flex flex-col gap-4 p-4">
         {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
@@ -81,39 +96,43 @@ function RoleEditor({ role, areas, onSave, onCancel }: { role?: Role; areas: Adm
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm" aria-label="Rechte je Bereich">
-            <thead className="bg-muted text-left text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 font-medium">Bereich</th>
-                {ACTIONS.map((a) => (
-                  <th key={a.id} className="w-28 px-3 py-2 text-center font-medium">
-                    <button type="button" className="hover:text-foreground" onClick={() => toggleColumn(a.id)} title={`${a.label} für alle Bereiche umschalten`}>
-                      {a.label}
-                    </button>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {areas.map((area) => (
-                <tr key={area.id} className="border-t odd:bg-muted/40">
-                  <td className="px-3 py-1.5">{area.label}</td>
-                  {ACTIONS.map((a) => (
-                    <td key={a.id} className="px-3 py-1.5 text-center">
-                      <input
-                        type="checkbox"
-                        aria-label={`${area.label}: ${a.label}`}
-                        className="size-4 accent-[var(--brand)]"
-                        checked={Boolean(permissions[area.id]?.[a.id])}
-                        onChange={(e) => toggle(area.id, a.id, e.target.checked)}
-                      />
-                    </td>
+        <div className="grid gap-3 xl:grid-cols-2">
+          {columns.map((list, c) => (
+            <div key={c} className="overflow-x-auto rounded-md border">
+              <table className="w-full text-sm" aria-label={c === 0 ? "Rechte je Bereich" : "Rechte je Bereich (Fortsetzung)"}>
+                <thead className="bg-muted text-left text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-1.5 font-medium">Bereich</th>
+                    {ACTIONS.map((a) => (
+                      <th key={a.id} className="w-24 px-2 py-1.5 text-center font-medium">
+                        <button type="button" className="hover:text-foreground" onClick={() => toggleColumn(a.id)} title={`${a.label} für alle Bereiche umschalten`}>
+                          {a.label}
+                        </button>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((area) => (
+                    <tr key={area.id} className="border-t odd:bg-muted/40">
+                      <td className="px-3 py-1">{area.label}</td>
+                      {ACTIONS.map((a) => (
+                        <td key={a.id} className="px-2 py-1 text-center">
+                          <input
+                            type="checkbox"
+                            aria-label={`${area.label}: ${a.label}`}
+                            className="size-4 accent-[var(--brand)]"
+                            checked={Boolean(permissions[area.id]?.[a.id])}
+                            onChange={(e) => toggle(area.id, a.id, e.target.checked)}
+                          />
+                        </td>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </tbody>
+              </table>
+            </div>
+          ))}
         </div>
 
         {role?.isDefault ? (
@@ -170,16 +189,9 @@ function RoleEditor({ role, areas, onSave, onCancel }: { role?: Role; areas: Adm
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button type="button" size="sm" disabled={busy} onClick={() => void save()}>
-            {busy ? "Wird gespeichert …" : "Rolle speichern"}
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-            Abbrechen
-          </Button>
-        </div>
       </div>
     </section>
+    </div>
   );
 }
 
