@@ -22,7 +22,8 @@ test("Übersicht Server: Spalten wie in GAPTEQ, Öffnen der markierten Zeile", a
   for (const label of ["ID", "Firma", "Lieferant", "Lieferdatum", "Bestellnummer", "Hersteller", "Modell", "Servertyp", "Servicetag", "Wartungstyp", "Support bis", "EOL", "Besonderheiten"]) {
     await expect(table.getByRole("columnheader", { name: label, exact: true })).toHaveCount(1);
   }
-  await expect(page.getByTestId("table-status")).toHaveText("Seite 1 von 1 (24 Elemente)");
+  // 24 erfundene Server, dazu ggf. die im Test „Anlage“ angelegten (der Dienst behält sie bis zum Neustart)
+  await expect(page.getByTestId("table-status")).toHaveText(/^Seite 1 von 1 \((2[4-9]) Elemente\)$/);
 
   const open = page.getByRole("button", { name: "Öffnen" });
   await expect(open).toBeDisabled();

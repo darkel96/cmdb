@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router";
+import { ArrowLeft, CheckCircle2, Plus } from "lucide-react";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { DataTable, type Column } from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { AREAS, type Area, type AreaListResponse, type AreaRow } from "@/lib/areas";
 import { longDate, shortDate } from "@/lib/format";
+import { useAuth } from "@/state/auth";
 import { NotFoundPage } from "./NotFoundPage";
 
 function errorText(e: unknown): string {
@@ -15,6 +16,7 @@ function errorText(e: unknown): string {
 /** Übersicht eines Bereichs (z. B. Hardware › Server), nur lesend */
 export function AreaPage({ area }: { area: Area }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [data, setData] = useState<AreaListResponse | null>(null);
   const [error, setError] = useState("");
 
@@ -54,6 +56,16 @@ export function AreaPage({ area }: { area: Area }) {
           exportName={area.id}
           emptyText="Keine Einträge gefunden."
           onOpen={(r) => navigate(`/bereich/${area.id}/${r.id}`, { viewTransition: true })}
+          actions={
+            user?.role === "admin" && area.createFields ? (
+              <Button size="sm" variant="outline" asChild>
+                <Link to={`/bereich/${area.id}/neu`} viewTransition>
+                  <Plus aria-hidden />
+                  Anlegen
+                </Link>
+              </Button>
+            ) : undefined
+          }
         />
       )}
       {data?.source === "test" && <p className="shrink-0 text-xs text-muted-foreground">Alle Einträge sind erfunden.</p>}
@@ -64,6 +76,7 @@ export function AreaPage({ area }: { area: Area }) {
 /** Ein Eintrag eines Bereichs mit allen Feldern, nur lesend (Bearbeiten kommt mit Phase 2) */
 export function AreaDetailPage() {
   const { id = "", itemId = "" } = useParams();
+  const created = (useLocation().state as { created?: boolean } | null)?.created;
   const area = Object.hasOwn(AREAS, id) ? AREAS[id] : undefined;
   const [row, setRow] = useState<AreaRow | null>(null);
   const [error, setError] = useState("");
@@ -76,7 +89,7 @@ export function AreaDetailPage() {
   const tag = row && (row.serviceTag || row.serialNumber);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-3">
+    <div className="flex w-full flex-col gap-3">
       <Button variant="outline" size="sm" className="self-start" asChild>
         <Link to={`/bereich/${area.id}`} viewTransition>
           <ArrowLeft aria-hidden />
@@ -84,13 +97,19 @@ export function AreaDetailPage() {
         </Link>
       </Button>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {row && created && (
+        <p role="status" className="flex items-center gap-2 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          <CheckCircle2 className="size-4" aria-hidden />
+          {area.singular} {row.id} wurde angelegt.
+        </p>
+      )}
       {row && (
         <section className="animate-appear overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={`${area.singular} ${row.id}`}>
           <h1 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">
             {area.singular} {row.id}
             {tag ? ` · ${tag}` : ""}
           </h1>
-          <dl className="grid gap-x-6 gap-y-3 p-4 text-sm sm:grid-cols-[10rem_1fr]">
+          <dl className="grid gap-x-6 gap-y-3 p-4 text-sm sm:grid-cols-[10rem_1fr] xl:grid-cols-[10rem_1fr_10rem_1fr]">
             <div className="contents">
               <dt className="text-muted-foreground">ID</dt>
               <dd className="tabular-nums">{row.id}</dd>

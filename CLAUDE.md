@@ -20,6 +20,8 @@ Hinweise für Claude Code in diesem Repository.
 - Keine Produktivdaten, Connection-Strings, Passwörter oder Tokens committen.
   Konfiguration über Umgebungsvariablen bzw. lokale, ignorierte Dateien.
 - Datenbankänderungen nur als versionierte Migrationsskripte.
+- Schreiben in `dbo` nur wie GAPTEQ (nächste freie, vorab angelegte Zeile füllen, mit Sperre), nur für Admins und nur
+  mit ausdrücklich vergebenem `UPDATE`-Recht je Tabelle. Kein `INSERT`/`DELETE` in `dbo` ohne Freigabe.
 - Sprache: Doku und Commit-Messages auf Deutsch, Code-Bezeichner auf Englisch.
 - Änderungen über Branch und Pull Request gegen `main`. Vor dem PR: `npm run typecheck`, `npm run build`, `npm run test:e2e`.
 - Testdaten (`src/lib/testData.ts`) und die Pages-Seite enthalten nur erfundene Werte: keine echten Hostnamen, IP-Adressen,

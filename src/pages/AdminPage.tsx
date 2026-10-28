@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, FilePlus2, RefreshCw, XCircle } from "lucide-react";
+import { Link } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,6 +63,18 @@ export function AdminPage() {
         </div>
       )}
       {health && !health.details && !busy && <p className="text-sm text-muted-foreground">Keine Details verfügbar.</p>}
+      <Card className="animate-appear" style={{ "--i": 2 } as React.CSSProperties}>
+        <CardHeader>
+          <CardTitle>Anlage / Bearbeitung</CardTitle>
+          <CardDescription>Neue Einträge wie in GAPTEQ, gespeichert in die nächste freie Zeile.</CardDescription>
+        </CardHeader>
+        <Button size="sm" className="self-start" asChild>
+          <Link to="/anlage-vertrag" viewTransition>
+            <FilePlus2 aria-hidden />
+            Anlage Vertrag
+          </Link>
+        </Button>
+      </Card>
     </div>
   );
 }
