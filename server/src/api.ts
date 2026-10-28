@@ -6,7 +6,8 @@ import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, 
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
-import { DbError, areaForm, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getCustomer, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
+import { LOOKUP_LISTS, type StammdatenResponse } from "@/lib/stammdaten";
+import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getCustomer, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -202,7 +203,9 @@ function testForm(area: Area): AreaFormResponse {
   const options: Record<string, string[]> = {};
   for (const f of area.fields) {
     if (!f.options || !area.createFields?.includes(f.key)) continue;
-    options[f.key] = f.options === "customers" ? testCustomers.map((c) => c.name) : (TEST_OPTIONS[f.key] ?? []);
+    // Listen aus den Stammdaten (im Testmodus gepflegt im Speicher), sonst die festen Testwerte
+    const list = typeof f.options === "object" ? LOOKUP_LISTS.find((l) => l.table === (f.options as { table: string }).table) : undefined;
+    options[f.key] = f.options === "customers" ? testCustomers.map((c) => c.name) : list ? [...(testLookups.get(list.id) ?? [])] : (TEST_OPTIONS[f.key] ?? []);
   }
   return { nextId: Math.max(...areaRows(area).map((r) => r.id)) + 1, options };
 }
@@ -483,6 +486,53 @@ async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area,
   }
 }
 
+// Testmodus: Stammdaten im Speicher
+const testLookups = new Map<string, string[]>(LOOKUP_LISTS.map((l) => [l.id, [...(TEST_OPTIONS[l.testKey] ?? [])]]));
+
+async function stammdaten(): Promise<StammdatenResponse> {
+  const lists = await Promise.all(
+    LOOKUP_LISTS.map(async (l) => {
+      if (ENV.testMode) return { id: l.id, label: l.label, maxLength: l.maxLength, values: [...(testLookups.get(l.id) ?? [])].sort((a, b) => a.localeCompare(b, "de")) };
+      try {
+        return { id: l.id, label: l.label, maxLength: l.maxLength, values: await lookupValues(l) };
+      } catch (e) {
+        return { id: l.id, label: l.label, maxLength: l.maxLength, values: [], error: e instanceof Error ? e.message : String(e) };
+      }
+    }),
+  );
+  return { lists };
+}
+
+/** Stammdaten ändern: POST hinzufügen, PUT umbenennen ({old, value}), DELETE löschen ({value}) */
+async function changeStammdaten(req: IncomingMessage, res: ServerResponse, listId: string, method: string): Promise<void> {
+  const list = LOOKUP_LISTS.find((l) => l.id === listId);
+  if (!list) return fail(res, 404, "Unbekannte Liste.");
+  const action = method === "POST" ? "add" : method === "PUT" ? "rename" : "delete";
+  const user = await allowed(req, res, "stammdaten", action === "add" ? "create" : action === "rename" ? "edit" : "delete");
+  if (!user) return;
+  const body = await readJson(req);
+  const value = typeof body.value === "string" ? body.value.trim() : "";
+  const old = typeof body.old === "string" ? body.old.trim() : undefined;
+  if (!value) return fail(res, 400, "Bitte einen Wert angeben.");
+  if (value.length > list.maxLength) return fail(res, 400, `Höchstens ${list.maxLength} Zeichen.`);
+  try {
+    if (ENV.testMode) {
+      const values = testLookups.get(list.id) ?? [];
+      const has = (v: string) => values.includes(v);
+      if (action === "add" && has(value)) throw new DbError(`„${value}“ steht schon in der Liste ${list.label}.`, 409);
+      if (action === "rename" && (!old || !has(old))) throw new DbError(`„${old ?? ""}“ steht nicht in der Liste ${list.label}.`, 404);
+      if (action === "rename" && value !== old && has(value)) throw new DbError(`„${value}“ steht schon in der Liste ${list.label}.`, 409);
+      if (action === "delete" && !has(value)) throw new DbError(`„${value}“ steht nicht in der Liste ${list.label}.`, 404);
+      testLookups.set(list.id, action === "add" ? [...values, value] : action === "rename" ? values.map((v) => (v === old ? value : v)) : values.filter((v) => v !== value));
+    } else await changeLookup(list, action, value, old);
+    log(`Stammdaten ${list.label}: ${action === "add" ? `„${value}“ hinzugefügt` : action === "rename" ? `„${old}“ → „${value}“` : `„${value}“ gelöscht`} von ${user.username}`);
+    json(res, 200, await stammdaten());
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    fail(res, e.status, e.message);
+  }
+}
+
 /** true, wenn die Anfrage zur API gehört und beantwortet wurde */
 export async function api(req: IncomingMessage, res: ServerResponse, path: string): Promise<boolean> {
   if (!path.startsWith("/api/")) return false;
@@ -579,6 +629,10 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
           fail(res, e.status, e.message);
         }
       }
+    } else if (path === "/api/stammdaten" && method === "GET") {
+      if (await allowed(req, res, "stammdaten", "read")) json(res, 200, await stammdaten());
+    } else if (/^\/api\/stammdaten\/[a-z-]+$/.test(path) && ["POST", "PUT", "DELETE"].includes(method)) {
+      await changeStammdaten(req, res, path.split("/")[3], method);
     } else if (path.startsWith("/api/admin/")) {
       await adminApi(req, res, path, method);
     } else if (path === "/api/cis" && method === "GET") {

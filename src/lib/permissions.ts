@@ -23,6 +23,7 @@ export const ACTIONS: { id: Action; label: string }[] = [
 export const PERMISSION_AREAS: { id: string; label: string }[] = [
   { id: "kunden", label: "Kunden" },
   ...Object.values(AREAS).map((a) => ({ id: a.id, label: a.plural ?? a.singular })),
+  { id: "stammdaten", label: "Stammdaten (Auswahllisten)" },
 ];
 
 const NONE: AreaPermission = { read: false, create: false, edit: false, delete: false };
