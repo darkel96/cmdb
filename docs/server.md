@@ -87,8 +87,11 @@ Tabellen dort selbst an (versionierte Skripte `server/migrations/NNN_*.sql`, ein
 
 ```sql
 USE CMDB;
-CREATE SCHEMA cmdb AUTHORIZATION svc_cmdb;
+GO
+CREATE SCHEMA cmdb AUTHORIZATION svc_cmdb;   -- muss allein in einem Block stehen
+GO
 GRANT CREATE TABLE TO svc_cmdb;
+GO
 ```
 
 **Rollen und Rechte:** Verwaltung › Rollen. Jede Rolle hat je Bereich (Kunden und alle Bereiche der Seitenleiste) die

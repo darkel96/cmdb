@@ -7,8 +7,8 @@ export function SchemaHint({ schema }: { schema: SchemaState }) {
     <div role="alert" className="rounded-md border border-warning-fg/30 bg-warning-bg px-4 py-3 text-sm text-warning-fg">
       <p className="font-medium">Das Schema cmdb ist noch nicht eingerichtet.</p>
       <p className="mt-1">{schema.error}</p>
-      <p className="mt-2">Einmalig auf dem SQL Server ausführen, danach den Dienst neu starten:</p>
-      <pre className="mt-1 overflow-x-auto rounded bg-card px-3 py-2 font-mono text-xs text-foreground">{"USE CMDB;\nCREATE SCHEMA cmdb AUTHORIZATION svc_cmdb;\nGRANT CREATE TABLE TO svc_cmdb;"}</pre>
+      <p className="mt-2">Einmalig auf dem SQL Server ausführen (im Management Studio mit GO), danach diese Seite neu laden:</p>
+      <pre className="mt-1 overflow-x-auto rounded bg-card px-3 py-2 font-mono text-xs text-foreground">{"USE CMDB;\nGO\nCREATE SCHEMA cmdb AUTHORIZATION svc_cmdb;\nGO\nGRANT CREATE TABLE TO svc_cmdb;\nGO"}</pre>
     </div>
   );
 }

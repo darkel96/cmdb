@@ -38,7 +38,7 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Anlage VMware, VEEAM, TSPLUS, PRTG und Windows-Lizenzen wie in GAPTEQ; Lizenzen › Windows-Lizenzen
 - [ ] Datei-Upload bei Windows-Lizenzen (Anhang)
 - [x] Verwaltung: Anmelde-Protokoll, Rollen mit Rechten je Bereich (Personen und AD-Gruppen)
-- [ ] Schema `cmdb` anlegen (`CREATE SCHEMA cmdb AUTHORIZATION svc_cmdb; GRANT CREATE TABLE TO svc_cmdb;`)
+- [x] Schema `cmdb` angelegt (28.10.2026)
 - [ ] Bearbeiten und Löschen bestehender Einträge (Rechte sind schon vorgesehen)
 - [ ] KI-Assistent mit den CMDB-Daten (Anbindung wie im KI-Portal)
 - [ ] Rechte für Kundenpflege (`DS_Kunden` und Namensspalten der verknüpften Tabellen)

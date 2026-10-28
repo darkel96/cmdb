@@ -4,7 +4,7 @@ import { AREAS, type Area, type AreaCreateResponse, type AreaFormResponse, type 
 import type { CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
-import { deleteRole, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
+import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
 import { DbError, areaForm, createAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getCustomer, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
@@ -425,8 +425,10 @@ async function adminApi(req: IncomingMessage, res: ServerResponse, path: string,
   if (!user) return;
   const roleId = /^\/api\/admin\/roles\/(\d+)$/.exec(path)?.[1];
   try {
-    if (path === "/api/admin/logins" && method === "GET") json(res, 200, { items: await listLogins(), schema: schemaState });
-    else if (path === "/api/admin/roles" && method === "GET") json(res, 200, { items: await listRoles(), areas: PERMISSION_AREAS, schema: schemaState });
+    // Fehlt das Schema noch, erneut versuchen (z. B. gerade vom DB-Betrieb angelegt), sonst Hinweis statt Fehler
+    if (!schemaState.ready && method === "GET") await initAdminStore();
+    if (path === "/api/admin/logins" && method === "GET") json(res, 200, { items: schemaState.ready ? await listLogins() : [], schema: schemaState });
+    else if (path === "/api/admin/roles" && method === "GET") json(res, 200, { items: schemaState.ready ? await listRoles() : [], areas: PERMISSION_AREAS, schema: schemaState });
     else if (path === "/api/admin/roles" && method === "POST") {
       const id = await saveRole(undefined, roleInput((await readJson(req)).role), user.username);
       log(`Rolle ${id} angelegt von ${user.username}`);
