@@ -76,6 +76,7 @@ test("Software- und Lizenzbereiche: Spalten wie in GAPTEQ", async ({ page }) => 
   const expected: Record<string, string[]> = {
     vmware: ["ID", "Firma", "Lieferant", "Bestellnummer", "Lizenztyp", "Lizenznehmer", "Lizenz", "Support bis", "Besonderheiten"],
     tsplus: ["ID", "Firma", "Lieferant", "Bestellnummer", "Lizenztyp", "Lizenz", "Anzahl Lizenzen", "Support bis", "Besonderheiten"],
+    veeam: ["ID", "Firma", "Lieferant", "Bestellnummer", "Lizenztyp", "Lizenznehmer", "Lizenz", "Support bis", "Besonderheiten"],
     prtg: ["ID", "Firma", "Lieferant", "Lieferdatum", "Bestellnummer", "Anzahl Sensoren", "Support bis", "EOL", "Besonderheiten"],
     windows: ["ID", "Typ", "Firma", "Funktion", "Hostname", "IP", "Subnetz", "Gateway", "OS", "WinCC", "Hardware", "Bereitgestellt", "EOL", "Besonderheiten"],
     "oracle-esl": ["ID", "Kunde", "SAP-Projektnummer", "Oracle-Rahmenvertrag", "Oracle Ende Projektsupport", "Oracle-Lizenzmeldung", "Lizenzmeldung Datum", "CSI-Nummer"],

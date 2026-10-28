@@ -95,7 +95,7 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | Software › Oracle | `dbo.Oracle_manuell`, **nur Spalten ohne `RMAN_Copy_Job_PW`** | 28.10.2026 (Passwortspalte geprüft: Lesen verweigert, Fehler 230) |
 | OS-Systeme › Windows | `dbo.Windowssysteme_manuell` | 28.10.2026 |
 | Kundenansicht › Dokumente | `dbo.Anhang` | 28.10.2026 |
-| Software › VMware, TSPLUS, PRTG; Lizenzen › Oracle-ESL | `dbo.VMware_manuell`, `dbo.TSPLUS_manuell`, `dbo.PRTG_manuell`, `dbo.Vertragsdaten` | offen |
+| Software › VMware, Veeam, TSPLUS, PRTG; Lizenzen › Oracle-ESL | `dbo.VMware_manuell`, `dbo.VEEAM_manuell`, `dbo.TSPLUS_manuell`, `dbo.PRTG_manuell`, `dbo.Vertragsdaten` | offen |
 | Kunden anlegen, bearbeiten, löschen (nur Admins) | `INSERT`, `UPDATE`, `DELETE` auf `dbo.DS_Kunden`; Lesen und Ändern nur der Namensspalte in 28 verknüpften Tabellen | offen |
 | Anlage Vertrag › Server (nur Admins) | `UPDATE` auf `dbo.Server_manuell`, Leserecht auf `dbo.DD_Lieferant`, `dbo.DD_Hersteller`, `dbo.DD_Servertyp`, `dbo.DD_Vertragstyp`, `dbo.DD_Ja_Nein` | 28.10.2026 (erste Anlage: Server 10064) |
 
@@ -130,6 +130,7 @@ GRANT SELECT ON dbo.Windowssysteme_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.Anhang TO svc_cmdb;
 -- Software › VMware, TSPLUS, PRTG und Lizenzen › Oracle-ESL lesen
 GRANT SELECT ON dbo.VMware_manuell TO svc_cmdb;
+GRANT SELECT ON dbo.VEEAM_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.TSPLUS_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.PRTG_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.Vertragsdaten TO svc_cmdb;
