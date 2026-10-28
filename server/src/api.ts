@@ -1,8 +1,9 @@
 /** API des CMDB-Dienstes unter /api */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse, Server, ServerListResponse, SessionUser } from "@/lib/types";
-import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_SERVERS, TEST_USERS } from "@/lib/testData";
-import { DbError, dbCheck, getServer, listCustomers, listServers } from "./db";
+import { AREAS, type AreaListResponse, type AreaRow } from "@/lib/areas";
+import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
+import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
+import { DbError, dbCheck, getAreaRow, listArea, listCustomers } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -173,17 +174,19 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
           fail(res, e.status, e.message);
         }
       }
-    } else if (path === "/api/servers" && method === "GET") {
+    } else if (/^\/api\/areas\/[a-z-]+(\/\d+)?$/.test(path) && method === "GET") {
+      const [, , , areaId, rawId] = path.split("/");
+      const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
-      else await readDb(res, async () => ({ source: ENV.testMode ? "test" : "db", items: ENV.testMode ? TEST_SERVERS : await listServers() }) satisfies ServerListResponse);
-    } else if (/^\/api\/servers\/\d+$/.test(path) && method === "GET") {
-      const id = Number(path.split("/").pop());
-      if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
+      else if (!area) fail(res, 404, "Unbekannter Bereich.");
+      else if (rawId === undefined)
+        await readDb(res, async () => ({ source: ENV.testMode ? "test" : "db", items: ENV.testMode ? testRows(area) : await listArea(area) }) satisfies AreaListResponse);
       else
         await readDb(res, async () => {
-          const server: Server | null | undefined = ENV.testMode ? TEST_SERVERS.find((s) => s.id === id) : await getServer(id);
-          if (!server) throw new DbError("Diesen Server gibt es nicht.", 404);
-          return server;
+          const id = Number(rawId);
+          const row: AreaRow | null | undefined = ENV.testMode ? testRows(area).find((r) => r.id === id) : await getAreaRow(area, id);
+          if (!row) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
+          return row;
         });
     } else if (path === "/api/cis" && method === "GET") {
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");

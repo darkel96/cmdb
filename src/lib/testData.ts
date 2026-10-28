@@ -2,7 +2,8 @@
  * Erfundene Daten für den Testmodus (Dienst mit CMDB_TESTMODE=1 und GitHub Pages).
  * Keine echten Hostnamen, IP-Adressen, Firmen oder Personen.
  */
-import type { ConfigurationItem, Customer, Server, SessionUser } from "./types";
+import type { Area, AreaRow } from "./areas";
+import type { ConfigurationItem, Customer, SessionUser } from "./types";
 
 export const TEST_PASSWORD = "test";
 
@@ -33,29 +34,36 @@ export const TEST_CUSTOMERS: Customer[] = Array.from({ length: 42 }, (_, i) => (
   city: CITIES[(i * 3) % CITIES.length],
 })).sort((a, b) => a.name.localeCompare(b.name, "de"));
 
-const SERVER_TYPES = ["Single Server", "Single Side Cluster", "Multi Side Cluster", "Windows Cluster"];
-const SERVER_NOTES = ["ESXi01", "ESXi02", "Backup Server", "Witness", ""];
+const VALUES: Record<string, string[]> = {
+  serverType: ["Single Server", "Single Side Cluster", "Multi Side Cluster", "Windows Cluster"],
+  lwlType: ["Kupfer", "Multimode SR", "Singlemode LR", "Duplex-Patchkabel 2 m"],
+  maintenanceType: ["Wartungsvertrag", "Garantie"],
+  notes: ["ESXi01", "ESXi02", "Backup", "Core Switch", "Access Switch", ""],
+  supplier: ["Lieferant A", "Lieferant A", "Lieferant A", "Lieferant A", "Lieferant B"],
+  manufacturer: ["Hersteller A", "Hersteller A", "Hersteller A", "Hersteller B"],
+  status: ["Aktiv", "Aktiv", "Aktiv", "Abgeschlossen"],
+};
 
-/** 24 erfundene Server; Firmen, Seriennummern und Bestellnummern sind ausgedacht */
-export const TEST_SERVERS: Server[] = Array.from({ length: 24 }, (_, i) => {
-  const customer = TEST_CUSTOMERS[(i * 5) % TEST_CUSTOMERS.length];
-  const year = 2016 + (i % 9);
-  const month = String((i % 12) + 1).padStart(2, "0");
-  return {
-    id: 10000 + i,
-    type: "Server",
-    company: customer.name,
-    orderNumber: i % 7 === 6 ? "" : `TEST-${2000 + (i % 13)}-${String(100 + i * 7).padStart(3, "0")}`,
-    supplier: i % 5 === 4 ? "Lieferant B" : "Lieferant A",
-    manufacturer: i % 4 === 3 ? "Hersteller B" : "Hersteller A",
-    model: i % 4 === 3 ? `Tower T${300 + (i % 3) * 10}` : `Rack ${1 + (i % 2)}U Gen${8 + (i % 3)}`,
-    serverType: SERVER_TYPES[i % SERVER_TYPES.length],
-    serviceTag: `TST${String(4711 + i * 13).padStart(6, "0")}`,
-    maintenanceType: "Wartungsvertrag",
-    supportUntil: `${year + 4}-${month}-15`,
-    notes: SERVER_NOTES[i % SERVER_NOTES.length],
-    deliveredOn: i % 3 === 0 ? `${year}-${month}-01` : null,
-    eol: year + 4 < 2027 ? "Ja" : "Nein",
-    status: "Aktiv",
-  };
-});
+/** Erfundene Einträge für einen Bereich; Firmen, Seriennummern und Bestellnummern sind ausgedacht */
+export function testRows(area: Area): AreaRow[] {
+  return Array.from({ length: area.testCount }, (_, i) => {
+    const year = 2016 + (i % 9);
+    const month = String((i % 12) + 1).padStart(2, "0");
+    const row: AreaRow = { id: area.testIdBase + i };
+    for (const field of area.fields) {
+      const list = VALUES[field.key];
+      let value: string;
+      if (field.date) value = field.key === "supportUntil" ? `${year + 4}-${month}-15` : i % 3 === 0 ? `${year}-${month}-01` : "";
+      else if (field.key === "company") value = TEST_CUSTOMERS[(i * 5) % TEST_CUSTOMERS.length].name;
+      else if (field.key === "orderNumber") value = i % 7 === 6 ? "" : `TEST-${2000 + (i % 13)}-${String(100 + i * 7).padStart(3, "0")}`;
+      else if (field.key === "model") value = `${area.singular} ${String.fromCharCode(65 + (i % 4))}${100 + (i % 3) * 10}`;
+      else if (field.key === "serviceTag" || field.key === "serialNumber") value = `TST${String(4711 + i * 13).padStart(6, "0")}`;
+      else if (field.key === "eol") value = year + 4 < 2027 ? "Ja" : "Nein";
+      else if (field.key === "type") value = area.singular;
+      else if (list) value = list[i % list.length];
+      else value = `Wert ${i + 1}`;
+      row[field.key] = value;
+    }
+    return row;
+  });
+}

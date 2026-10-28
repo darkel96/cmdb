@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function openServers(page: Page) {
+async function openArea(page: Page, link: string, heading: string) {
   await page.goto("/login");
   await page.getByLabel("Benutzername").fill("user");
   await page.getByLabel("Passwort").fill("test");
@@ -10,9 +10,11 @@ async function openServers(page: Page) {
   if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
   const nav = page.getByRole("navigation", { name: "Hauptnavigation" }).locator("visible=true");
   await nav.getByRole("button", { name: "Hardware" }).click();
-  await nav.getByRole("link", { name: "Server" }).click();
-  await expect(page.getByRole("heading", { name: "Übersicht Server" })).toBeVisible();
+  await nav.getByRole("link", { name: link, exact: true }).click();
+  await expect(page.getByRole("heading", { name: heading })).toBeVisible();
 }
+
+const openServers = (page: Page) => openArea(page, "Server", "Übersicht Server");
 
 test("Übersicht Server: Spalten wie in GAPTEQ, Öffnen der markierten Zeile", async ({ page }) => {
   await openServers(page);
@@ -44,4 +46,25 @@ test("Übersicht Server: Doppelklick öffnet, Datum sortiert chronologisch", asy
 
   await table.locator("tbody tr").first().dblclick();
   await expect(page.getByRole("heading", { name: /^Server \d+/ })).toBeVisible();
+});
+
+test("Übersicht Switche: Spalten wie in GAPTEQ, Öffnen zeigt alle Felder", async ({ page }) => {
+  await openArea(page, "Switche", "Übersicht Switche");
+  const table = page.getByRole("region", { name: "Übersicht Switche" });
+  const headers = await table.getByRole("columnheader").allTextContents();
+  expect(headers.slice(0, 10).map((h) => h.trim())).toEqual(["ID", "Firma", "Lieferant", "Bestellnummer", "Support bis", "Hersteller", "Modell", "LWL-Typ", "Servicetag", "Besonderheiten"]);
+  await expect(page.getByTestId("table-status")).toHaveText("Seite 1 von 1 (18 Elemente)");
+
+  await table.locator("tbody tr").first().dblclick();
+  await expect(page.getByRole("heading", { name: /^Switch 20000/ })).toBeVisible();
+  for (const label of ["Typ", "EOL", "Status", "LWL-Typ"]) await expect(page.getByText(label, { exact: true })).toBeVisible();
+});
+
+test("Seitenleiste Hardware in der Reihenfolge wie GAPTEQ", async ({ page }) => {
+  await openServers(page);
+  const toggle = page.getByRole("button", { name: "Menü ein- oder ausblenden" });
+  if ((await toggle.isVisible()) && (await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+  const nav = page.getByRole("navigation", { name: "Hauptnavigation" }).locator("visible=true");
+  const items = nav.getByRole("button", { name: "Hardware" }).locator("xpath=..").getByRole("link");
+  await expect(items).toHaveText(["Server", "Switche", "MDE", "Storage", "Client"]);
 });
