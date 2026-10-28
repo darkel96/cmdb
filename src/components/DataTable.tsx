@@ -62,9 +62,10 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   }
 
   return (
-    <section className="overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={title}>
-      <h1 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{title}</h1>
-      <div className="flex items-center justify-end gap-2 border-b px-3 py-2">
+    <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={title}>
+      {/* Titel, Suche, Spaltenköpfe und Blättern bleiben stehen; nur die Zeilen scrollen */}
+      <h1 className="shrink-0 bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{title}</h1>
+      <div className="flex shrink-0 items-center justify-end gap-2 border-b px-3 py-2">
         <Button variant="outline" size="sm" onClick={exportCsv} title="Als CSV exportieren (Excel)" aria-label="Als CSV exportieren">
           <FileSpreadsheet aria-hidden />
         </Button>
@@ -73,9 +74,9 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Suchen …" aria-label="Suchen" className="h-8 pl-8" />
         </div>
       </div>
-      <div className="overflow-x-auto">
+      <div className="min-h-0 flex-1 overflow-auto" data-testid="table-scroll">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-[1] bg-card shadow-[0_1px_0_var(--border)]">
             <tr className="border-b text-left text-muted-foreground">
               {columns.map((c) => (
                 <th key={c.key} className={cn("px-3 py-2 font-medium", c.className)} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
@@ -118,7 +119,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2 text-sm">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-3 py-2 text-sm">
         <div className="flex items-center gap-1" role="group" aria-label="Einträge je Seite">
           {PAGE_SIZES.map((size) => (
             <Button key={size} variant={size === pageSize ? "outline" : "ghost"} size="sm" className="h-7 px-2" aria-pressed={size === pageSize} onClick={() => { setPageSize(size); setPage(0); }}>
