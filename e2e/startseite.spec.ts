@@ -89,3 +89,24 @@ test("Körber-Blau als Primärfarbe, Hand über Knöpfen", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Abmelden" })).toHaveCSS("cursor", "pointer");
   await expect(page.getByRole("button", { name: "Vorherige Seite" })).toHaveCSS("cursor", "not-allowed");
 });
+
+test("Zeile anklicken markiert sie blau, Zellen zeigen den vollen Text als Tooltip", async ({ page }) => {
+  await login(page);
+  const row = page.getByRole("region", { name: "Kundenübersicht" }).locator("tbody tr").nth(1);
+  const cell = row.locator("td").first();
+  await expect(cell).toHaveAttribute("title", (await cell.textContent()) ?? "");
+  await row.click();
+  await expect(row).toHaveAttribute("aria-selected", "true");
+  await expect(row).toHaveCSS("background-color", "rgb(0, 96, 255)");
+  await row.click();
+  await expect(row).toHaveAttribute("aria-selected", "false");
+});
+
+test.describe("System im dunklen Modus", () => {
+  test.use({ colorScheme: "dark" });
+  test("bleibt hell wie GAPTEQ", async ({ page }) => {
+    await login(page);
+    await expect(page.locator("body")).toHaveCSS("background-color", "rgb(245, 246, 248)");
+    await expect(page.getByRole("region", { name: "Kundenübersicht" })).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  });
+});

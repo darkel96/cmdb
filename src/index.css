@@ -1,62 +1,37 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
-
-/* Neutrales Erscheinungsbild ohne Firmenfarben (shadcn „neutral“) */
+/* Helles Erscheinungsbild wie die bisherige GAPTEQ-Anwendung, immer hell (auch wenn das System dunkel eingestellt ist) */
 :root {
-  --background: oklch(0.985 0 0);
-  --foreground: oklch(0.205 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.205 0 0);
+  color-scheme: light;
+  --background: #f5f6f8;
+  --foreground: #1f2329;
+  --card: #ffffff;
+  --card-foreground: #1f2329;
   /* Körber-Blau RGB 0, 96, 255 (wie im KI-Portal) */
   --primary: #0060ff;
   --primary-foreground: #ffffff;
-  --secondary: oklch(0.955 0 0);
-  --secondary-foreground: oklch(0.269 0 0);
-  --muted: oklch(0.955 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-  --accent: oklch(0.94 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.55 0.22 27);
-  --success: oklch(0.55 0.14 150);
-  --warning-bg: oklch(0.93 0.09 85);
-  --warning-fg: oklch(0.38 0.08 70);
-  --border: oklch(0.91 0 0);
-  --input: oklch(0.88 0 0);
+  --secondary: #eef0f3;
+  --secondary-foreground: #2b3038;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7079;
+  /* Hover in Listen und Tabellen: helles Körber-Blau */
+  --accent: #e5efff;
+  --accent-foreground: #1f2329;
+  --destructive: #d92d20;
+  --success: #12805c;
+  --warning-bg: #fff1c2;
+  --warning-fg: #6b4e00;
+  --border: #e2e4e8;
+  --input: #d5d8dd;
   --ring: #0060ff;
   --brand: #0060ff;
   --brand-hover: #004ccc;
   --brand-foreground: #ffffff;
-  --sidebar: oklch(0.62 0 0);
-  --sidebar-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.55 0 0);
+  /* Seitenleiste grau wie in GAPTEQ */
+  --sidebar: #8c8c8c;
+  --sidebar-foreground: #ffffff;
+  --sidebar-accent: #7a7a7a;
   --radius: 0.5rem;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.17 0 0);
-    --foreground: oklch(0.96 0 0);
-    --card: oklch(0.21 0 0);
-    --card-foreground: oklch(0.96 0 0);
-    --primary: #0060ff;
-    --primary-foreground: #ffffff;
-    --secondary: oklch(0.27 0 0);
-    --secondary-foreground: oklch(0.96 0 0);
-    --muted: oklch(0.27 0 0);
-    --muted-foreground: oklch(0.7 0 0);
-    --accent: oklch(0.3 0 0);
-    --accent-foreground: oklch(0.96 0 0);
-    --destructive: oklch(0.65 0.2 25);
-    --success: oklch(0.7 0.15 150);
-    --warning-bg: oklch(0.35 0.07 80);
-    --warning-fg: oklch(0.93 0.08 90);
-    --border: oklch(1 0 0 / 12%);
-    --input: oklch(1 0 0 / 18%);
-    --ring: #4c8fff;
-    --sidebar: oklch(0.24 0 0);
-    --sidebar-accent: oklch(0.32 0 0);
-  }
 }
 
 @theme inline {
