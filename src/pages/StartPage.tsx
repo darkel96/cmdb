@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { DataTable, type Column } from "@/components/DataTable";
 import { api } from "@/lib/api";
 import type { Customer, CustomerListResponse } from "@/lib/types";
@@ -10,6 +11,7 @@ const COLUMNS: Column<Customer>[] = [
 
 /** Startseite: Kundenübersicht aus dbo.DS_Kunden (nur lesend), im Testmodus erfundene Kunden */
 export function StartPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState<CustomerListResponse | null>(null);
   const [error, setError] = useState("");
 
@@ -25,7 +27,7 @@ export function StartPage() {
         </p>
       )}
       {!data && !error && <p className="text-sm text-muted-foreground">Wird geladen …</p>}
-      {data && <DataTable title="Kundenübersicht" columns={COLUMNS} rows={data.items} rowKey={(c) => c.id} exportName="kunden" emptyText="Keine Kunden gefunden." />}
+      {data && <DataTable title="Kundenübersicht" columns={COLUMNS} rows={data.items} rowKey={(c) => c.id} exportName="kunden" emptyText="Keine Kunden gefunden." onOpen={(c) => navigate(`/kunden/${c.id}`, { viewTransition: true })} />}
       {data?.source === "test" && <p className="shrink-0 text-xs text-muted-foreground">Alle Kunden sind erfunden.</p>}
     </div>
   );

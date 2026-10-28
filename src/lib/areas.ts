@@ -34,6 +34,8 @@ export interface Area {
   fields: AreaField[];
   /** Wert der Spalte Typ bei neuen Einträgen (wie in GAPTEQ, z. B. „Server“) */
   typeValue: string;
+  /** Plural für Überschriften in der Kundenansicht, z. B. „Server“, „MDEs“ */
+  plural?: string;
   /** Felder im Formular „Anlage“ in der Reihenfolge wie in GAPTEQ; fehlt es, kann der Bereich nicht angelegt werden */
   createFields?: string[];
   /** Testmodus: Anzahl und erste ID der erfundenen Einträge */
@@ -57,6 +59,25 @@ export interface AreaCreateResponse {
 export interface AreaFormResponse {
   nextId: number | null;
   options: Record<string, string[]>;
+}
+
+/** Kundenansicht: Stammdaten, Dokumente und alle Systeme des Kunden je Bereich */
+export interface CustomerDocument {
+  id: number;
+  name: string;
+  type: string;
+}
+
+export interface CustomerDetailResponse {
+  customer: { id: number; name: string; country: string; city: string };
+  documents: CustomerDocument[];
+  /** Hinweis, falls die Dokumente nicht gelesen werden konnten */
+  documentsError?: string;
+  /** Systeme je Bereich (nur Bereiche mit Einträgen) */
+  systems: Record<string, AreaRow[]>;
+  /** Bereiche, die nicht gelesen werden konnten (z. B. fehlendes Leserecht) */
+  errors: Record<string, string>;
+  source: "test" | "db";
 }
 
 export interface AreaListResponse {
@@ -111,6 +132,7 @@ export const AREAS: Record<string, Area> = {
     table: "Switche_manuell",
     title: "Übersicht Switche",
     singular: "Switch",
+    plural: "Switche",
     typeValue: "Switch",
     createFields: ["company", "orderNumber", "supplier", "manufacturer", "model", "serviceTag", "lwlType", "supportUntil", "notes"],
     testCount: 18,
@@ -135,6 +157,7 @@ export const AREAS: Record<string, Area> = {
     table: "MDE_manuell",
     title: "Übersicht MDEs",
     singular: "MDE",
+    plural: "MDEs",
     typeValue: "MDE",
     createFields: ["company", "orderNumber", "supplier", "manufacturer", "serialNumber", "supportUntil", "notes"],
     testCount: 16,
@@ -201,6 +224,66 @@ export const AREAS: Record<string, Area> = {
       { ...f.notes, width: 220 },
       { key: "monitor", column: "Monitor", label: "Monitor", detailOnly: true, options: { table: "DD_Client_Monitor", column: "Ja_Nein" } },
       f.type,
+    ],
+  },
+  // Nur lesend. RMAN_Copy_Job_PW (Passwörter im Klartext) wird bewusst nie gelesen oder angezeigt.
+  oracle: {
+    id: "oracle",
+    table: "Oracle_manuell",
+    title: "Übersicht Oracle",
+    singular: "Oracle",
+    plural: "Oracle",
+    typeValue: "Oracle",
+    testCount: 12,
+    testIdBase: 100000,
+    fields: [
+      f.company,
+      { key: "dbType", column: "DB_Typ", label: "DB-Typ", width: 110 },
+      { key: "dbVersion", column: "DB_Version", label: "DB-Version", width: 100 },
+      { key: "os", column: "LinuxOS_WinOS", label: "Linux/Windows", width: 120 },
+      { key: "hostname", column: "Hostname", label: "Hostname", width: 130 },
+      { key: "charset", column: "Zeichensatz", label: "Zeichensatz", width: 100 },
+      { key: "sga", column: "SGA", label: "SGA", width: 70 },
+      { key: "pga", column: "PGA", label: "PGA", width: 70 },
+      { key: "rmanCopyJob", column: "RMAN_Copy_Job", label: "RMAN-Copy-Job", width: 110 },
+      { key: "rmanCopyJobPath", column: "RMAN_Copy_Job_Pfad", label: "RMAN-Pfad", width: 150 },
+      { key: "rmanCopyJobUser", column: "RMAN_Copy_Job_Username", label: "RMAN-Benutzer", width: 110 },
+      { key: "dnsServer", column: "DNS_Server", label: "DNS-Server", width: 130 },
+      { key: "ipAddress", column: "IP_Adresse", label: "IP-Adresse", width: 120 },
+      { key: "gateway", column: "Gateway", label: "Gateway", width: 120 },
+      { key: "softwareContract", column: "Software_Pflegevertrag", label: "Softwarepflege", width: 110 },
+      { key: "softwareContractEnd", column: "Software_pflegevertragsende", label: "Softwarepflege bis", date: true, width: 120 },
+      { key: "itServiceContract", column: "IT_Servicevertrag", label: "IT-Servicevertrag", width: 120 },
+      { key: "itServiceContractEnd", column: "IT_Servicevertragsende", label: "IT-Service bis", date: true, width: 110 },
+      f.notes,
+      f.type,
+    ],
+  },
+  windows: {
+    id: "windows",
+    table: "Windowssysteme_manuell",
+    title: "Übersicht Windows-Systeme",
+    singular: "Windows-System",
+    plural: "Windows-Systeme",
+    typeValue: "Windows",
+    testCount: 16,
+    testIdBase: 120000,
+    fields: [
+      f.company,
+      { key: "function", column: "Funktion", label: "Funktion", width: 130 },
+      { key: "hostname", column: "Hostname", label: "Hostname", width: 130 },
+      { key: "ipAddress", column: "IP", label: "IP", width: 120 },
+      { key: "subnet", column: "Subnetz", label: "Subnetz", width: 120 },
+      { key: "gateway", column: "Gateway", label: "Gateway", width: 120 },
+      { key: "os", column: "OS", label: "OS", width: 150 },
+      { key: "wincc", column: "WinCC", label: "WinCC", width: 100 },
+      { key: "hardware", column: "Hardware", label: "Hardware", width: 100 },
+      { key: "providedBy", column: "Bereitgestellt", label: "Bereitgestellt", width: 100 },
+      { key: "eol", column: "EOL", label: "EOL", width: 60 },
+      f.notes,
+      { ...f.supportUntil, detailOnly: true },
+      f.type,
+      f.status,
     ],
   },
 };

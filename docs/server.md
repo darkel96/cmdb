@@ -92,6 +92,9 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | Anlage Vertrag › Switch, MDE (nur Admins) | `UPDATE` auf `dbo.Switche_manuell`, `dbo.MDE_manuell` | 28.10.2026 |
 | Hardware › Storage, Client | `dbo.Storage_manuell`, `dbo.Client_manuell` | 28.10.2026 |
 | Anlage Vertrag › Storage, Client (nur Admins) | `UPDATE` auf `dbo.Storage_manuell`, `dbo.Client_manuell`, Leserecht auf `dbo.DD_RAID`, `dbo.DD_Client_Monitor` | 28.10.2026 |
+| Software › Oracle | `dbo.Oracle_manuell`, **nur Spalten ohne `RMAN_Copy_Job_PW`** | offen |
+| OS-Systeme › Windows | `dbo.Windowssysteme_manuell` | offen |
+| Kundenansicht › Dokumente | `dbo.Anhang` | offen |
 | Anlage Vertrag › Server (nur Admins) | `UPDATE` auf `dbo.Server_manuell`, Leserecht auf `dbo.DD_Lieferant`, `dbo.DD_Hersteller`, `dbo.DD_Servertyp`, `dbo.DD_Vertragstyp`, `dbo.DD_Ja_Nein` | 28.10.2026 (erste Anlage: Server 10064) |
 
 ```sql
@@ -115,7 +118,19 @@ GRANT SELECT, UPDATE ON dbo.Storage_manuell TO svc_cmdb;
 GRANT SELECT, UPDATE ON dbo.Client_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.DD_RAID TO svc_cmdb;
 GRANT SELECT ON dbo.DD_Client_Monitor TO svc_cmdb;
+-- Oracle nur lesend und ohne die Passwortspalte RMAN_Copy_Job_PW (Spaltenrecht)
+GRANT SELECT ON dbo.Oracle_manuell (ID, Typ, Firma, DB_Typ, DB_Version, LinuxOS_WinOS, Zeichensatz, SGA, PGA,
+  RMAN_Copy_Job, RMAN_Copy_Job_Pfad, RMAN_Copy_Job_Username, DNS_Server, IP_Adresse, Gateway,
+  Software_Pflegevertrag, Software_pflegevertragsende, IT_Servicevertrag, IT_Servicevertragsende,
+  Besonderheiten, Hostname) TO svc_cmdb;
+GRANT SELECT ON dbo.Windowssysteme_manuell TO svc_cmdb;
+-- Kundenansicht: Dokumente (Anhänge) lesen und herunterladen
+GRANT SELECT ON dbo.Anhang TO svc_cmdb;
 ```
+
+**Kundenansicht:** Beim Öffnen eines Kunden zeigt die CMDB Kundeninformation, Dokumente (`dbo.Anhang`, zugeordnet über
+`FirmenID` oder den Firmennamen) und je Bereich alle Systeme, deren `Firma` dem Kundennamen entspricht. Ein Bereich ohne
+Leserecht verhindert die übrigen nicht, er wird unten als „Nicht angezeigt“ genannt.
 
 **Schreiben (Anlage Vertrag):** Wie GAPTEQ füllt die CMDB die nächste freie, vorab angelegte Zeile des ID-Bereichs
 (Server 10000–11000, Switche 20000–21000 …), kein `INSERT`. Die Zeile wird beim Auswählen gesperrt (`UPDLOCK`,
