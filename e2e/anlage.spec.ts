@@ -31,6 +31,10 @@ test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
   const nextId = (await page.getByTestId("next-id").textContent())?.trim();
   expect(nextId).toMatch(/^\d+$/);
   await expect(page.getByLabel("EOL")).toHaveValue("Nein");
+  // Hand über Auswahllisten und dem Kalendersymbol der Datumsfelder
+  await expect(page.getByLabel("Hersteller")).toHaveCSS("cursor", "pointer");
+  // Den Zeiger über dem Kalendersymbol meldet der Browser nicht; geprüft wird die Regel im Stylesheet
+  expect(await page.evaluate("[...document.styleSheets].flatMap((s) => [...s.cssRules]).some((r) => r.cssText.includes('calendar-picker-indicator') && r.cssText.includes('cursor: pointer'))")).toBe(true);
 
   // Pflichtfelder leer: nicht gespeichert, Felder markiert
   await page.getByRole("button", { name: "Speichern" }).click();
