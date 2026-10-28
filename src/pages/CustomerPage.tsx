@@ -92,7 +92,9 @@ export function CustomerPage() {
               rows={data.systems[area.id]}
               rowKey={(r) => r.id}
               exportName={`${area.id}-${data.customer.name}`}
-              onOpen={(r) => navigate(`/bereich/${area.id}/${r.id}`, { viewTransition: true })}
+              onOpen={(r) =>
+                navigate(`/bereich/${area.id}/${r.id}`, { viewTransition: true, state: { back: { to: `/kunden/${data.customer.id}`, label: `Zurück zu ${data.customer.name}` } } })
+              }
             />
           ))}
           {areas.length === 0 && <p className="text-sm text-muted-foreground">Für diesen Kunden sind keine Systeme angelegt.</p>}

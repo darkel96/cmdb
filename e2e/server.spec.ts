@@ -33,7 +33,7 @@ test("Übersicht Server: Spalten wie in GAPTEQ, Öffnen der markierten Zeile", a
   await expect(page.getByRole("heading", { name: /^Server 10001/ })).toBeVisible();
   await expect(page.getByText("Nur lesend.")).toBeVisible();
 
-  await page.getByRole("link", { name: "Zurück zur Übersicht" }).click();
+  await page.getByRole("link", { name: "Zurück zur Übersicht Server" }).click();
   await expect(page.getByRole("heading", { name: "Übersicht Server" })).toBeVisible();
 });
 

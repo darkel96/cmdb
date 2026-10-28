@@ -27,6 +27,9 @@ test("Kunde öffnen zeigt Kundeninformation und alle Systeme je Bereich", async 
 
   await server.locator("tbody tr").first().dblclick();
   await expect(page.getByRole("heading", { name: /^Server \d+/ })).toBeVisible();
+  // Zurück führt in die Kundenansicht, aus der der Server geöffnet wurde
+  await page.getByRole("link", { name: `Zurück zu ${name}` }).click();
+  await expect(page.getByTestId("customer-name")).toHaveText(name!);
 });
 
 test("Kundenansicht: Dokumente herunterladen, Oracle ohne Passwortspalte", async ({ page }) => {

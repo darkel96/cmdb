@@ -120,3 +120,25 @@ test("Tabelle füllt immer die ganze Höhe, auch bei wenigen Zeilen", async ({ p
   // Bis auf den Abstand und den Hinweis zu den Testdaten reicht die Tabelle bis unten
   expect(main!.y + main!.height - (table!.y + table!.height)).toBeLessThan(60);
 });
+
+test("Seitenleiste einklappbar auf Symbole, Wahl bleibt nach dem Neuladen", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Einklappen gibt es nur auf breiten Bildschirmen");
+  await login(page);
+  const sidebar = page.getByTestId("sidebar");
+  const toggle = page.getByRole("button", { name: "Seitenleiste ein- oder ausklappen" });
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect.poll(async () => (await sidebar.boundingBox())?.width).toBeLessThan(70);
+  // Symbole bleiben benannt und anklickbar
+  await expect(sidebar.getByRole("link", { name: "Startseite" })).toHaveAttribute("title", "Startseite");
+
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+  // Klick auf eine Gruppe klappt die Leiste auf und öffnet die Gruppe
+  await sidebar.getByRole("button", { name: "Hardware" }).click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(sidebar.getByRole("link", { name: "Server", exact: true })).toBeVisible();
+});
