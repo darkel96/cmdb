@@ -12,16 +12,24 @@ und nutzt dieselbe SQL-Server-Datenbank.
 
 Projektstart. Noch offen:
 
-- [ ] Remote-Repository (Azure DevOps / GitHub / GitLab)
-- [ ] Tech-Stack festlegen
-- [ ] Hosting und Authentifizierung (Entra ID) klären
-- [ ] Datenbankschema (DDL) analysieren
+- [x] Remote-Repository (GitHub)
+- [x] Datenbankschema analysieren → [docs/schema-analyse.md](docs/schema-analyse.md)
+- [ ] Tech-Stack festlegen → Vorschlag in [docs/architektur-vorschlag.md](docs/architektur-vorschlag.md)
+- [ ] Hosting und Authentifizierung klären
 - [ ] Ersten Pilot-Bereich auswählen
 
 ## Struktur
 
 ```
-docs/     Konzepte, Entscheidungen, Schema-Dokumentation
+docs/          Konzepte, Entscheidungen, Schema-Dokumentation
+docs/schema/   Export der DB-Struktur (CSV + SQL-Module, keine Daten)
+tools/         Hilfsskripte, z. B. export-schema.ps1
+```
+
+Schema-Export aktualisieren (Login über `CMDB_SQL_USER`/`CMDB_SQL_PASSWORD` oder Windows):
+
+```powershell
+.\tools\export-schema.ps1 -Server "tcp:kingstown.aberle-it.loc,1433" -Database CMDB
 ```
 
 ## Grundsätze
