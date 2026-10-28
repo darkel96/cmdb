@@ -15,7 +15,7 @@ const COLUMNS: Column<Customer>[] = [
 /** Startseite: Kundenübersicht aus dbo.DS_Kunden (nur lesend), im Testmodus erfundene Kunden */
 export function StartPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { can } = useAuth();
   const deleted = (useLocation().state as { deleted?: string } | null)?.deleted;
   const [data, setData] = useState<CustomerListResponse | null>(null);
   const [error, setError] = useState("");
@@ -39,7 +39,7 @@ export function StartPage() {
       {!data && !error && <p className="text-sm text-muted-foreground">Wird geladen …</p>}
       {data && <DataTable title="Kundenübersicht" columns={COLUMNS} rows={data.items} rowKey={(c) => c.id} exportName="kunden" emptyText="Keine Kunden gefunden." onOpen={(c) => navigate(`/kunden/${c.id}`, { viewTransition: true })}
           actions={
-            user?.role === "admin" ? (
+            can("kunden", "create") ? (
               <Button size="sm" variant="outline" asChild>
                 <Link to="/kunden/neu" viewTransition>
                   <Plus aria-hidden />

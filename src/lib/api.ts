@@ -3,6 +3,7 @@
  * Dann beantwortet eine Attrappe im Browser alle Anfragen mit den Testbenutzern und erfundenen Daten.
  */
 import { AREAS, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
+import { READ_ALL, allPermissions, PERMISSION_AREAS, type LoginLogEntry, type Role } from "./permissions";
 import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
 
@@ -30,7 +31,29 @@ export interface Api {
   createCustomer(values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   updateCustomer(id: number, values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   deleteCustomer(id: number): Promise<void>;
+  adminLogins(): Promise<AdminLoginsResponse>;
+  adminRoles(): Promise<AdminRolesResponse>;
+  saveRole(id: number | undefined, role: RoleInput): Promise<{ id: number }>;
+  deleteRole(id: number): Promise<void>;
 }
+
+export interface SchemaState {
+  ready: boolean;
+  error?: string;
+}
+
+export interface AdminLoginsResponse {
+  items: LoginLogEntry[];
+  schema: SchemaState;
+}
+
+export interface AdminRolesResponse {
+  items: Role[];
+  areas: { id: string; label: string }[];
+  schema: SchemaState;
+}
+
+export type RoleInput = Pick<Role, "name" | "description" | "permissions" | "members">;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: "same-origin", ...init, headers: { Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}), ...init?.headers } });
@@ -64,6 +87,11 @@ const serverApi: Api = {
   updateCustomer: (id, values) => request<CustomerSaveResponse>(`/api/customers/${id}`, { method: "PUT", body: JSON.stringify({ values }) }),
   // Leerer JSON-Inhalt, damit die Ursprungsprüfung des Dienstes greift
   deleteCustomer: (id) => request<void>(`/api/customers/${id}`, { method: "DELETE", body: "{}" }),
+  adminLogins: () => request<AdminLoginsResponse>("/api/admin/logins"),
+  adminRoles: () => request<AdminRolesResponse>("/api/admin/roles"),
+  saveRole: (id, role) =>
+    request<{ id: number }>(id === undefined ? "/api/admin/roles" : `/api/admin/roles/${id}`, { method: id === undefined ? "POST" : "PUT", body: JSON.stringify({ role }) }),
+  deleteRole: (id) => request<void>(`/api/admin/roles/${id}`, { method: "DELETE", body: "{}" }),
 };
 
 const STORAGE_KEY = "cmdb-test-session";
@@ -80,6 +108,7 @@ const renamed = (name: string) => {
 };
 const browserRows = (areaId: string) =>
   [...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])].map((r) => (typeof r.company === "string" ? { ...r, company: renamed(r.company) } : r));
+let browserRoles: Role[] = [{ id: 1, name: "Alle Angemeldeten", description: "Gilt für jede angemeldete Person", isDefault: true, permissions: READ_ALL, members: [] }];
 const requireAdmin = () => {
   if (storedUser()?.user.role !== "admin") throw new ApiError("Nur Admins.", 403);
 };
@@ -87,7 +116,7 @@ const requireAdmin = () => {
 function storedUser(): MeResponse | null {
   try {
     const name = sessionStorage.getItem(STORAGE_KEY);
-    return name && TEST_USERS[name] ? { user: TEST_USERS[name], testMode: true } : null;
+    return name && TEST_USERS[name] ? { user: TEST_USERS[name], testMode: true, permissions: TEST_USERS[name].role === "admin" ? allPermissions() : READ_ALL } : null;
   } catch {
     return null;
   }
@@ -102,7 +131,7 @@ const browserTestApi: Api = {
     } catch {
       /* ohne Speicher gilt die Anmeldung nur bis zum Neuladen */
     }
-    return { user, testMode: true };
+    return { user, testMode: true, permissions: user.role === "admin" ? allPermissions() : READ_ALL };
   },
   logout: async () => {
     try {
@@ -196,6 +225,26 @@ const browserTestApi: Api = {
     browserCustomers = browserCustomers.map((c) => (c.id === id ? { ...c, name, city: values.city } : c));
     browserExtra.set(id, { country: values.country, zip: values.zip ?? "", address: values.address ?? "", email: values.email ?? "" });
     return { id, renamed: result };
+  },
+  adminLogins: async () => {
+    requireAdmin();
+    return { items: [], schema: { ready: true } };
+  },
+  adminRoles: async () => {
+    requireAdmin();
+    return { items: browserRoles, areas: PERMISSION_AREAS, schema: { ready: true } };
+  },
+  saveRole: async (id, role) => {
+    requireAdmin();
+    const newId = id ?? Math.max(0, ...browserRoles.map((r) => r.id)) + 1;
+    const existing = browserRoles.find((r) => r.id === id);
+    const next: Role = { ...role, id: newId, isDefault: existing?.isDefault ?? false, name: existing?.isDefault ? existing.name : role.name };
+    browserRoles = id === undefined ? [...browserRoles, next] : browserRoles.map((r) => (r.id === id ? next : r));
+    return { id: newId };
+  },
+  deleteRole: async (id) => {
+    requireAdmin();
+    browserRoles = browserRoles.filter((r) => r.id !== id || r.isDefault);
   },
   deleteCustomer: async (id) => {
     requireAdmin();

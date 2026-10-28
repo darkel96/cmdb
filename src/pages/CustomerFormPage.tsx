@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/state/auth";
 
 type Values = { name: string; country: string; city: string; zip: string; address: string; email: string };
 
@@ -29,6 +30,8 @@ export function CustomerFormPage() {
   const { customerId } = useParams();
   const editing = customerId !== undefined;
   const navigate = useNavigate();
+  const { can } = useAuth();
+  const allowedHere = editing ? can("kunden", "edit") || can("kunden", "delete") : can("kunden", "create");
   const [values, setValues] = useState<Values>({ name: "", country: "", city: "", zip: "", address: "", email: "" });
   const [loaded, setLoaded] = useState(!editing);
   const [error, setError] = useState("");
@@ -92,15 +95,17 @@ export function CustomerFormPage() {
 
   const renaming = editing && loaded && values.name.trim() !== originalName;
 
+  if (!allowedHere) return <p className="text-sm text-muted-foreground">Dafür fehlt die Berechtigung.</p>;
+
   return (
     <form onSubmit={save} noValidate className="flex w-full flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <Button type="submit" size="sm" disabled={busy || !loaded}>
+        <Button type="submit" size="sm" disabled={busy || !loaded || (editing && !can("kunden", "edit"))}>
           <Save aria-hidden />
           {busy ? "Wird gespeichert …" : "Speichern"}
         </Button>
         <div className="flex items-center gap-2">
-          {editing && !confirmDelete && (
+          {editing && !confirmDelete && can("kunden", "delete") && (
             <Button type="button" variant="outline" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" disabled={busy || !loaded} onClick={() => setConfirmDelete(true)}>
               <Trash2 aria-hidden />
               Löschen

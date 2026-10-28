@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { CheckCircle2, FilePlus2, RefreshCw, XCircle } from "lucide-react";
-import { Link } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import type { CheckResult, HealthResponse } from "@/lib/types";
+import { Link, useSearchParams } from "react-router";
+import { cn } from "@/lib/utils";
+import { LoginsTab } from "./admin/LoginsTab";
+import { RolesTab } from "./admin/RolesTab";
 
 function StatusCard({ title, testId, result, index }: { title: string; testId: string; result: CheckResult; index: number }) {
   return (
@@ -29,8 +32,8 @@ function StatusCard({ title, testId, result, index }: { title: string; testId: s
   );
 }
 
-/** Nur für admin: Zustand von LDAP und Datenbank */
-export function AdminPage() {
+/** Reiter Status: Zustand von LDAP und Datenbank */
+function StatusTab() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -44,12 +47,9 @@ export function AdminPage() {
   useEffect(load, [load]);
 
   return (
-    <div className="flex flex-col gap-6 mx-auto w-full max-w-6xl">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Verwaltung</h1>
-          <p className="text-sm text-muted-foreground">Status der Anbindungen{health ? ` · Version ${health.version}` : ""}</p>
-        </div>
+        <p className="text-sm text-muted-foreground">Status der Anbindungen{health ? ` · Version ${health.version}` : ""}</p>
         <Button variant="outline" size="sm" onClick={load} disabled={busy}>
           <RefreshCw className={busy ? "animate-spin" : undefined} aria-hidden />
           Neu prüfen
@@ -75,6 +75,45 @@ export function AdminPage() {
           </Link>
         </Button>
       </Card>
+    </div>
+  );
+}
+
+const TABS = [
+  { id: "status", label: "Status" },
+  { id: "anmeldungen", label: "Anmeldungen" },
+  { id: "rollen", label: "Rollen" },
+] as const;
+
+/** Nur für Admins: Status der Anbindungen, Anmelde-Protokoll, Rollen und Rechte */
+export function AdminPage() {
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.find((t) => t.id === params.get("tab"))?.id ?? "status";
+  return (
+    <div className="flex w-full flex-col gap-4">
+      <h1 className="text-2xl font-semibold">Verwaltung</h1>
+      <div role="tablist" aria-label="Verwaltung" className="flex gap-1 border-b">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setParams(t.id === "status" ? {} : { tab: t.id })}
+            className={cn(
+              "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors duration-150",
+              tab === t.id ? "border-brand text-brand" : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div role="tabpanel" className="flex min-h-0 flex-1 flex-col">
+        {tab === "status" && <StatusTab />}
+        {tab === "anmeldungen" && <LoginsTab />}
+        {tab === "rollen" && <RolesTab />}
+      </div>
     </div>
   );
 }

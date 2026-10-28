@@ -23,7 +23,8 @@ test("user darf nicht anlegen", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Übersicht Server" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Anlegen" })).toHaveCount(0);
   await page.goto("/bereich/server/neu");
-  await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
+  await expect(page.getByText("Dafür fehlt die Berechtigung.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Anlage Server" })).toHaveCount(0);
   const res = await page.request.post("/api/areas/server", { data: { values: { company: "x" } } });
   expect(res.status()).toBe(403);
 });
@@ -31,7 +32,7 @@ test("user darf nicht anlegen", async ({ page }) => {
 test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
   await login(page, "admin");
   await page.getByRole("link", { name: "Verwaltung" }).click();
-  await page.getByRole("link", { name: "Anlage Vertrag" }).click();
+  await page.locator("main").getByRole("link", { name: "Anlage Vertrag" }).click();
   await expect(page.getByRole("heading", { name: "Anlage Vertrag" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Anlage Vertrag" }).locator("[aria-disabled=true]", { hasText: "Oracle" })).toContainText("folgt");
   await page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link", { name: "Server", exact: true }).click();

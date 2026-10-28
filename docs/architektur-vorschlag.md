@@ -54,6 +54,9 @@ Der frühere Vorschlag ASP.NET Core / Blazor / IIS ist verworfen. Die CMDB nutzt
   In Phase 0 nur Verbindungstest. Für Phase 1 braucht der Login Leserechte auf die benötigten `dbo`-Tabellen und Rechte
   auf das Schema `cmdb`, keine Schreibrechte auf `dbo`.
 - Zugangsdaten stehen nur in `server/.env` auf dem Server, nie im Repository.
+- Eigene Daten der CMDB (Anmelde-Protokoll, Rollen und Rechte) liegen im Schema `cmdb` derselben Datenbank, angelegt über
+  versionierte Migrationsskripte (`server/migrations`). Rollen haben Rechte je Bereich (Lesen, Anlegen, Bearbeiten,
+  Löschen), Mitglieder sind Personen oder AD-Gruppen.
 
 ## Zielmodell (Schema `cmdb`)
 

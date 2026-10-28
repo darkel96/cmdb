@@ -2,6 +2,7 @@ import { Activity, Boxes, ChevronRight, Database, DatabaseBackup, HardDrive, Key
 import { Link } from "react-router";
 import { AREAS } from "@/lib/areas";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/state/auth";
 
 /** Typen bei „Anlage Vertrag“ in der Reihenfolge wie in GAPTEQ; Bereiche ohne Formular folgen */
 const TYPES: { label: string; icon: LucideIcon; areaId?: string }[] = [
@@ -23,13 +24,14 @@ const tile = "animate-appear flex min-h-28 flex-col justify-between gap-3 rounde
 
 /** Typauswahl als Kacheln (wie die Kacheln im KI-Portal) */
 export function ContractTypesPage() {
+  const { can } = useAuth();
   return (
     <section className="flex w-full flex-col gap-4" aria-label="Anlage Vertrag">
       <h1 className="animate-appear rounded-lg bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground shadow-xs">Anlage Vertrag</h1>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3">
         {TYPES.map((t, i) => {
           const Icon = t.icon;
-          const ready = Boolean(t.areaId && AREAS[t.areaId]?.createFields);
+          const ready = Boolean(t.areaId && AREAS[t.areaId]?.createFields && can(t.areaId, "create"));
           const style = { "--i": i } as React.CSSProperties;
           return (
             <li key={t.label} className="contents">

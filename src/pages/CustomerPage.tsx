@@ -21,7 +21,7 @@ function Box({ title, children, className }: { title: string; children: React.Re
 export function CustomerPage() {
   const { customerId = "" } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { can } = useAuth();
   const state = useLocation().state as { created?: boolean; saved?: boolean; renamed?: { label: string; count: number }[] } | null;
   const [data, setData] = useState<CustomerDetailResponse | null>(null);
   const [error, setError] = useState("");
@@ -44,7 +44,7 @@ export function CustomerPage() {
             Zur Kundenübersicht
           </Link>
         </Button>
-        {user?.role === "admin" && (
+        {(can("kunden", "edit") || can("kunden", "delete")) && (
           <Button variant="outline" size="sm" asChild>
             <Link to={`/kunden/${customerId}/bearbeiten`} viewTransition>
               <Pencil aria-hidden />

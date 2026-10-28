@@ -37,6 +37,10 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Kunden anlegen, bearbeiten (Umbenennen in allen verknüpften Tabellen) und löschen (nur ohne Verweise), nur Admins
 - [x] Anlage VMware, VEEAM, TSPLUS, PRTG und Windows-Lizenzen wie in GAPTEQ; Lizenzen › Windows-Lizenzen
 - [ ] Datei-Upload bei Windows-Lizenzen (Anhang)
+- [x] Verwaltung: Anmelde-Protokoll, Rollen mit Rechten je Bereich (Personen und AD-Gruppen)
+- [x] Schema `cmdb` angelegt (28.10.2026)
+- [ ] Bearbeiten und Löschen bestehender Einträge (Rechte sind schon vorgesehen)
+- [ ] KI-Assistent mit den CMDB-Daten (Anbindung wie im KI-Portal)
 - [ ] Rechte für Kundenpflege (`DS_Kunden` und Namensspalten der verknüpften Tabellen)
 - [x] Leserechte Oracle (86, Spalten ohne Passwort), Windows-Systeme (314), Anhang (16) für `svc_cmdb`
 - [x] Lese- und Schreibrecht `dbo.Storage_manuell` (14), `dbo.Client_manuell` (23), Leserecht `dbo.DD_RAID`, `dbo.DD_Client_Monitor`

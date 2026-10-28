@@ -32,7 +32,7 @@ export function areaColumns(area: Area, options: { withoutCompany?: boolean } = 
 /** Übersicht eines Bereichs (z. B. Hardware › Server), nur lesend */
 export function AreaPage({ area }: { area: Area }) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { can } = useAuth();
   const [data, setData] = useState<AreaListResponse | null>(null);
   const [error, setError] = useState("");
 
@@ -59,7 +59,7 @@ export function AreaPage({ area }: { area: Area }) {
           emptyText="Keine Einträge gefunden."
           onOpen={(r) => navigate(`/bereich/${area.id}/${r.id}`, { viewTransition: true })}
           actions={
-            user?.role === "admin" && area.createFields ? (
+            area.createFields && can(area.id, "create") ? (
               <Button size="sm" variant="outline" asChild>
                 <Link to={`/bereich/${area.id}/neu`} viewTransition>
                   <Plus aria-hidden />

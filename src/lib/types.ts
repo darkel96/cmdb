@@ -1,4 +1,5 @@
 /** Gemeinsame Typen für Frontend und Dienst */
+import type { Permissions } from "./permissions";
 
 export type Role = "admin" | "user";
 
@@ -8,11 +9,15 @@ export interface SessionUser {
   displayName: string;
   mail: string;
   role: Role;
+  /** AD-Gruppen (CN, klein geschrieben); nur im Session-Cookie, nicht an den Browser */
+  groups?: string[];
 }
 
 export interface MeResponse {
   user: SessionUser;
   testMode: boolean;
+  /** Rechte je Bereich aus den Rollen */
+  permissions: Permissions;
 }
 
 export interface CheckResult {

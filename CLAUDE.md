@@ -19,7 +19,10 @@ Hinweise für Claude Code in diesem Repository.
   GAPTEQ muss parallel funktionsfähig bleiben. Eigene Objekte bevorzugt in einem separaten Schema anlegen.
 - Keine Produktivdaten, Connection-Strings, Passwörter oder Tokens committen.
   Konfiguration über Umgebungsvariablen bzw. lokale, ignorierte Dateien.
-- Datenbankänderungen nur als versionierte Migrationsskripte.
+- Datenbankänderungen nur als versionierte Migrationsskripte in `server/migrations/NNN_*.sql` (nur Schema `cmdb`),
+  eingetragen in `server/src/migrations.ts`. Ein eingespieltes Skript nie ändern, sondern ein neues anlegen.
+- Neue Endpunkte prüfen Rechte mit `allowed(req, res, bereich, aktion)` (server/src/api.ts), neue Bereiche erscheinen
+  automatisch in der Rechte-Tabelle.
 - Schreiben in `dbo` nur wie GAPTEQ (nächste freie, vorab angelegte Zeile füllen, mit Sperre), nur für Admins und nur
   mit ausdrücklich vergebenem `UPDATE`-Recht je Tabelle. Kein `INSERT`/`DELETE` in `dbo` ohne Freigabe.
   Freigegeben (28.10.2026): `INSERT`/`UPDATE`/`DELETE` auf `dbo.DS_Kunden` für die Kundenpflege; Umbenennen ändert den
