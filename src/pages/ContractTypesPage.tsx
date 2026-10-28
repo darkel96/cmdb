@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const TYPES: { label: string; icon: LucideIcon; areaId?: string }[] = [
   { label: "Server", icon: Server, areaId: "server" },
   { label: "Switche", icon: Network, areaId: "switche" },
-  { label: "MDEs", icon: ScanBarcode },
+  { label: "MDEs", icon: ScanBarcode, areaId: "mde" },
   { label: "VMware", icon: Boxes },
   { label: "TSPLUS", icon: MonitorSmartphone },
   { label: "PRTG", icon: Activity },

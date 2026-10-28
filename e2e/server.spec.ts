@@ -54,7 +54,8 @@ test("Übersicht Switche: Spalten wie in GAPTEQ, Öffnen zeigt alle Felder", asy
   const table = page.getByRole("region", { name: "Übersicht Switche" });
   const headers = await table.getByRole("columnheader").allTextContents();
   expect(headers.slice(0, 10).map((h) => h.trim())).toEqual(["ID", "Firma", "Lieferant", "Bestellnummer", "Support bis", "Hersteller", "Modell", "LWL-Typ", "Servicetag", "Besonderheiten"]);
-  await expect(page.getByTestId("table-status")).toHaveText("Seite 1 von 1 (18 Elemente)");
+  // 18 erfundene Switche, dazu ggf. der im Test „Anlage Switch“ angelegte
+  await expect(page.getByTestId("table-status")).toHaveText(/^Seite 1 von 1 \((1[89]|2[0-9]) Elemente\)$/);
 
   await table.locator("tbody tr").first().dblclick();
   await expect(page.getByRole("heading", { name: /^Switch 20000/ })).toBeVisible();

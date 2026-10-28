@@ -112,6 +112,7 @@ export const AREAS: Record<string, Area> = {
     title: "Übersicht Switche",
     singular: "Switch",
     typeValue: "Switch",
+    createFields: ["company", "orderNumber", "supplier", "manufacturer", "model", "serviceTag", "lwlType", "supportUntil", "notes"],
     testCount: 18,
     testIdBase: 20000,
     fields: [
@@ -127,6 +128,27 @@ export const AREAS: Record<string, Area> = {
       f.type,
       { ...f.eol, detailOnly: true },
       f.status,
+    ],
+  },
+  mde: {
+    id: "mde",
+    table: "MDE_manuell",
+    title: "Übersicht MDEs",
+    singular: "MDE",
+    typeValue: "MDE",
+    createFields: ["company", "orderNumber", "supplier", "manufacturer", "serialNumber", "supportUntil", "notes"],
+    testCount: 16,
+    testIdBase: 30000,
+    fields: [
+      f.company,
+      // Bei MDE sind Lieferant und Hersteller in GAPTEQ Freitext (im Hersteller steht meist das Gerät)
+      { ...f.supplier, options: undefined, width: 170 },
+      f.orderNumber,
+      { ...f.manufacturer, options: undefined, width: 220 },
+      { key: "serialNumber", column: "Seriennummer", label: "Seriennummer", width: 170 },
+      f.supportUntil,
+      f.notes,
+      { ...f.type, detailOnly: false, width: 70 },
     ],
   },
 };

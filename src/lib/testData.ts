@@ -56,6 +56,8 @@ export function testRows(area: Area): AreaRow[] {
       if (field.date) value = field.key === "supportUntil" ? `${year + 4}-${month}-15` : i % 3 === 0 ? `${year}-${month}-01` : "";
       else if (field.key === "company") value = TEST_CUSTOMERS[(i * 5) % TEST_CUSTOMERS.length].name;
       else if (field.key === "orderNumber") value = i % 7 === 6 ? "" : `TEST-${2000 + (i % 13)}-${String(100 + i * 7).padStart(3, "0")}`;
+      else if (field.key === "manufacturer" && !field.options) value = `Gerät ${String.fromCharCode(65 + (i % 3))}${10 + (i % 4)}`;
+      else if (field.key === "supplier" && !field.options) value = i % 2 ? "Händler A" : "Händler B";
       else if (field.key === "model") value = `${area.singular} ${String.fromCharCode(65 + (i % 4))}${100 + (i % 3) * 10}`;
       else if (field.key === "serviceTag" || field.key === "serialNumber") value = `TST${String(4711 + i * 13).padStart(6, "0")}`;
       else if (field.key === "eol") value = year + 4 < 2027 ? "Ja" : "Nein";
