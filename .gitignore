@@ -44,3 +44,11 @@ Desktop.ini
 
 # Claude Code (lokale Einstellungen)
 .claude/settings.local.json
+
+# CMDB-Dienst und Tests
+!.env.pages
+server/dist/
+server/certs/
+test-results/
+playwright-report/
+*.tsbuildinfo

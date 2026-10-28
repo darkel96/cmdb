@@ -1,0 +1,41 @@
+{
+  "name": "cmdb",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "build:pages": "tsc -b && vite build --mode pages",
+    "build:server": "tsc -p server/tsconfig.json && vite build --config server/vite.config.ts",
+    "typecheck": "tsc -b --noEmit && tsc -p server/tsconfig.json",
+    "preview": "vite preview",
+    "server": "node server/dist/index.mjs",
+    "server:test": "CMDB_TESTMODE=1 CMDB_STATIC=dist node server/dist/index.mjs",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "ldapts": "^9.2.0",
+    "lucide-react": "^1.63.0",
+    "mssql": "^12.7.13",
+    "radix-ui": "^1.8.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router": "^8.5.1",
+    "tailwind-merge": "^3.7.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/mssql": "^12.3.0",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  }
+}

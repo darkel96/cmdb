@@ -1,0 +1,32 @@
+# CMDB auf charlestown, getrennt vom KI-Portal: eigenes Compose-Projekt, eigener Container, eigenes Netz, eigener Port.
+#   cp server/.env.example server/.env   (ausfüllen, siehe docs/server.md)
+#   docker compose up -d --build
+# Entwicklung/Test: Projekt „cmdb-dev“ (Standard). Später Betrieb: CMDB_COMPOSE_NAME=cmdb (siehe docs/server.md).
+name: ${CMDB_COMPOSE_NAME:-cmdb-dev}
+
+services:
+  cmdb:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      args:
+        CMDB_VERSION: ${CMDB_VERSION:-entwicklung}
+    image: ${CMDB_COMPOSE_NAME:-cmdb-dev}:latest
+    container_name: ${CMDB_COMPOSE_NAME:-cmdb-dev}
+    env_file:
+      - path: server/.env
+        required: true
+    environment:
+      CMDB_PORT: 8790
+      CMDB_STATIC: /app/dist
+    ports:
+      - "${CMDB_HOST_PORT:-8790}:8790"
+    volumes:
+      # Zertifikate (TLS des Dienstes, CA für LDAPS); nur lesend, nicht im Repository
+      - ./server/certs:/certs:ro
+    networks:
+      - cmdb
+    restart: unless-stopped
+
+networks:
+  cmdb: {}
