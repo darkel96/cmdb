@@ -151,7 +151,7 @@ function areaRows(area: Area): AreaRow[] {
 const TEST_OPTIONS: Record<string, string[]> = {
   supplier: ["Lieferant A", "Lieferant B"],
   manufacturer: ["Hersteller A", "Hersteller B", "Hersteller C"],
-  serverType: ["Multi Side Cluster", "Single Server", "Single Side Cluster", "Windows Cluster"],
+  serverType: ["Multi Site Cluster", "Single Server", "Single Site Cluster", "Windows Cluster"],
   maintenanceType: ["Garantie", "Wartungsvertrag"],
   eol: ["Ja", "Nein"],
 };

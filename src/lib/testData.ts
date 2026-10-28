@@ -35,7 +35,7 @@ export const TEST_CUSTOMERS: Customer[] = Array.from({ length: 42 }, (_, i) => (
 })).sort((a, b) => a.name.localeCompare(b.name, "de"));
 
 const VALUES: Record<string, string[]> = {
-  serverType: ["Single Server", "Single Side Cluster", "Multi Side Cluster", "Windows Cluster"],
+  serverType: ["Single Server", "Single Site Cluster", "Multi Site Cluster", "Windows Cluster"],
   lwlType: ["Kupfer", "Multimode SR", "Singlemode LR", "Duplex-Patchkabel 2 m"],
   maintenanceType: ["Wartungsvertrag", "Garantie"],
   notes: ["ESXi01", "ESXi02", "Backup", "Core Switch", "Access Switch", ""],
