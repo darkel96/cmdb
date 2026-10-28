@@ -212,7 +212,7 @@ function validValues(area: Area, raw: unknown, form: AreaFormResponse): Record<s
   if (!raw || typeof raw !== "object") throw new LoginError("Ungültige Anfrage.", 400);
   const values: Record<string, string> = {};
   for (const f of area.fields) {
-    if (!area.createFields?.includes(f.key)) continue;
+    if (!area.createFields?.includes(f.key) || area.createFixed?.[f.key] !== undefined) continue;
     const v = (raw as Record<string, unknown>)[f.key] ?? "";
     if (typeof v !== "string") throw new LoginError(`${f.label}: ungültiger Wert.`, 400);
     const value = v.trim();
@@ -229,7 +229,8 @@ function validValues(area: Area, raw: unknown, form: AreaFormResponse): Record<s
 async function createInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser): Promise<void> {
   const body = await readJson(req);
   try {
-    const values = validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area));
+    // Feste Werte (z. B. EOL „Nein“) setzt der Dienst selbst, nicht der Browser
+    const values = { ...validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area)), ...(area.createFixed ?? {}) };
     if (ENV.testMode) {
       const row: AreaRow = { id: testForm(area).nextId ?? area.testIdBase };
       for (const f of area.fields) row[f.key] = f.key === "type" ? area.typeValue : (values[f.key] ?? "");

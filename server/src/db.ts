@@ -160,6 +160,14 @@ export async function areaForm(area: Area): Promise<AreaFormResponse> {
       if (f.options === "customers") {
         object = "dbo.DS_Kunden";
         options[f.key] = (await listCustomers()).map((c) => c.name).filter(Boolean);
+      } else if (f.options === "distinct") {
+        // Keine Liste in der Datenbank: die Werte, die in der Spalte schon vorkommen
+        object = `dbo.${area.table}`;
+        const column = quote(f.column);
+        const result = await p.request().query<{ v: string }>(
+          `SELECT DISTINCT LTRIM(RTRIM(${column})) AS v FROM dbo.${quote(area.table)} WHERE NULLIF(LTRIM(RTRIM(${column})), '') IS NOT NULL ORDER BY v`,
+        );
+        options[f.key] = result.recordset.map((r) => r.v);
       } else {
         object = `dbo.${f.options.table}`;
         const column = quote(f.options.column);

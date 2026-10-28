@@ -119,6 +119,7 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | Software › VMware, Veeam, TSPLUS, PRTG; Lizenzen › Oracle-ESL | `dbo.VMware_manuell`, `dbo.VEEAM_manuell`, `dbo.TSPLUS_manuell`, `dbo.PRTG_manuell`, `dbo.Vertragsdaten` | offen |
 | Kunden anlegen, bearbeiten, löschen (nur Admins) | `INSERT`, `UPDATE`, `DELETE` auf `dbo.DS_Kunden`; Lesen und Ändern nur der Namensspalte in 28 verknüpften Tabellen | offen |
 | Lizenzen › Windows-Lizenzen; Anlage VMware, VEEAM, TSPLUS, PRTG, Windows-Lizenzen (nur Admins) | `SELECT` auf `dbo.Lizenzen_manuell`, `UPDATE` auf `dbo.VMware_manuell`, `dbo.VEEAM_manuell`, `dbo.TSPLUS_manuell`, `dbo.PRTG_manuell`, `dbo.Lizenzen_manuell` | offen |
+| Anlage Oracle (ohne Passwortspalte), Anlage Windows-System | `UPDATE` auf die Oracle-Spalten ohne `RMAN_Copy_Job_PW`, `UPDATE` auf `dbo.Windowssysteme_manuell`, Leserecht auf `dbo.DD_DB_Typ`, `dbo.DD_Zeichensatz`, `dbo.DD_FW_Server_OS` | offen |
 | Anlage Vertrag › Server (nur Admins) | `UPDATE` auf `dbo.Server_manuell`, Leserecht auf `dbo.DD_Lieferant`, `dbo.DD_Hersteller`, `dbo.DD_Servertyp`, `dbo.DD_Vertragstyp`, `dbo.DD_Ja_Nein` | 28.10.2026 (erste Anlage: Server 10064) |
 
 ```sql
@@ -163,6 +164,15 @@ GRANT UPDATE ON dbo.VEEAM_manuell TO svc_cmdb;
 GRANT UPDATE ON dbo.TSPLUS_manuell TO svc_cmdb;
 GRANT UPDATE ON dbo.PRTG_manuell TO svc_cmdb;
 GRANT UPDATE ON dbo.Lizenzen_manuell TO svc_cmdb;
+-- Anlage Oracle: nur die Formularspalten, nie RMAN_Copy_Job_PW
+GRANT UPDATE (Typ, Firma, DB_Typ, DB_Version, LinuxOS_WinOS, Zeichensatz, SGA, PGA, RMAN_Copy_Job, RMAN_Copy_Job_Pfad,
+  RMAN_Copy_Job_Username, DNS_Server, IP_Adresse, Gateway, Software_Pflegevertrag, Software_pflegevertragsende,
+  IT_Servicevertrag, IT_Servicevertragsende, Besonderheiten) ON dbo.Oracle_manuell TO svc_cmdb;
+-- Anlage Windows-System
+GRANT UPDATE ON dbo.Windowssysteme_manuell TO svc_cmdb;
+GRANT SELECT ON dbo.DD_DB_Typ TO svc_cmdb;
+GRANT SELECT ON dbo.DD_Zeichensatz TO svc_cmdb;
+GRANT SELECT ON dbo.DD_FW_Server_OS TO svc_cmdb;
 -- Kunden anlegen, bearbeiten, löschen (nur Admins in der CMDB)
 GRANT INSERT, UPDATE, DELETE ON dbo.DS_Kunden TO svc_cmdb;
 -- Umbenennen in allen verknüpften Tabellen und Prüfung vor dem Löschen: nur die Namensspalte

@@ -87,6 +87,12 @@ export function AreaCreatePage() {
               <span className="text-xs text-muted-foreground">Typ</span>
               <span className="text-sm">{area.typeValue}</span>
             </div>
+            {Object.entries(area.createFixed ?? {}).map(([key, value]) => (
+              <div key={key} className="flex flex-col gap-1.5">
+                <span className="text-xs text-muted-foreground">{area.fields.find((f) => f.key === key)?.label ?? key}</span>
+                <span className="text-sm">{value}</span>
+              </div>
+            ))}
           </div>
           {fields.map((f) => {
             const invalid = missing.includes(f.key);
@@ -95,7 +101,7 @@ export function AreaCreatePage() {
             return (
               <div key={f.key} className="flex flex-col gap-1.5">
                 <Label htmlFor={`f-${f.key}`} className={cn(invalid && "text-destructive")}>
-                  {f.label}
+                  {f.formLabel ?? f.label}
                   {f.required && <span className="text-destructive"> *</span>}
                 </Label>
                 {f.options ? (

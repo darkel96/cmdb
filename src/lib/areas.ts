@@ -17,8 +17,10 @@ export interface AreaField {
   detailOnly?: boolean;
   /** Pflichtfeld beim Anlegen */
   required?: boolean;
-  /** Auswahlliste beim Anlegen: Kunden aus dbo.DS_Kunden oder eine DD_*-Tabelle */
-  options?: "customers" | { table: string; column: string };
+  /** Auswahlliste beim Anlegen: Kunden aus dbo.DS_Kunden, eine DD_*-Tabelle oder die schon vorkommenden Werte der Spalte */
+  options?: "customers" | "distinct" | { table: string; column: string };
+  /** Beschriftung im Formular, falls abweichend (wie in GAPTEQ) */
+  formLabel?: string;
   /** Vorbelegung beim Anlegen */
   defaultValue?: string;
 }
@@ -38,6 +40,8 @@ export interface Area {
   plural?: string;
   /** Überschrift des Formulars, falls abweichend von „Anlage <singular>“ (wie in GAPTEQ) */
   createTitle?: string;
+  /** Feste Werte beim Anlegen, im Formular nur angezeigt (z. B. EOL „Nein“) */
+  createFixed?: Record<string, string>;
   /** Felder im Formular „Anlage“ in der Reihenfolge wie in GAPTEQ; fehlt es, kann der Bereich nicht angelegt werden */
   createFields?: string[];
   /** Testmodus: Anzahl und erste ID der erfundenen Einträge */
@@ -249,26 +253,28 @@ export const AREAS: Record<string, Area> = {
     singular: "Oracle",
     plural: "Oracle",
     typeValue: "Oracle",
+    // Ohne RMAN_Copy_Job_PW: Passwörter gehören in den Passwort-Manager, die CMDB liest und schreibt die Spalte nie
+    createFields: ["company", "dbType", "dbVersion", "os", "charset", "sga", "pga", "rmanCopyJob", "rmanCopyJobPath", "rmanCopyJobUser", "dnsServer", "ipAddress", "gateway", "softwareContract", "softwareContractEnd", "itServiceContract", "itServiceContractEnd", "notes"],
     testCount: 12,
     testIdBase: 100000,
     fields: [
       f.company,
-      { key: "dbType", column: "DB_Typ", label: "DB-Typ", width: 110 },
+      { key: "dbType", column: "DB_Typ", label: "DB-Typ", width: 110, required: true, options: { table: "DD_DB_Typ", column: "DB_Typ" } },
       { key: "dbVersion", column: "DB_Version", label: "DB-Version", width: 100 },
       { key: "os", column: "LinuxOS_WinOS", label: "Linux/Windows", width: 120 },
       { key: "hostname", column: "Hostname", label: "Hostname", width: 130 },
-      { key: "charset", column: "Zeichensatz", label: "Zeichensatz", width: 100 },
+      { key: "charset", column: "Zeichensatz", label: "Zeichensatz", width: 100, options: { table: "DD_Zeichensatz", column: "Zeichensatz" } },
       { key: "sga", column: "SGA", label: "SGA", width: 70 },
       { key: "pga", column: "PGA", label: "PGA", width: 70 },
-      { key: "rmanCopyJob", column: "RMAN_Copy_Job", label: "RMAN-Copy-Job", width: 110 },
+      { key: "rmanCopyJob", column: "RMAN_Copy_Job", label: "RMAN-Copy-Job", width: 110, required: true, options: { table: "DD_Ja_Nein", column: "Ja_Nein" } },
       { key: "rmanCopyJobPath", column: "RMAN_Copy_Job_Pfad", label: "RMAN-Pfad", width: 150 },
       { key: "rmanCopyJobUser", column: "RMAN_Copy_Job_Username", label: "RMAN-Benutzer", width: 110 },
       { key: "dnsServer", column: "DNS_Server", label: "DNS-Server", width: 130 },
       { key: "ipAddress", column: "IP_Adresse", label: "IP-Adresse", width: 120 },
       { key: "gateway", column: "Gateway", label: "Gateway", width: 120 },
-      { key: "softwareContract", column: "Software_Pflegevertrag", label: "Softwarepflege", width: 110 },
+      { key: "softwareContract", column: "Software_Pflegevertrag", label: "Softwarepflege", width: 110, required: true, options: { table: "DD_Ja_Nein", column: "Ja_Nein" } },
       { key: "softwareContractEnd", column: "Software_pflegevertragsende", label: "Softwarepflege bis", date: true, width: 120 },
-      { key: "itServiceContract", column: "IT_Servicevertrag", label: "IT-Servicevertrag", width: 120 },
+      { key: "itServiceContract", column: "IT_Servicevertrag", label: "IT-Servicevertrag", width: 120, required: true, options: { table: "DD_Ja_Nein", column: "Ja_Nein" } },
       { key: "itServiceContractEnd", column: "IT_Servicevertragsende", label: "IT-Service bis", date: true, width: 110 },
       f.notes,
       f.type,
@@ -281,20 +287,22 @@ export const AREAS: Record<string, Area> = {
     singular: "Windows-System",
     plural: "Windows-Systeme",
     typeValue: "Windows-System",
+    createFields: ["company", "function", "hostname", "ipAddress", "subnet", "gateway", "os", "wincc", "hardware", "providedBy", "notes"],
+    createFixed: { eol: "Nein" },
     testCount: 16,
     testIdBase: 120000,
     fields: [
       { ...f.type, detailOnly: false, width: 130 },
       f.company,
-      { key: "function", column: "Funktion", label: "Funktion", width: 130 },
+      { key: "function", column: "Funktion", label: "Funktion", formLabel: "Servertyp", width: 130, required: true, options: "distinct" },
       { key: "hostname", column: "Hostname", label: "Hostname", width: 130 },
       { key: "ipAddress", column: "IP", label: "IP", width: 120 },
       { key: "subnet", column: "Subnetz", label: "Subnetz", width: 120 },
       { key: "gateway", column: "Gateway", label: "Gateway", width: 120 },
-      { key: "os", column: "OS", label: "OS", width: 150 },
+      { key: "os", column: "OS", label: "OS", width: 150, options: { table: "DD_FW_Server_OS", column: "Server_OS" } },
       { key: "wincc", column: "WinCC", label: "WinCC", width: 100 },
-      { key: "hardware", column: "Hardware", label: "Hardware", width: 100 },
-      { key: "providedBy", column: "Bereitgestellt", label: "Bereitgestellt", width: 100 },
+      { key: "hardware", column: "Hardware", label: "Hardware", width: 100, options: "distinct" },
+      { key: "providedBy", column: "Bereitgestellt", label: "Bereitgestellt", width: 100, options: "distinct" },
       { key: "eol", column: "EOL", label: "EOL", width: 60 },
       f.notes,
       { ...f.supportUntil, detailOnly: true },

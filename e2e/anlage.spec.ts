@@ -2,7 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 
 /** Eigene Auswahlliste: aufklappen und Eintrag wählen (nach Text oder als n-ter Eintrag ohne „keine Auswahl“) */
 async function choose(page: Page, label: string, option: string | number) {
-  await page.getByLabel(label).click();
+  // Beschriftung genau, mit oder ohne Pflicht-Sternchen („OS“ darf nicht „Hostname“ treffen)
+  await page.getByLabel(new RegExp(`^${label}( \\*)?$`)).click();
   const list = page.getByRole("listbox");
   const entries = list.getByRole("option").filter({ hasNotText: "– keine Auswahl –" });
   await (typeof option === "number" ? entries.nth(option) : list.getByRole("option", { name: option, exact: true })).click();
@@ -34,7 +35,9 @@ test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
   await page.getByRole("link", { name: "Verwaltung" }).click();
   await page.locator("main").getByRole("link", { name: "Anlage Vertrag" }).click();
   await expect(page.getByRole("heading", { name: "Anlage Vertrag" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Anlage Vertrag" }).locator("[aria-disabled=true]", { hasText: "Oracle" })).toContainText("folgt");
+  // Alle zwölf Typen wie in GAPTEQ sind anlegbar
+  await expect(page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link")).toHaveCount(12);
+  await expect(page.getByRole("region", { name: "Anlage Vertrag" }).locator("[aria-disabled=true]")).toHaveCount(0);
   await page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link", { name: "Server", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "Anlage Server" })).toBeVisible();
@@ -210,4 +213,37 @@ test("Software- und Lizenzanlagen: Felder wie in GAPTEQ, Lieferant als Freitext"
   await page.getByRole("button", { name: "Speichern" }).click();
   await expect(page.locator("main").getByRole("status")).toHaveText(/^Lizenz \d+ wurde angelegt\.$/);
   await expect(page.locator("dd", { hasText: "Windows Server 2025 Standard" })).toBeVisible();
+});
+
+test("Anlage Oracle ohne Passwortfeld, Anlage Windows-System mit festem EOL", async ({ page }) => {
+  await login(page, "admin");
+  await page.goto("/bereich/oracle/neu");
+  await expect(page.getByRole("heading", { name: "Anlage Oracle" })).toBeVisible();
+  const oracleLabels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
+  expect(oracleLabels).toEqual([
+    "Firma *", "DB-Typ *", "DB-Version", "Linux/Windows", "Zeichensatz", "SGA", "PGA", "RMAN-Copy-Job *", "RMAN-Pfad", "RMAN-Benutzer",
+    "DNS-Server", "IP-Adresse", "Gateway", "Softwarepflege *", "Softwarepflege bis", "IT-Servicevertrag *", "IT-Service bis", "Besonderheiten",
+  ]);
+  await expect(page.locator("form").getByText(/PW|Passwort/)).toHaveCount(0);
+  // Auch über die API lässt sich kein Passwort setzen: unbekannte Felder werden ignoriert
+  const res = await page.request.post("/api/areas/oracle", {
+    data: { values: { company: (await (await page.request.get("/api/areas/oracle/form")).json()).options.company[0], dbType: "Oracle XE", rmanCopyJob: "Nein", softwareContract: "Nein", itServiceContract: "Nein", rmanCopyJobPw: "geheim" } },
+  });
+  expect(res.status()).toBe(201);
+  const created = await (await page.request.get(`/api/areas/oracle/${(await res.json()).id}`)).json();
+  expect(JSON.stringify(created)).not.toContain("geheim");
+
+  await page.goto("/bereich/windows/neu");
+  await expect(page.getByRole("heading", { name: "Anlage Windows-System" })).toBeVisible();
+  const windowsLabels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
+  expect(windowsLabels).toEqual(["Firma *", "Servertyp *", "Hostname", "IP", "Subnetz", "Gateway", "OS", "WinCC", "Hardware", "Bereitgestellt", "Besonderheiten"]);
+  await expect(page.locator("section", { hasText: "Anlage Windows-System" }).getByText("EOL", { exact: true })).toBeVisible();
+  await choose(page, "Firma", 7);
+  await choose(page, "Servertyp", "APP-Server");
+  await choose(page, "OS", "Windows Server 2025");
+  await page.getByLabel("Hostname").fill("app-demo-neu");
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(page.locator("main").getByRole("status")).toHaveText(/^Windows-System \d+ wurde angelegt\.$/);
+  await expect(page.locator("dd", { hasText: "app-demo-neu" })).toBeVisible();
+  await expect(page.locator("dt", { hasText: "EOL" }).locator("xpath=following-sibling::dd[1]")).toHaveText("Nein");
 });

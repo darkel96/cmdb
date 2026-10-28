@@ -15,9 +15,9 @@ const TYPES: { label: string; icon: LucideIcon; areaId?: string }[] = [
   { label: "VEEAM", icon: DatabaseBackup, areaId: "veeam" },
   { label: "Lizenzen", icon: KeyRound, areaId: "lizenzen" },
   { label: "Storage", icon: HardDrive, areaId: "storage" },
-  { label: "Oracle", icon: Database },
+  { label: "Oracle", icon: Database, areaId: "oracle" },
   { label: "Client", icon: Laptop, areaId: "client" },
-  { label: "Windows-Systeme", icon: Monitor },
+  { label: "Windows-Systeme", icon: Monitor, areaId: "windows" }
 ];
 
 const tile = "animate-appear flex min-h-28 flex-col justify-between gap-3 rounded-lg border p-4";

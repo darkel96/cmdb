@@ -45,6 +45,15 @@ export const TEST_OPTIONS: Record<string, string[]> = {
   eol: ["Ja", "Nein"],
   raid: ["0", "1", "1+0", "5", "5+0"],
   monitor: ["Ja", "Nein"],
+  dbType: ["Oracle ESL", "Oracle unter Windows", "Oracle XE"],
+  charset: ["AL32UTF8", "WE8MSWIN1252"],
+  rmanCopyJob: ["Ja", "Nein"],
+  softwareContract: ["Ja", "Nein"],
+  itServiceContract: ["Ja", "Nein"],
+  function: ["APP-Server", "KBS-Server", "Sonstige", "Testsystem", "TSPLUS-Server", "WinCC-Server"],
+  os: ["Windows Server 2019", "Windows Server 2022", "Windows Server 2025"],
+  hardware: ["Physisch", "VM"],
+  providedBy: ["Kunde", "KSCA"],
 };
 
 const VALUES: Record<string, string[]> = {
