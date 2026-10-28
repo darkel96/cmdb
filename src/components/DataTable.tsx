@@ -93,16 +93,17 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
         </div>
       </div>
       <div className="scroll-thin min-h-0 flex-1" data-testid="table-scroll">
-        <table className="w-full table-fixed text-sm" style={{ minWidth }}>
+        {/* border-separate: Bei border-collapse bleiben die Linien im festgehaltenen Kopf nicht stehen, dann scheinen Zeilen durch */}
+        <table className="w-full table-fixed border-separate border-spacing-0 text-sm" style={{ minWidth }}>
           <colgroup>
             {columns.map((c) => (
               <col key={c.key} style={c.width ? { width: c.width } : undefined} />
             ))}
           </colgroup>
-          <thead className="sticky top-0 z-[1] bg-card shadow-[0_1px_0_var(--border)]">
-            <tr className="border-b text-left text-muted-foreground">
+          <thead className="sticky top-0 z-[1] bg-card">
+            <tr className="text-left text-muted-foreground">
               {columns.map((c) => (
-                <th key={c.key} className={cn("truncate px-3 py-2 font-medium", c.className)} title={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
+                <th key={c.key} className={cn("truncate border-b bg-card px-3 py-2 font-medium", c.className)} title={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
                   <button type="button" className="inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : false }))}>
                     {c.label}
                     {sort.key === c.key && (sort.desc ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden />)}
@@ -110,9 +111,9 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                 </th>
               ))}
             </tr>
-            <tr className="border-b">
+            <tr>
               {columns.map((c) => (
-                <th key={c.key} className="px-2 py-1 font-normal">
+                <th key={c.key} className="border-b bg-card px-2 py-1 font-normal">
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
                     <Input
@@ -140,14 +141,14 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                     onOpen?.(row);
                   }}
                   className={cn(
-                    "cursor-pointer border-b transition-colors duration-100 last:border-0",
+                    "cursor-pointer transition-colors duration-100",
                     isSelected ? "bg-brand text-brand-foreground" : "odd:bg-muted hover:bg-accent",
                   )}
                 >
                   {columns.map((c) => {
                     const text = c.value(row);
                     return (
-                      <td key={c.key} title={text} className={cn("truncate px-3 py-1.5", c.className)}>{text}</td>
+                      <td key={c.key} title={text} className={cn("truncate border-b px-3 py-1.5", c.className)}>{text}</td>
                     );
                   })}
                 </tr>

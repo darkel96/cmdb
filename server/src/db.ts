@@ -73,9 +73,11 @@ function areaSelect(area: Area): string {
   return ["ID", ...area.fields.map((f) => `${quote(f.column)} AS ${quote(f.key)}`)].join(", ");
 }
 
-// Vorab angelegte Leerzeilen (in keiner Spalte ein Wert) gehören nicht zum Bestand
+// Vorab angelegte Leerzeilen gehören nicht zum Bestand. Sie sind nicht ganz leer (z. B. EOL ist vorbelegt),
+// haben aber weder Typ noch Firma; so zählt auch GAPTEQ (Server 64, Switche 34)
 function areaNotEmpty(area: Area): string {
-  return "(" + area.fields.map((f) => (f.date ? `${quote(f.column)} IS NOT NULL` : `NULLIF(LTRIM(RTRIM(${quote(f.column)})), '') IS NOT NULL`)).join(" OR ") + ")";
+  const columns = area.fields.filter((f) => f.key === "type" || f.key === "company").map((f) => f.column);
+  return "(" + columns.map((c) => `NULLIF(LTRIM(RTRIM(${quote(c)})), '') IS NOT NULL`).join(" OR ") + ")";
 }
 
 function toAreaRow(area: Area, r: Record<string, unknown>): AreaRow {
