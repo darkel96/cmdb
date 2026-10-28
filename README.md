@@ -32,8 +32,10 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Hardware › Storage und Client: Übersicht und Anlage wie in GAPTEQ
 - [x] Kundenansicht: Kunde öffnen zeigt Kundeninformation, Dokumente und alle Systeme je Bereich
 - [x] Software › Oracle (ohne Passwortspalte) und OS-Systeme › Windows, nur lesend
-- [x] Software › VMware, TSPLUS, PRTG und Lizenzen › Oracle-ESL, nur lesend; Windows mit Typ-Spalte
-- [ ] Leserechte VMware, TSPLUS, PRTG, Vertragsdaten für `svc_cmdb`
+- [x] Software › VMware, Veeam, TSPLUS, PRTG und Lizenzen › Oracle-ESL, nur lesend; Windows mit Typ-Spalte
+- [ ] Leserechte VMware, VEEAM, TSPLUS, PRTG, Vertragsdaten für `svc_cmdb`
+- [x] Kunden anlegen, bearbeiten (Umbenennen in allen verknüpften Tabellen) und löschen (nur ohne Verweise), nur Admins
+- [ ] Rechte für Kundenpflege (`DS_Kunden` und Namensspalten der verknüpften Tabellen)
 - [x] Leserechte Oracle (86, Spalten ohne Passwort), Windows-Systeme (314), Anhang (16) für `svc_cmdb`
 - [x] Lese- und Schreibrecht `dbo.Storage_manuell` (14), `dbo.Client_manuell` (23), Leserecht `dbo.DD_RAID`, `dbo.DD_Client_Monitor`
 - [ ] Phase 1: Schema `cmdb`, Sync aus `dbo`, CI-Liste read-only

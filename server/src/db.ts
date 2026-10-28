@@ -4,6 +4,7 @@
 import sql from "mssql";
 import type { Area, AreaFormResponse, AreaRow, CustomerDocument } from "@/lib/areas";
 import type { CheckResult, Customer } from "@/lib/types";
+import { CUSTOMER_LINKS } from "./customerLinks";
 import { DB_CA, ENV } from "./env";
 
 export class DbError extends Error {
@@ -188,17 +189,125 @@ export interface CustomerRecord {
   name: string;
   country: string;
   city: string;
+  zip: string;
+  address: string;
+  email: string;
 }
+
+export type CustomerValues = Omit<CustomerRecord, "id">;
 
 export async function getCustomer(id: number): Promise<CustomerRecord | null> {
   try {
-    const result = await (await pool()).request().input("id", sql.Int, id).query<{ ExportId: number; Kunde: string | null; Land: string | null; Stadt: string | null }>(
-      "SELECT ExportId, Kunde, Land, Stadt FROM dbo.DS_Kunden WHERE ExportId = @id",
-    );
+    const result = await (await pool())
+      .request()
+      .input("id", sql.Int, id)
+      .query<Record<string, string | number | null>>("SELECT ExportId, Kunde, Land, Stadt, PLZ, Adresse, [E-Mail] AS Mail FROM dbo.DS_Kunden WHERE ExportId = @id");
     const r = result.recordset[0];
-    return r ? { id: r.ExportId, name: (r.Kunde ?? "").trim(), country: (r.Land ?? "").trim(), city: (r.Stadt ?? "").trim() } : null;
+    const t = (v: unknown) => String(v ?? "").trim();
+    return r ? { id: Number(r.ExportId), name: t(r.Kunde), country: t(r.Land), city: t(r.Stadt), zip: t(r.PLZ), address: t(r.Adresse), email: t(r.Mail) } : null;
   } catch (e) {
     throw translate(e, "dbo.DS_Kunden");
+  }
+}
+
+const nullable = (v: string) => (v.trim() === "" ? null : v.trim());
+
+async function nameTaken(request: sql.Request, name: string, exceptId: number): Promise<boolean> {
+  const r = await request.input("checkName", sql.NVarChar(255), name).input("exceptId", sql.Int, exceptId)
+    .query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.DS_Kunden WHERE LTRIM(RTRIM(Kunde)) = @checkName AND ExportId <> @exceptId");
+  return r.recordset[0].n > 0;
+}
+
+/** Neuer Kunde (INSERT, die ID vergibt der SQL Server); gleiche Namen sind nicht erlaubt */
+export async function createCustomer(values: Pick<CustomerValues, "name" | "country" | "city">): Promise<number> {
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+  try {
+    if (await nameTaken(new sql.Request(tx), values.name, 0)) throw new DbError(`Den Kunden „${values.name}“ gibt es schon.`, 409);
+    const r = await new sql.Request(tx)
+      .input("name", sql.NVarChar(255), values.name.trim())
+      .input("country", sql.NVarChar(255), nullable(values.country))
+      .input("city", sql.NVarChar(100), nullable(values.city))
+      .query<{ ExportId: number }>("INSERT INTO dbo.DS_Kunden (Kunde, Land, Stadt) OUTPUT INSERTED.ExportId VALUES (@name, @country, @city)");
+    await tx.commit();
+    return r.recordset[0].ExportId;
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, "dbo.DS_Kunden");
+  }
+}
+
+/**
+ * Kunde ändern. Ändert sich der Name, wird er in allen verknüpften Tabellen (CUSTOMER_LINKS) mitgeändert,
+ * alles in einer Transaktion: Schlägt ein Teil fehl, bleibt nichts geändert.
+ */
+export async function updateCustomer(id: number, values: CustomerValues): Promise<{ renamed: { label: string; count: number }[] }> {
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+  let object = "dbo.DS_Kunden";
+  try {
+    const current = await new sql.Request(tx).input("id", sql.Int, id).query<{ Kunde: string }>("SELECT Kunde FROM dbo.DS_Kunden WITH (UPDLOCK) WHERE ExportId = @id");
+    if (!current.recordset[0]) throw new DbError("Diesen Kunden gibt es nicht.", 404);
+    const oldName = current.recordset[0].Kunde.trim();
+    const newName = values.name.trim();
+    const renaming = oldName !== newName;
+    if (renaming && (await nameTaken(new sql.Request(tx), newName, id))) throw new DbError(`Den Kunden „${newName}“ gibt es schon.`, 409);
+    await new sql.Request(tx)
+      .input("id", sql.Int, id)
+      .input("name", sql.NVarChar(255), newName)
+      .input("country", sql.NVarChar(255), nullable(values.country))
+      .input("city", sql.NVarChar(100), nullable(values.city))
+      .input("zip", sql.NVarChar(255), nullable(values.zip))
+      .input("address", sql.NVarChar(255), nullable(values.address))
+      .input("email", sql.NVarChar(255), nullable(values.email))
+      .query("UPDATE dbo.DS_Kunden SET Kunde = @name, Land = @country, Stadt = @city, PLZ = @zip, Adresse = @address, [E-Mail] = @email WHERE ExportId = @id");
+    const renamed: { label: string; count: number }[] = [];
+    if (renaming) {
+      for (const link of CUSTOMER_LINKS) {
+        object = `dbo.${link.table}.${link.column}`;
+        const r = await new sql.Request(tx)
+          .input("old", sql.NVarChar(255), oldName)
+          .input("new", sql.NVarChar(255), newName)
+          .query(`UPDATE dbo.${quote(link.table)} SET ${quote(link.column)} = @new WHERE LTRIM(RTRIM(${quote(link.column)})) = @old`);
+        if (r.rowsAffected[0]) renamed.push({ label: link.label, count: r.rowsAffected[0] });
+      }
+    }
+    await tx.commit();
+    return { renamed };
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, object);
+  }
+}
+
+/** Was in den verknüpften Tabellen noch auf den Kunden verweist (Name oder FirmenID bei Anhängen) */
+async function customerReferences(request: () => sql.Request, customer: { id: number; name: string }): Promise<{ label: string; count: number }[]> {
+  const refs: { label: string; count: number }[] = [];
+  for (const link of CUSTOMER_LINKS) {
+    const extra = link.table === "Anhang" ? " OR FirmenID = @id" : "";
+    const r = await request()
+      .input("name", sql.NVarChar(255), customer.name)
+      .input("id", sql.Int, customer.id)
+      .query<{ n: number }>(`SELECT COUNT(*) AS n FROM dbo.${quote(link.table)} WHERE LTRIM(RTRIM(${quote(link.column)})) = @name${extra}`);
+    if (r.recordset[0].n) refs.push({ label: link.label, count: r.recordset[0].n });
+  }
+  return refs;
+}
+
+/** Kunde löschen, nur wenn nichts mehr auf ihn verweist */
+export async function deleteCustomer(id: number): Promise<void> {
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+  try {
+    const current = await new sql.Request(tx).input("id", sql.Int, id).query<{ Kunde: string }>("SELECT Kunde FROM dbo.DS_Kunden WITH (UPDLOCK) WHERE ExportId = @id");
+    if (!current.recordset[0]) throw new DbError("Diesen Kunden gibt es nicht.", 404);
+    const refs = await customerReferences(() => new sql.Request(tx), { id, name: current.recordset[0].Kunde.trim() });
+    if (refs.length) throw new DbError(`Löschen nicht möglich, dem Kunden ist noch etwas zugeordnet: ${refs.map((r) => `${r.label} (${r.count})`).join(", ")}.`, 409);
+    await new sql.Request(tx).input("id", sql.Int, id).query("DELETE FROM dbo.DS_Kunden WHERE ExportId = @id");
+    await tx.commit();
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, "dbo.DS_Kunden bzw. verknüpfte Tabellen");
   }
 }
 

@@ -46,8 +46,8 @@ test("Seitenleiste führt zu Bereichen und Auflistungen", async ({ page }) => {
   await openMenu(page);
   const nav = page.getByRole("navigation", { name: "Hauptnavigation" }).locator("visible=true");
   await nav.getByRole("button", { name: "Software" }).click();
-  await nav.getByRole("link", { name: "Veeam" }).click();
-  await expect(page.getByText("Software · Veeam")).toBeVisible();
+  await nav.getByRole("link", { name: "PMS-Module" }).click();
+  await expect(page.getByText("Software · PMS-Module")).toBeVisible();
   await expect(page.getByText("Dieser Bereich folgt.")).toBeVisible();
 
   await openMenu(page);

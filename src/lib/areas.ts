@@ -69,7 +69,7 @@ export interface CustomerDocument {
 }
 
 export interface CustomerDetailResponse {
-  customer: { id: number; name: string; country: string; city: string };
+  customer: { id: number; name: string; country: string; city: string; zip: string; address: string; email: string };
   documents: CustomerDocument[];
   /** Hinweis, falls die Dokumente nicht gelesen werden konnten */
   documentsError?: string;
@@ -78,6 +78,17 @@ export interface CustomerDetailResponse {
   /** Bereiche, die nicht gelesen werden konnten (z. B. fehlendes Leserecht) */
   errors: Record<string, string>;
   source: "test" | "db";
+}
+
+/** Kunde anlegen bzw. bearbeiten */
+export interface CustomerValuesRequest {
+  values: { name: string; country: string; city: string; zip?: string; address?: string; email?: string };
+}
+
+export interface CustomerSaveResponse {
+  id: number;
+  /** Beim Umbenennen: in welchen Tabellen wie viele Einträge mitumbenannt wurden */
+  renamed?: { label: string; count: number }[];
 }
 
 export interface AreaListResponse {
@@ -301,6 +312,29 @@ export const AREAS: Record<string, Area> = {
       { key: "licenseType", column: "Lizenztyp", label: "Lizenztyp", width: 230 },
       { key: "licensee", column: "Lizenznehmer", label: "Lizenznehmer", width: 210 },
       { key: "license", column: "Lizenz", label: "Lizenz", width: 250 },
+      f.supportUntil,
+      f.notes,
+      f.type,
+      { ...f.eol, detailOnly: true },
+      f.status,
+    ],
+  },
+  veeam: {
+    id: "veeam",
+    table: "VEEAM_manuell",
+    title: "Übersicht VEEAM",
+    singular: "Veeam",
+    plural: "Veeam",
+    typeValue: "VEEAM",
+    testCount: 13,
+    testIdBase: 70000,
+    fields: [
+      f.company,
+      f.supplier,
+      f.orderNumber,
+      { key: "licenseType", column: "Lizenztyp", label: "Lizenztyp", width: 240 },
+      { key: "licensee", column: "Lizenznehmer", label: "Lizenznehmer", width: 220 },
+      { key: "license", column: "Lizenz", label: "Lizenz", width: 260 },
       f.supportUntil,
       f.notes,
       f.type,

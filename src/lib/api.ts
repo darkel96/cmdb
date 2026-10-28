@@ -2,7 +2,7 @@
  * Zugriff auf den CMDB-Dienst. Im Build-Modus „pages“ (VITE_TESTMODE=1) gibt es keinen Dienst:
  * Dann beantwortet eine Attrappe im Browser alle Anfragen mit den Testbenutzern und erfundenen Daten.
  */
-import { AREAS, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse } from "./areas";
+import { AREAS, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
 import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
 
@@ -27,6 +27,9 @@ export interface Api {
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
   documentUrl(customerId: number, documentId: number): string | null;
+  createCustomer(values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
+  updateCustomer(id: number, values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
+  deleteCustomer(id: number): Promise<void>;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -57,13 +60,29 @@ const serverApi: Api = {
   createAreaRow: (areaId, values) => request<AreaCreateResponse>(`/api/areas/${areaId}`, { method: "POST", body: JSON.stringify({ values }) }),
   customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
   documentUrl: (customerId, documentId) => `/api/customers/${customerId}/documents/${documentId}`,
+  createCustomer: (values) => request<CustomerSaveResponse>("/api/customers", { method: "POST", body: JSON.stringify({ values }) }),
+  updateCustomer: (id, values) => request<CustomerSaveResponse>(`/api/customers/${id}`, { method: "PUT", body: JSON.stringify({ values }) }),
+  // Leerer JSON-Inhalt, damit die Ursprungsprüfung des Dienstes greift
+  deleteCustomer: (id) => request<void>(`/api/customers/${id}`, { method: "DELETE", body: "{}" }),
 };
 
 const STORAGE_KEY = "cmdb-test-session";
 
 // Testseite: neu angelegte Einträge nur bis zum Neuladen
 const browserCreated = new Map<string, AreaRow[]>();
-const browserRows = (areaId: string) => [...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])];
+let browserCustomers = [...TEST_CUSTOMERS];
+const browserRenames = new Map<string, string>();
+const browserExtra = new Map<number, { country: string; zip: string; address: string; email: string }>();
+const renamed = (name: string) => {
+  let current = name;
+  for (let i = 0; i < 10 && browserRenames.has(current); i++) current = browserRenames.get(current)!;
+  return current;
+};
+const browserRows = (areaId: string) =>
+  [...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])].map((r) => (typeof r.company === "string" ? { ...r, company: renamed(r.company) } : r));
+const requireAdmin = () => {
+  if (storedUser()?.user.role !== "admin") throw new ApiError("Nur Admins.", 403);
+};
 
 function storedUser(): MeResponse | null {
   try {
@@ -110,7 +129,7 @@ const browserTestApi: Api = {
   },
   customers: async () => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
-    return { source: "test", items: TEST_CUSTOMERS };
+    return { source: "test", items: browserCustomers };
   },
   area: async (areaId) => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
@@ -127,7 +146,7 @@ const browserTestApi: Api = {
     const area = AREAS[areaId];
     const options: Record<string, string[]> = {};
     for (const f of area.fields) {
-      if (f.options && area.createFields?.includes(f.key)) options[f.key] = f.options === "customers" ? TEST_CUSTOMERS.map((c) => c.name) : (TEST_OPTIONS[f.key] ?? []);
+      if (f.options && area.createFields?.includes(f.key)) options[f.key] = f.options === "customers" ? browserCustomers.map((c) => c.name) : (TEST_OPTIONS[f.key] ?? []);
     }
     return { nextId: Math.max(...browserRows(areaId).map((r) => r.id)) + 1, options };
   },
@@ -141,16 +160,51 @@ const browserTestApi: Api = {
   },
   customer: async (id) => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
-    const c = TEST_CUSTOMERS.find((x) => x.id === id);
+    const c = browserCustomers.find((x) => x.id === id);
     if (!c) throw new ApiError("Diesen Kunden gibt es nicht.", 404);
     const systems: Record<string, AreaRow[]> = {};
     for (const areaId of Object.keys(AREAS)) {
       const rows = browserRows(areaId).filter((r) => r.company === c.name);
       if (rows.length) systems[areaId] = rows;
     }
-    return { customer: { ...c, country: TEST_COUNTRIES[id % TEST_COUNTRIES.length] }, documents: [], systems, errors: {}, source: "test" };
+    const extra = browserExtra.get(id) ?? { country: TEST_COUNTRIES[id % TEST_COUNTRIES.length], zip: "", address: "", email: "" };
+    return { customer: { ...c, ...extra }, documents: [], systems, errors: {}, source: "test" };
   },
   documentUrl: () => null,
+  createCustomer: async (values) => {
+    requireAdmin();
+    if (browserCustomers.some((c) => c.name.toLowerCase() === values.name.trim().toLowerCase())) throw new ApiError(`Den Kunden „${values.name}“ gibt es schon.`, 409);
+    const id = Math.max(...browserCustomers.map((c) => c.id)) + 1;
+    browserCustomers = [...browserCustomers, { id, name: values.name.trim(), city: values.city }].sort((a, b) => a.name.localeCompare(b.name, "de"));
+    browserExtra.set(id, { country: values.country, zip: "", address: "", email: "" });
+    return { id };
+  },
+  updateCustomer: async (id, values) => {
+    requireAdmin();
+    const current = browserCustomers.find((c) => c.id === id);
+    if (!current) throw new ApiError("Diesen Kunden gibt es nicht.", 404);
+    const name = values.name.trim();
+    if (browserCustomers.some((c) => c.id !== id && c.name.toLowerCase() === name.toLowerCase())) throw new ApiError(`Den Kunden „${name}“ gibt es schon.`, 409);
+    const result: { label: string; count: number }[] = [];
+    if (name !== current.name) {
+      for (const area of Object.values(AREAS)) {
+        const count = browserRows(area.id).filter((r) => r.company === current.name).length;
+        if (count) result.push({ label: area.plural ?? area.singular, count });
+      }
+      browserRenames.set(current.name, name);
+    }
+    browserCustomers = browserCustomers.map((c) => (c.id === id ? { ...c, name, city: values.city } : c));
+    browserExtra.set(id, { country: values.country, zip: values.zip ?? "", address: values.address ?? "", email: values.email ?? "" });
+    return { id, renamed: result };
+  },
+  deleteCustomer: async (id) => {
+    requireAdmin();
+    const c = browserCustomers.find((x) => x.id === id);
+    if (!c) throw new ApiError("Diesen Kunden gibt es nicht.", 404);
+    const used = Object.keys(AREAS).some((areaId) => browserRows(areaId).some((r) => r.company === c.name));
+    if (used) throw new ApiError("Löschen nicht möglich, dem Kunden sind noch Systeme zugeordnet.", 409);
+    browserCustomers = browserCustomers.filter((x) => x.id !== id);
+  },
 };
 
 /** Testmodus im Browser ohne Dienst (GitHub Pages) */

@@ -22,6 +22,9 @@ Hinweise für Claude Code in diesem Repository.
 - Datenbankänderungen nur als versionierte Migrationsskripte.
 - Schreiben in `dbo` nur wie GAPTEQ (nächste freie, vorab angelegte Zeile füllen, mit Sperre), nur für Admins und nur
   mit ausdrücklich vergebenem `UPDATE`-Recht je Tabelle. Kein `INSERT`/`DELETE` in `dbo` ohne Freigabe.
+  Freigegeben (28.10.2026): `INSERT`/`UPDATE`/`DELETE` auf `dbo.DS_Kunden` für die Kundenpflege; Umbenennen ändert den
+  Namen in allen Tabellen aus `server/src/customerLinks.ts` mit, Löschen nur ohne Verweise. Neue Tabellen mit
+  Kundennamen dort ergänzen.
 - Sprache: Doku und Commit-Messages auf Deutsch, Code-Bezeichner auf Englisch.
 - Änderungen über Branch und Pull Request gegen `main`. Vor dem PR: `npm run typecheck`, `npm run build`, `npm run test:e2e`.
 - Testdaten (`src/lib/testData.ts`) und die Pages-Seite enthalten nur erfundene Werte: keine echten Hostnamen, IP-Adressen,
