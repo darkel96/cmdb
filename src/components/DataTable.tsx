@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ function csvCell(value: string): string {
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
@@ -35,6 +35,8 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   emptyText?: string;
   /** Öffnet die markierte Zeile (Knopf „Öffnen“ oder Doppelklick) */
   onOpen?: (row: T) => void;
+  /** Weitere Knöpfe links in der Werkzeugleiste, z. B. „Anlegen“ */
+  actions?: ReactNode;
 }) {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -79,11 +81,13 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
       <h1 className="shrink-0 bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{title}</h1>
       <div className="flex shrink-0 items-center justify-end gap-2 border-b px-3 py-2">
         {onOpen && (
-          <Button size="sm" className="mr-auto" disabled={!selectedRow} onClick={() => selectedRow && onOpen(selectedRow)} title={selectedRow ? "Markierte Zeile öffnen" : "Zuerst eine Zeile anklicken"}>
+          <Button size="sm" disabled={!selectedRow} onClick={() => selectedRow && onOpen(selectedRow)} title={selectedRow ? "Markierte Zeile öffnen" : "Zuerst eine Zeile anklicken"}>
             <FolderOpen aria-hidden />
             Öffnen
           </Button>
         )}
+        {actions}
+        <span className="flex-1" />
         <Button variant="outline" size="sm" onClick={exportCsv} title="Als CSV exportieren (Excel)" aria-label="Als CSV exportieren">
           <FileSpreadsheet aria-hidden />
         </Button>

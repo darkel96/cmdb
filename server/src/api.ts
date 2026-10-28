@@ -1,9 +1,9 @@
 /** API des CMDB-Dienstes unter /api */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { AREAS, type AreaListResponse, type AreaRow } from "@/lib/areas";
+import { AREAS, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow } from "@/lib/areas";
 import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
 import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
-import { DbError, dbCheck, getAreaRow, listArea, listCustomers } from "./db";
+import { DbError, areaForm, createAreaRow, dbCheck, getAreaRow, listArea, listCustomers } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -141,6 +141,74 @@ async function readDb(res: ServerResponse, read: () => Promise<unknown>): Promis
   }
 }
 
+// Testmodus: neu angelegte Einträge nur im Speicher (bis zum Neustart)
+const testCreated = new Map<string, AreaRow[]>();
+
+function areaRows(area: Area): AreaRow[] {
+  return [...testRows(area), ...(testCreated.get(area.id) ?? [])];
+}
+
+const TEST_OPTIONS: Record<string, string[]> = {
+  supplier: ["Lieferant A", "Lieferant B"],
+  manufacturer: ["Hersteller A", "Hersteller B", "Hersteller C"],
+  serverType: ["Multi Side Cluster", "Single Server", "Single Side Cluster", "Windows Cluster"],
+  maintenanceType: ["Garantie", "Wartungsvertrag"],
+  eol: ["Ja", "Nein"],
+};
+
+/** Testmodus: Formulardaten aus den erfundenen Daten */
+function testForm(area: Area): AreaFormResponse {
+  const options: Record<string, string[]> = {};
+  for (const f of area.fields) {
+    if (!f.options || !area.createFields?.includes(f.key)) continue;
+    options[f.key] = f.options === "customers" ? TEST_CUSTOMERS.map((c) => c.name) : (TEST_OPTIONS[f.key] ?? []);
+  }
+  return { nextId: Math.max(...areaRows(area).map((r) => r.id)) + 1, options };
+}
+
+/**
+ * Eingaben prüfen: nur Felder des Formulars, Pflichtfelder gefüllt, Text bis 255 Zeichen, Datum als JJJJ-MM-TT,
+ * Auswahlfelder nur mit Werten aus der Liste (wie in GAPTEQ)
+ */
+function validValues(area: Area, raw: unknown, form: AreaFormResponse): Record<string, string> {
+  if (!raw || typeof raw !== "object") throw new LoginError("Ungültige Anfrage.", 400);
+  const values: Record<string, string> = {};
+  for (const f of area.fields) {
+    if (!area.createFields?.includes(f.key)) continue;
+    const v = (raw as Record<string, unknown>)[f.key] ?? "";
+    if (typeof v !== "string") throw new LoginError(`${f.label}: ungültiger Wert.`, 400);
+    const value = v.trim();
+    if (f.required && !value) throw new LoginError(`${f.label} ist ein Pflichtfeld.`, 400);
+    if (value.length > 255) throw new LoginError(`${f.label}: höchstens 255 Zeichen.`, 400);
+    if (f.date && value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value)))) throw new LoginError(`${f.label}: ungültiges Datum.`, 400);
+    const allowed = form.options[f.key];
+    if (value && allowed?.length && !allowed.includes(value)) throw new LoginError(`${f.label}: „${value}“ steht nicht in der Auswahlliste.`, 400);
+    values[f.key] = value;
+  }
+  return values;
+}
+
+async function createInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser): Promise<void> {
+  const body = await readJson(req);
+  try {
+    const values = validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area));
+    if (ENV.testMode) {
+      const row: AreaRow = { id: testForm(area).nextId ?? area.testIdBase };
+      for (const f of area.fields) row[f.key] = f.key === "type" ? area.typeValue : (values[f.key] ?? "");
+      testCreated.set(area.id, [...(testCreated.get(area.id) ?? []), row]);
+      log(`Angelegt (Testmodus): ${area.singular} ${row.id} von ${user.username}`);
+      return json(res, 201, { id: row.id } satisfies AreaCreateResponse);
+    }
+    const id = await createAreaRow(area, values);
+    log(`Angelegt: ${area.singular} ${id} von ${user.username}`);
+    json(res, 201, { id } satisfies AreaCreateResponse);
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    log(`Anlegen nicht möglich (${area.singular}, ${user.username}): ${e.message}`);
+    fail(res, e.status, e.message);
+  }
+}
+
 /** true, wenn die Anfrage zur API gehört und beantwortet wurde */
 export async function api(req: IncomingMessage, res: ServerResponse, path: string): Promise<boolean> {
   if (!path.startsWith("/api/")) return false;
@@ -174,17 +242,33 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
           fail(res, e.status, e.message);
         }
       }
+    } else if (/^\/api\/areas\/[a-z-]+\/form$/.test(path) && method === "GET") {
+      const areaId = path.split("/")[3];
+      const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
+      const user = sessionFromRequest(req);
+      if (!user) fail(res, 401, "Nicht angemeldet.");
+      else if (user.role !== "admin") fail(res, 403, "Anlegen dürfen nur Admins.");
+      else if (!area?.createFields) fail(res, 404, "Dieser Bereich kann nicht angelegt werden.");
+      else await readDb(res, async () => (ENV.testMode ? testForm(area) : await areaForm(area)));
+    } else if (/^\/api\/areas\/[a-z-]+$/.test(path) && method === "POST") {
+      const areaId = path.split("/")[3];
+      const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
+      const user = sessionFromRequest(req);
+      if (!user) fail(res, 401, "Nicht angemeldet.");
+      else if (user.role !== "admin") fail(res, 403, "Anlegen dürfen nur Admins.");
+      else if (!area?.createFields) fail(res, 404, "Dieser Bereich kann nicht angelegt werden.");
+      else await createInArea(req, res, area, user);
     } else if (/^\/api\/areas\/[a-z-]+(\/\d+)?$/.test(path) && method === "GET") {
       const [, , , areaId, rawId] = path.split("/");
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
       else if (!area) fail(res, 404, "Unbekannter Bereich.");
       else if (rawId === undefined)
-        await readDb(res, async () => ({ source: ENV.testMode ? "test" : "db", items: ENV.testMode ? testRows(area) : await listArea(area) }) satisfies AreaListResponse);
+        await readDb(res, async () => ({ source: ENV.testMode ? "test" : "db", items: ENV.testMode ? areaRows(area) : await listArea(area) }) satisfies AreaListResponse);
       else
         await readDb(res, async () => {
           const id = Number(rawId);
-          const row: AreaRow | null | undefined = ENV.testMode ? testRows(area).find((r) => r.id === id) : await getAreaRow(area, id);
+          const row: AreaRow | null | undefined = ENV.testMode ? areaRows(area).find((r) => r.id === id) : await getAreaRow(area, id);
           if (!row) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
           return row;
         });

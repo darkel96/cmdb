@@ -8,6 +8,8 @@ import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { SectionPage } from "@/pages/SectionPage";
 import { AreaDetailPage } from "@/pages/AreaPage";
+import { AreaCreatePage } from "@/pages/AreaCreatePage";
+import { ContractTypesPage } from "@/pages/ContractTypesPage";
 import { StartPage } from "@/pages/StartPage";
 import { AuthProvider } from "@/state/auth";
 import "./index.css";
@@ -22,7 +24,9 @@ const router = createRouter([
     children: [
       { path: "/", element: <StartPage /> },
       { path: "/bereich/:id", element: <SectionPage /> },
+      { path: "/bereich/:id/neu", element: <AdminOnly><AreaCreatePage /></AdminOnly> },
       { path: "/bereich/:id/:itemId", element: <AreaDetailPage /> },
+      { path: "/anlage-vertrag", element: <AdminOnly><ContractTypesPage /></AdminOnly> },
       { path: "/verwaltung", element: <AdminOnly><AdminPage /></AdminOnly> },
       { path: "*", element: <NotFoundPage /> },
     ],

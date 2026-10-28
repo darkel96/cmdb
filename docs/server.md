@@ -88,13 +88,27 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | Startseite (Kundenübersicht) | `dbo.DS_Kunden` | 28.10.2026 |
 | Hardware › Server | `dbo.Server_manuell` | 28.10.2026 |
 | Hardware › Switche | `dbo.Switche_manuell` | 28.10.2026 |
+| Anlage Vertrag › Server (nur Admins) | `UPDATE` auf `dbo.Server_manuell`, Leserecht auf `dbo.DD_Lieferant`, `dbo.DD_Hersteller`, `dbo.DD_Servertyp`, `dbo.DD_Vertragstyp`, `dbo.DD_Ja_Nein` | offen |
 
 ```sql
 USE CMDB;
 GRANT SELECT ON dbo.DS_Kunden TO svc_cmdb;
 GRANT SELECT ON dbo.Server_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.Switche_manuell TO svc_cmdb;
+-- Anlage Vertrag › Server: nächste freie Zeile füllen, Auswahllisten lesen
+GRANT UPDATE ON dbo.Server_manuell TO svc_cmdb;
+GRANT SELECT ON dbo.DD_Lieferant TO svc_cmdb;
+GRANT SELECT ON dbo.DD_Hersteller TO svc_cmdb;
+GRANT SELECT ON dbo.DD_Servertyp TO svc_cmdb;
+GRANT SELECT ON dbo.DD_Vertragstyp TO svc_cmdb;
+GRANT SELECT ON dbo.DD_Ja_Nein TO svc_cmdb;
 ```
+
+**Schreiben (Anlage Vertrag):** Wie GAPTEQ füllt die CMDB die nächste freie, vorab angelegte Zeile des ID-Bereichs
+(Server 10000–11000, Switche 20000–21000 …), kein `INSERT`. Die Zeile wird beim Auswählen gesperrt (`UPDLOCK`,
+`READPAST`) und nur geschrieben, solange sie noch leer ist; sonst nimmt die CMDB die nächste. Jede Anlage steht im
+Protokoll (`docker compose logs`): `Angelegt: Server <ID> von <Anmeldename>`. Löschen oder Ändern gibt es in der CMDB
+noch nicht, das geht weiterhin in GAPTEQ.
 
 Das ändert nur Rechte, keine Tabellen; GAPTEQ ist nicht betroffen. Weitere Leserechte kommen mit den Bereichen in Phase 1.
 Vorab angelegte Leerzeilen (ohne Typ und Firma, EOL ist teils vorbelegt) blendet die CMDB aus, wie GAPTEQ.

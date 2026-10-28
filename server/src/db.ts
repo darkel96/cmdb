@@ -2,7 +2,7 @@
  * Zugriff auf die SQL-Server-Datenbank, nur lesend. Bestehende dbo-Tabellen werden nie verändert (siehe CLAUDE.md).
  */
 import sql from "mssql";
-import type { Area, AreaRow } from "@/lib/areas";
+import type { Area, AreaFormResponse, AreaRow } from "@/lib/areas";
 import type { CheckResult, Customer } from "@/lib/types";
 import { DB_CA, ENV } from "./env";
 
@@ -49,7 +49,10 @@ function pool(): Promise<sql.ConnectionPool> {
 /** Fehlermeldungen von SQL Server in verständliche Hinweise übersetzen (ohne Verbindungsdetails) */
 function translate(e: unknown, object: string): DbError {
   const number = (e as { number?: number }).number;
-  if (number === 229 || number === 230) return new DbError(`Die CMDB darf ${object} noch nicht lesen (Leserecht für den Datenbank-Login fehlt).`, 503);
+  if (number === 229 || number === 230) {
+    const write = /\b(UPDATE|INSERT|DELETE)\b/.test(String((e as Error).message));
+    return new DbError(`Die CMDB darf ${object} noch nicht ${write ? "ändern (Schreibrecht" : "lesen (Leserecht"} für den Datenbank-Login fehlt).`, 503);
+  }
   if (number === 208) return new DbError(`${object} gibt es in der Datenbank nicht.`, 503);
   if (e instanceof DbError) return e;
   return new DbError("Die Datenbank ist gerade nicht erreichbar.", 503);
@@ -96,6 +99,73 @@ export async function listArea(area: Area): Promise<AreaRow[]> {
     return result.recordset.map((r) => toAreaRow(area, r));
   } catch (e) {
     throw translate(e, `dbo.${area.table}`);
+  }
+}
+
+/**
+ * Neuer Eintrag wie in GAPTEQ: Die nächste freie, vorab angelegte Leerzeile des Bereichs wird gefüllt.
+ * Die Zeile wird beim Auswählen gesperrt (UPDLOCK), gesperrte Zeilen anderer Vorgänge übersprungen (READPAST),
+ * und geschrieben wird nur, solange sie noch leer ist. Hat sie in der Zwischenzeit jemand belegt, nimmt die CMDB
+ * die nächste. Es werden nur Spalten aus der festen Beschreibung des Bereichs gesetzt.
+ */
+export async function createAreaRow(area: Area, values: Record<string, string>): Promise<number> {
+  const table = `dbo.${quote(area.table)}`;
+  const free = `NOT ${areaNotEmpty(area)}`;
+  const p = await pool();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const tx = new sql.Transaction(p);
+    await tx.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
+    try {
+      const pick = await new sql.Request(tx).query<{ ID: number }>(`SELECT TOP 1 ID FROM ${table} WITH (UPDLOCK, ROWLOCK, READPAST) WHERE ${free} ORDER BY ID`);
+      const id = pick.recordset[0]?.ID;
+      if (id === undefined) throw new DbError(`Im Bereich ${area.singular} ist keine freie Zeile mehr vorhanden.`, 409);
+      const request = new sql.Request(tx).input("id", sql.Int, id);
+      const sets: string[] = [];
+      for (const [i, f] of area.fields.entries()) {
+        if (f.key !== "type" && !(f.key in values)) continue;
+        const value = f.key === "type" ? area.typeValue : values[f.key].trim();
+        request.input(`v${i}`, f.date ? sql.Date : sql.NVarChar(255), value === "" ? null : f.date ? new Date(`${value}T00:00:00Z`) : value);
+        sets.push(`${quote(f.column)} = @v${i}`);
+      }
+      const update = await request.query(`UPDATE ${table} SET ${sets.join(", ")} WHERE ID = @id AND ${free}`);
+      if (update.rowsAffected[0] !== 1) {
+        await tx.rollback();
+        continue;
+      }
+      await tx.commit();
+      return id;
+    } catch (e) {
+      await tx.rollback().catch(() => undefined);
+      throw translate(e, table.replace(/[[\]]/g, ""));
+    }
+  }
+  throw new DbError("Die freie Zeile wurde gerade anderweitig belegt. Bitte noch einmal speichern.", 409);
+}
+
+/** Formular „Anlage“: voraussichtliche nächste freie ID (ohne Sperre, nur zur Anzeige) und Auswahllisten */
+export async function areaForm(area: Area): Promise<AreaFormResponse> {
+  const p = await pool();
+  const options: Record<string, string[]> = {};
+  let object = `dbo.${area.table}`;
+  try {
+    const next = await p.request().query<{ ID: number | null }>(`SELECT MIN(ID) AS ID FROM dbo.${quote(area.table)} WHERE NOT ${areaNotEmpty(area)}`);
+    for (const f of area.fields) {
+      if (!f.options || !area.createFields?.includes(f.key)) continue;
+      if (f.options === "customers") {
+        object = "dbo.DS_Kunden";
+        options[f.key] = (await listCustomers()).map((c) => c.name).filter(Boolean);
+      } else {
+        object = `dbo.${f.options.table}`;
+        const column = quote(f.options.column);
+        const result = await p.request().query<{ v: string }>(
+          `SELECT DISTINCT LTRIM(RTRIM(${column})) AS v FROM dbo.${quote(f.options.table)} WHERE NULLIF(LTRIM(RTRIM(${column})), '') IS NOT NULL ORDER BY v`,
+        );
+        options[f.key] = result.recordset.map((r) => r.v);
+      }
+    }
+    return { nextId: next.recordset[0]?.ID ?? null, options };
+  } catch (e) {
+    throw translate(e, object);
   }
 }
 
