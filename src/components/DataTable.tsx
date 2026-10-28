@@ -62,7 +62,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   }
 
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={title}>
+    <section className="animate-appear flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={title}>
       {/* Titel, Suche, Spaltenköpfe und Blättern bleiben stehen; nur die Zeilen scrollen */}
       <h1 className="shrink-0 bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{title}</h1>
       <div className="flex shrink-0 items-center justify-end gap-2 border-b px-3 py-2">
@@ -74,13 +74,13 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Suchen …" aria-label="Suchen" className="h-8 pl-8" />
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto" data-testid="table-scroll">
+      <div className="scroll-thin min-h-0 flex-1" data-testid="table-scroll">
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-[1] bg-card shadow-[0_1px_0_var(--border)]">
             <tr className="border-b text-left text-muted-foreground">
               {columns.map((c) => (
                 <th key={c.key} className={cn("px-3 py-2 font-medium", c.className)} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
-                  <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : false }))}>
+                  <button type="button" className="inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : false }))}>
                     {c.label}
                     {sort.key === c.key && (sort.desc ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden />)}
                   </button>
@@ -105,7 +105,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           </thead>
           <tbody>
             {visible.map((row) => (
-              <tr key={rowKey(row)} className="border-b last:border-0 odd:bg-muted/40 hover:bg-accent">
+              <tr key={rowKey(row)} className="border-b transition-colors duration-100 last:border-0 odd:bg-muted/40 hover:bg-accent">
                 {columns.map((c) => (
                   <td key={c.key} className={cn("px-3 py-1.5", c.className)}>{c.value(row)}</td>
                 ))}

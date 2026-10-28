@@ -78,3 +78,14 @@ test("Kopf- und Seitenleiste bleiben beim Scrollen stehen", async ({ page }, tes
     await expect(page.getByRole("button", { name: "Menü ein- oder ausblenden" })).toBeHidden();
   }
 });
+
+test("Körber-Blau als Primärfarbe, Hand über Knöpfen", async ({ page }) => {
+  await page.goto("/login");
+  const submit = page.getByRole("button", { name: "Anmelden" });
+  await expect(submit).toHaveCSS("background-color", "rgb(0, 96, 255)");
+  await expect(submit).toHaveCSS("cursor", "pointer");
+  await login(page);
+  await expect(page.locator("header")).toHaveCSS("background-color", "rgb(0, 96, 255)");
+  await expect(page.getByRole("button", { name: "Abmelden" })).toHaveCSS("cursor", "pointer");
+  await expect(page.getByRole("button", { name: "Vorherige Seite" })).toHaveCSS("cursor", "not-allowed");
+});

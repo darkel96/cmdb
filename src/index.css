@@ -8,8 +8,9 @@
   --foreground: oklch(0.205 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.205 0 0);
-  --primary: oklch(0.269 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  /* Körber-Blau RGB 0, 96, 255 (wie im KI-Portal) */
+  --primary: #0060ff;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.955 0 0);
   --secondary-foreground: oklch(0.269 0 0);
   --muted: oklch(0.955 0 0);
@@ -22,9 +23,10 @@
   --warning-fg: oklch(0.38 0.08 70);
   --border: oklch(0.91 0 0);
   --input: oklch(0.88 0 0);
-  --ring: oklch(0.6 0 0);
-  --brand: oklch(0.55 0.19 262);
-  --brand-foreground: oklch(0.99 0 0);
+  --ring: #0060ff;
+  --brand: #0060ff;
+  --brand-hover: #004ccc;
+  --brand-foreground: #ffffff;
   --sidebar: oklch(0.62 0 0);
   --sidebar-foreground: oklch(0.99 0 0);
   --sidebar-accent: oklch(0.55 0 0);
@@ -37,8 +39,8 @@
     --foreground: oklch(0.96 0 0);
     --card: oklch(0.21 0 0);
     --card-foreground: oklch(0.96 0 0);
-    --primary: oklch(0.92 0 0);
-    --primary-foreground: oklch(0.2 0 0);
+    --primary: #0060ff;
+    --primary-foreground: #ffffff;
     --secondary: oklch(0.27 0 0);
     --secondary-foreground: oklch(0.96 0 0);
     --muted: oklch(0.27 0 0);
@@ -51,8 +53,7 @@
     --warning-fg: oklch(0.93 0.08 90);
     --border: oklch(1 0 0 / 12%);
     --input: oklch(1 0 0 / 18%);
-    --ring: oklch(0.55 0 0);
-    --brand: oklch(0.5 0.17 262);
+    --ring: #4c8fff;
     --sidebar: oklch(0.24 0 0);
     --sidebar-accent: oklch(0.32 0 0);
   }
@@ -80,6 +81,7 @@
   --color-ring: var(--ring);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
+  --color-brand-hover: var(--brand-hover);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
@@ -95,5 +97,119 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+  }
+  html {
+    accent-color: var(--brand);
+    /* Schmale, dezente Scrollleisten wie im KI-Portal */
+    scrollbar-color: color-mix(in srgb, currentColor 25%, transparent) transparent;
+  }
+  input,
+  textarea {
+    caret-color: var(--brand);
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--brand) 22%, transparent);
+  }
+  /* Hand über allem, was man anklicken kann */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
+/* Scrollbereiche innerhalb der Seite (Inhalt, Seitenleiste, Tabellen) */
+@utility scroll-thin {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, currentColor 25%, transparent) transparent;
+}
+
+/* ===== Bewegung (wie im KI-Portal): kurz, ease-out beim Erscheinen, ease-in beim Verschwinden ===== */
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes vt-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@utility animate-appear {
+  animation: appear 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
+@utility animate-fade-in {
+  animation: fade-in 0.2s ease-out backwards;
+}
+@utility animate-slide-in-left {
+  animation: slide-in-left 0.24s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+}
+
+/* Seitenwechsel: Kopf- und Seitenleiste bleiben stehen, nur der Inhalt wechselt */
+.vt-header {
+  view-transition-name: header;
+}
+.vt-sidebar {
+  view-transition-name: sidebar;
+}
+::view-transition-old(root) {
+  animation: vt-out 160ms ease-in both;
+}
+::view-transition-new(root) {
+  animation: vt-in 240ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root) {
+    animation: vt-fade-out 150ms ease-in both;
+  }
+  ::view-transition-new(root) {
+    animation: fade-in 200ms ease-out both;
+  }
+  ::view-transition-group(*) {
+    animation-duration: 0s;
+  }
+  .animate-appear,
+  .animate-fade-in,
+  .animate-slide-in-left {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
   }
 }

@@ -36,7 +36,7 @@ function ListsPage() {
 
 function Placeholder({ title, group }: { title: string; group?: string }) {
   return (
-    <Card>
+    <Card className="animate-appear">
       <CardHeader>
         <CardTitle>{group ? `${group} · ${title}` : title}</CardTitle>
         <CardDescription>Dieser Bereich folgt. Die Daten kommen ab Phase 1 nur lesend aus der bestehenden Datenbank.</CardDescription>
