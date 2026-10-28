@@ -33,7 +33,7 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Kundenansicht: Kunde öffnen zeigt Kundeninformation, Dokumente und alle Systeme je Bereich
 - [x] Software › Oracle (ohne Passwortspalte) und OS-Systeme › Windows, nur lesend
 - [x] Software › VMware, Veeam, TSPLUS, PRTG und Lizenzen › Oracle-ESL, nur lesend; Windows mit Typ-Spalte
-- [ ] Leserechte VMware, VEEAM, TSPLUS, PRTG, Vertragsdaten für `svc_cmdb`
+- [x] Leserechte VMware, VEEAM, TSPLUS, PRTG, Vertragsdaten für `svc_cmdb`
 - [x] Kunden anlegen, bearbeiten (Umbenennen in allen verknüpften Tabellen) und löschen (nur ohne Verweise), nur Admins
 - [x] Anlage VMware, VEEAM, TSPLUS, PRTG und Windows-Lizenzen wie in GAPTEQ; Lizenzen › Windows-Lizenzen
 - [x] Anlage Oracle (ohne Passwortfeld) und Anlage Windows-System; damit sind alle zwölf Typen bei Anlage Vertrag anlegbar
@@ -42,7 +42,7 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [x] Schema `cmdb` angelegt (28.10.2026)
 - [ ] Bearbeiten und Löschen bestehender Einträge (Rechte sind schon vorgesehen)
 - [ ] KI-Assistent mit den CMDB-Daten (Anbindung wie im KI-Portal)
-- [ ] Rechte für Kundenpflege (`DS_Kunden` und Namensspalten der verknüpften Tabellen)
+- [x] Rechte für Kundenpflege (`DS_Kunden` und Namensspalten der 28 verknüpften Tabellen)
 - [x] Leserechte Oracle (86, Spalten ohne Passwort), Windows-Systeme (314), Anhang (16) für `svc_cmdb`
 - [x] Lese- und Schreibrecht `dbo.Storage_manuell` (14), `dbo.Client_manuell` (23), Leserecht `dbo.DD_RAID`, `dbo.DD_Client_Monitor`
 - [ ] Phase 1: Schema `cmdb`, Sync aus `dbo`, CI-Liste read-only
