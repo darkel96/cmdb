@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, Download, FileText } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router";
+import { ArrowLeft, CheckCircle2, Download, FileText, Pencil } from "lucide-react";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { useAuth } from "@/state/auth";
 import { DataTable } from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -20,6 +21,8 @@ function Box({ title, children, className }: { title: string; children: React.Re
 export function CustomerPage() {
   const { customerId = "" } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const state = useLocation().state as { created?: boolean; saved?: boolean; renamed?: { label: string; count: number }[] } | null;
   const [data, setData] = useState<CustomerDetailResponse | null>(null);
   const [error, setError] = useState("");
 
@@ -34,12 +37,29 @@ export function CustomerPage() {
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <Button variant="outline" size="sm" className="self-start" asChild>
-        <Link to="/" viewTransition>
-          <ArrowLeft aria-hidden />
-          Zur Kundenübersicht
-        </Link>
-      </Button>
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/" viewTransition>
+            <ArrowLeft aria-hidden />
+            Zur Kundenübersicht
+          </Link>
+        </Button>
+        {user?.role === "admin" && (
+          <Button variant="outline" size="sm" asChild>
+            <Link to={`/kunden/${customerId}/bearbeiten`} viewTransition>
+              <Pencil aria-hidden />
+              Bearbeiten
+            </Link>
+          </Button>
+        )}
+      </div>
+      {data && (state?.created || state?.saved) && (
+        <p role="status" className="flex items-center gap-2 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          <CheckCircle2 className="size-4 shrink-0" aria-hidden />
+          {state.created ? "Kunde wurde angelegt." : "Kunde wurde gespeichert."}
+          {state.renamed?.length ? ` Mitumbenannt: ${state.renamed.map((r) => `${r.label} (${r.count})`).join(", ")}.` : ""}
+        </p>
+      )}
       {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
       {!data && !error && <p className="text-sm text-muted-foreground">Wird geladen …</p>}
       {data && (

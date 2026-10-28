@@ -96,6 +96,7 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | OS-Systeme › Windows | `dbo.Windowssysteme_manuell` | 28.10.2026 |
 | Kundenansicht › Dokumente | `dbo.Anhang` | 28.10.2026 |
 | Software › VMware, TSPLUS, PRTG; Lizenzen › Oracle-ESL | `dbo.VMware_manuell`, `dbo.TSPLUS_manuell`, `dbo.PRTG_manuell`, `dbo.Vertragsdaten` | offen |
+| Kunden anlegen, bearbeiten, löschen (nur Admins) | `INSERT`, `UPDATE`, `DELETE` auf `dbo.DS_Kunden`; Lesen und Ändern nur der Namensspalte in 28 verknüpften Tabellen | offen |
 | Anlage Vertrag › Server (nur Admins) | `UPDATE` auf `dbo.Server_manuell`, Leserecht auf `dbo.DD_Lieferant`, `dbo.DD_Hersteller`, `dbo.DD_Servertyp`, `dbo.DD_Vertragstyp`, `dbo.DD_Ja_Nein` | 28.10.2026 (erste Anlage: Server 10064) |
 
 ```sql
@@ -132,7 +133,44 @@ GRANT SELECT ON dbo.VMware_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.TSPLUS_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.PRTG_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.Vertragsdaten TO svc_cmdb;
+-- Kunden anlegen, bearbeiten, löschen (nur Admins in der CMDB)
+GRANT INSERT, UPDATE, DELETE ON dbo.DS_Kunden TO svc_cmdb;
+-- Umbenennen in allen verknüpften Tabellen und Prüfung vor dem Löschen: nur die Namensspalte
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Server_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Switche_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.MDE_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Storage_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Client_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Oracle_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Windowssysteme_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.VMware_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.TSPLUS_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.PRTG_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.VEEAM_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Lizenzen_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.IT_Service_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Servicevertrag_manuell TO svc_cmdb;
+GRANT SELECT (Kunde), UPDATE (Kunde) ON dbo.Vertragsdaten TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Vertraege TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Anhang TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Anhang_Ticket TO svc_cmdb;
+GRANT SELECT (Firmenname), UPDATE (Firmenname) ON dbo.Firmenkontakte TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.FW_IT TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.FW_SPS TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Linuxsysteme TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Oracle_DB TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Server TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Ergebnis_Server_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.Ergebnis_Switche_manuell TO svc_cmdb;
+GRANT SELECT (Firma), UPDATE (Firma) ON dbo.NeueZielTabelle TO svc_cmdb;
+GRANT SELECT (Kunde), UPDATE (Kunde) ON dbo.Zeiterfassung TO svc_cmdb;
 ```
+
+**Kunden pflegen:** Anlegen fügt eine Zeile in `DS_Kunden` ein (die ID vergibt der SQL Server), gleiche Namen sind nicht
+erlaubt. Beim Umbenennen ändert die CMDB den Namen in einer Transaktion auch in allen Tabellen aus
+`server/src/customerLinks.ts` (Systeme, Dokumente, Kontakte, Verträge, Tickets, Zeiterfassung …); schlägt ein Teil fehl,
+bleibt nichts geändert. Der Kundenname darf deshalb höchstens 100 Zeichen haben (`Anhang_Ticket.Firma`). Löschen geht
+nur, wenn in diesen Tabellen nichts mehr auf den Kunden verweist. Alles steht im Protokoll.
 
 **Kundenansicht:** Beim Öffnen eines Kunden zeigt die CMDB Kundeninformation, Dokumente (`dbo.Anhang`, zugeordnet über
 `FirmenID` oder den Firmennamen) und je Bereich alle Systeme, deren `Firma` dem Kundennamen entspricht. Ein Bereich ohne

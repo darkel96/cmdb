@@ -11,6 +11,7 @@ import { AreaDetailPage } from "@/pages/AreaPage";
 import { AreaCreatePage } from "@/pages/AreaCreatePage";
 import { ContractTypesPage } from "@/pages/ContractTypesPage";
 import { CustomerPage } from "@/pages/CustomerPage";
+import { CustomerFormPage } from "@/pages/CustomerFormPage";
 import { StartPage } from "@/pages/StartPage";
 import { AuthProvider } from "@/state/auth";
 import "./index.css";
@@ -27,7 +28,9 @@ const router = createRouter([
       { path: "/bereich/:id", element: <SectionPage /> },
       { path: "/bereich/:id/neu", element: <AdminOnly><AreaCreatePage /></AdminOnly> },
       { path: "/bereich/:id/:itemId", element: <AreaDetailPage /> },
+      { path: "/kunden/neu", element: <AdminOnly><CustomerFormPage /></AdminOnly> },
       { path: "/kunden/:customerId", element: <CustomerPage /> },
+      { path: "/kunden/:customerId/bearbeiten", element: <AdminOnly><CustomerFormPage /></AdminOnly> },
       { path: "/anlage-vertrag", element: <AdminOnly><ContractTypesPage /></AdminOnly> },
       { path: "/verwaltung", element: <AdminOnly><AdminPage /></AdminOnly> },
       { path: "*", element: <NotFoundPage /> },

@@ -1,9 +1,10 @@
 /** API des CMDB-Dienstes unter /api */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { AREAS, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse } from "@/lib/areas";
-import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
+import { AREAS, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
+import type { CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
-import { DbError, areaForm, createAreaRow, dbCheck, getAreaRow, getCustomer, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments } from "./db";
+import { CUSTOMER_NAME_MAX } from "./customerLinks";
+import { DbError, areaForm, createAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getCustomer, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -141,11 +142,20 @@ async function readDb(res: ServerResponse, read: () => Promise<unknown>): Promis
   }
 }
 
-// Testmodus: neu angelegte Einträge nur im Speicher (bis zum Neustart)
+// Testmodus: neu angelegte Einträge, Kunden und Umbenennungen nur im Speicher (bis zum Neustart)
 const testCreated = new Map<string, AreaRow[]>();
+let testCustomers: Customer[] = [...TEST_CUSTOMERS];
+const testRenames = new Map<string, string>();
+const testExtra = new Map<number, { zip: string; address: string; email: string; country?: string }>();
+
+function renamedCompany(name: string): string {
+  let current = name;
+  for (let i = 0; i < 10 && testRenames.has(current); i++) current = testRenames.get(current)!;
+  return current;
+}
 
 function areaRows(area: Area): AreaRow[] {
-  return [...testRows(area), ...(testCreated.get(area.id) ?? [])];
+  return [...testRows(area), ...(testCreated.get(area.id) ?? [])].map((r) => (typeof r.company === "string" ? { ...r, company: renamedCompany(r.company) } : r));
 }
 
 
@@ -154,7 +164,7 @@ function testForm(area: Area): AreaFormResponse {
   const options: Record<string, string[]> = {};
   for (const f of area.fields) {
     if (!f.options || !area.createFields?.includes(f.key)) continue;
-    options[f.key] = f.options === "customers" ? TEST_CUSTOMERS.map((c) => c.name) : (TEST_OPTIONS[f.key] ?? []);
+    options[f.key] = f.options === "customers" ? testCustomers.map((c) => c.name) : (TEST_OPTIONS[f.key] ?? []);
   }
   return { nextId: Math.max(...areaRows(area).map((r) => r.id)) + 1, options };
 }
@@ -205,7 +215,7 @@ async function createInArea(req: IncomingMessage, res: ServerResponse, area: Are
 /** Kundenansicht: Stammdaten, Dokumente und alle Systeme je Bereich; ein nicht lesbarer Bereich verhindert die übrigen nicht */
 async function customerDetail(id: number): Promise<CustomerDetailResponse> {
   if (ENV.testMode) {
-    const c = TEST_CUSTOMERS.find((x) => x.id === id);
+    const c = testCustomers.find((x) => x.id === id);
     if (!c) throw new DbError("Diesen Kunden gibt es nicht.", 404);
     const systems: Record<string, AreaRow[]> = {};
     for (const area of Object.values(AREAS)) {
@@ -213,7 +223,9 @@ async function customerDetail(id: number): Promise<CustomerDetailResponse> {
       if (rows.length) systems[area.id] = rows;
     }
     const documents = id % 3 === 0 ? [{ id: id * 10 + 1, name: `Angebot-${c.name.replace(/\W+/g, "-")}.txt`, type: "Angebot" }] : [];
-    return { customer: { ...c, country: TEST_COUNTRIES[id % TEST_COUNTRIES.length] }, documents, systems, errors: {}, source: "test" };
+    const extra = testExtra.get(id);
+    const customer = { ...c, country: extra?.country ?? TEST_COUNTRIES[id % TEST_COUNTRIES.length], zip: extra?.zip ?? "", address: extra?.address ?? "", email: extra?.email ?? "" };
+    return { customer, documents, systems, errors: {}, source: "test" };
   }
   const customer = await getCustomer(id);
   if (!customer) throw new DbError("Diesen Kunden gibt es nicht.", 404);
@@ -245,7 +257,7 @@ async function customerDetail(id: number): Promise<CustomerDetailResponse> {
 async function sendDocument(res: ServerResponse, customerId: number, documentId: number): Promise<void> {
   let doc: { name: string; data: Buffer } | null;
   if (ENV.testMode) {
-    const c = TEST_CUSTOMERS.find((x) => x.id === customerId);
+    const c = testCustomers.find((x) => x.id === customerId);
     doc = c && documentId === customerId * 10 + 1 ? { name: `Angebot-${c.name.replace(/\W+/g, "-")}.txt`, data: Buffer.from(`Erfundenes Testdokument für ${c.name}.\n`) } : null;
   } else {
     const customer = await getCustomer(customerId);
@@ -262,12 +274,91 @@ async function sendDocument(res: ServerResponse, customerId: number, documentId:
   res.end(doc.data);
 }
 
+/** Eingaben für Kunden prüfen: Name Pflicht und höchstens so lang wie die kürzeste verknüpfte Spalte */
+function customerValues(raw: unknown, full: boolean): CustomerValues {
+  if (!raw || typeof raw !== "object") throw new LoginError("Ungültige Anfrage.", 400);
+  const get = (key: string, max: number) => {
+    const v = (raw as Record<string, unknown>)[key] ?? "";
+    if (typeof v !== "string") throw new LoginError("Ungültiger Wert.", 400);
+    if (v.trim().length > max) throw new LoginError(`Höchstens ${max} Zeichen.`, 400);
+    return v.trim();
+  };
+  const values = { name: get("name", CUSTOMER_NAME_MAX), country: get("country", 255), city: get("city", 100), zip: full ? get("zip", 255) : "", address: full ? get("address", 255) : "", email: full ? get("email", 255) : "" };
+  if (!values.name) throw new LoginError("Kunde ist ein Pflichtfeld.", 400);
+  if (values.email && !/^[^\s@]+@[^\s@]+$/.test(values.email)) throw new LoginError("E-Mail: ungültige Adresse.", 400);
+  return values;
+}
+
+async function saveCustomer(req: IncomingMessage, res: ServerResponse, user: SessionUser, id?: number): Promise<void> {
+  const values = customerValues((await readJson(req)).values, id !== undefined);
+  try {
+    if (ENV.testMode) {
+      const taken = testCustomers.some((c) => c.name.toLowerCase() === values.name.toLowerCase() && c.id !== id);
+      if (taken) throw new DbError(`Den Kunden „${values.name}“ gibt es schon.`, 409);
+      if (id === undefined) {
+        const newId = Math.max(...testCustomers.map((c) => c.id)) + 1;
+        testCustomers = [...testCustomers, { id: newId, name: values.name, city: values.city }].sort((a, b) => a.name.localeCompare(b.name, "de"));
+        testExtra.set(newId, { zip: "", address: "", email: "", country: values.country });
+        log(`Kunde angelegt (Testmodus): ${newId} von ${user.username}`);
+        return json(res, 201, { id: newId } satisfies CustomerSaveResponse);
+      }
+      const current = testCustomers.find((c) => c.id === id);
+      if (!current) throw new DbError("Diesen Kunden gibt es nicht.", 404);
+      const renamed: { label: string; count: number }[] = [];
+      if (current.name !== values.name) {
+        for (const area of Object.values(AREAS)) {
+          const count = areaRows(area).filter((r) => r.company === current.name).length;
+          if (count) renamed.push({ label: area.plural ?? area.singular, count });
+        }
+        testRenames.set(current.name, values.name);
+      }
+      testCustomers = testCustomers.map((c) => (c.id === id ? { ...c, name: values.name, city: values.city } : c)).sort((a, b) => a.name.localeCompare(b.name, "de"));
+      testExtra.set(id, { zip: values.zip, address: values.address, email: values.email, country: values.country });
+      log(`Kunde geändert (Testmodus): ${id} von ${user.username}`);
+      return json(res, 200, { id, renamed } satisfies CustomerSaveResponse);
+    }
+    if (id === undefined) {
+      const newId = await createCustomer(values);
+      log(`Kunde angelegt: ${newId} von ${user.username}`);
+      return json(res, 201, { id: newId } satisfies CustomerSaveResponse);
+    }
+    const { renamed } = await updateCustomer(id, values);
+    log(`Kunde geändert: ${id} von ${user.username}${renamed.length ? `, umbenannt in ${renamed.map((r) => `${r.label} (${r.count})`).join(", ")}` : ""}`);
+    json(res, 200, { id, renamed } satisfies CustomerSaveResponse);
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    log(`Kunde nicht gespeichert (${user.username}): ${e.message}`);
+    fail(res, e.status, e.message);
+  }
+}
+
+async function removeCustomer(res: ServerResponse, user: SessionUser, id: number): Promise<void> {
+  try {
+    if (ENV.testMode) {
+      const c = testCustomers.find((x) => x.id === id);
+      if (!c) throw new DbError("Diesen Kunden gibt es nicht.", 404);
+      const refs = Object.values(AREAS)
+        .map((a) => ({ label: a.plural ?? a.singular, count: areaRows(a).filter((r) => r.company === c.name).length }))
+        .filter((r) => r.count);
+      if (refs.length) throw new DbError(`Löschen nicht möglich, dem Kunden ist noch etwas zugeordnet: ${refs.map((r) => `${r.label} (${r.count})`).join(", ")}.`, 409);
+      testCustomers = testCustomers.filter((x) => x.id !== id);
+    } else await deleteCustomer(id);
+    log(`Kunde gelöscht: ${id} von ${user.username}`);
+    res.writeHead(204, { "Cache-Control": "no-store" });
+    res.end();
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    log(`Kunde nicht gelöscht (${user.username}): ${e.message}`);
+    fail(res, e.status, e.message);
+  }
+}
+
 /** true, wenn die Anfrage zur API gehört und beantwortet wurde */
 export async function api(req: IncomingMessage, res: ServerResponse, path: string): Promise<boolean> {
   if (!path.startsWith("/api/")) return false;
   const method = req.method ?? "GET";
   try {
-    if (method === "POST" && !sameOrigin(req)) {
+    if ((method === "POST" || method === "PUT" || method === "DELETE") && !sameOrigin(req)) {
       fail(res, 403, "Anfrage abgelehnt.");
       return true;
     }
@@ -285,7 +376,7 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
     } else if (path === "/api/health" && method === "GET") await health(req, res);
     else if (path === "/api/customers" && method === "GET") {
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
-      else if (ENV.testMode) json(res, 200, { source: "test", items: TEST_CUSTOMERS } satisfies CustomerListResponse);
+      else if (ENV.testMode) json(res, 200, { source: "test", items: testCustomers } satisfies CustomerListResponse);
       else {
         try {
           json(res, 200, { source: "db", items: await listCustomers() } satisfies CustomerListResponse);
@@ -325,6 +416,18 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
           if (!row) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
           return row;
         });
+    } else if (path === "/api/customers" && method === "POST") {
+      const user = sessionFromRequest(req);
+      if (!user) fail(res, 401, "Nicht angemeldet.");
+      else if (user.role !== "admin") fail(res, 403, "Kunden anlegen dürfen nur Admins.");
+      else await saveCustomer(req, res, user);
+    } else if (/^\/api\/customers\/\d+$/.test(path) && (method === "PUT" || method === "DELETE")) {
+      const user = sessionFromRequest(req);
+      const id = Number(path.split("/")[3]);
+      if (!user) fail(res, 401, "Nicht angemeldet.");
+      else if (user.role !== "admin") fail(res, 403, "Kunden ändern dürfen nur Admins.");
+      else if (method === "PUT") await saveCustomer(req, res, user, id);
+      else await removeCustomer(res, user, id);
     } else if (/^\/api\/customers\/\d+$/.test(path) && method === "GET") {
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
       else await readDb(res, () => customerDetail(Number(path.split("/")[3])));

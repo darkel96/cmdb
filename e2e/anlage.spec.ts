@@ -66,7 +66,9 @@ test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
 
 test("API prüft Pflichtfelder und Auswahllisten", async ({ page }) => {
   await login(page, "admin");
-  const missing = await page.request.post("/api/areas/server", { data: { values: { company: "Beispiel A AG" } } });
+  // Eine gültige Firma aus der Auswahlliste (andere Tests benennen Testkunden um)
+  const company = (await (await page.request.get("/api/areas/server/form")).json()).options.company[0];
+  const missing = await page.request.post("/api/areas/server", { data: { values: { company } } });
   expect(missing.status()).toBe(400);
   expect((await missing.json()).error).toBe("Hersteller ist ein Pflichtfeld.");
   const notInList = await page.request.post("/api/areas/server", {

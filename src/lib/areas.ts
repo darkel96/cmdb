@@ -69,7 +69,7 @@ export interface CustomerDocument {
 }
 
 export interface CustomerDetailResponse {
-  customer: { id: number; name: string; country: string; city: string };
+  customer: { id: number; name: string; country: string; city: string; zip: string; address: string; email: string };
   documents: CustomerDocument[];
   /** Hinweis, falls die Dokumente nicht gelesen werden konnten */
   documentsError?: string;
@@ -78,6 +78,17 @@ export interface CustomerDetailResponse {
   /** Bereiche, die nicht gelesen werden konnten (z. B. fehlendes Leserecht) */
   errors: Record<string, string>;
   source: "test" | "db";
+}
+
+/** Kunde anlegen bzw. bearbeiten */
+export interface CustomerValuesRequest {
+  values: { name: string; country: string; city: string; zip?: string; address?: string; email?: string };
+}
+
+export interface CustomerSaveResponse {
+  id: number;
+  /** Beim Umbenennen: in welchen Tabellen wie viele Einträge mitumbenannt wurden */
+  renamed?: { label: string; count: number }[];
 }
 
 export interface AreaListResponse {
