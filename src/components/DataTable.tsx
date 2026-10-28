@@ -16,6 +16,7 @@ export interface Column<T> {
 }
 
 const PAGE_SIZES = [10, 20, 30, 100];
+const COMPACT_PAGE_SIZES = [5, 10, 20];
 
 function includes(haystack: string, needle: string): boolean {
   return haystack.toLocaleLowerCase("de").includes(needle.trim().toLocaleLowerCase("de"));
@@ -26,7 +27,7 @@ function csvCell(value: string): string {
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
@@ -37,11 +38,14 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   onOpen?: (row: T) => void;
   /** Weitere Knöpfe links in der Werkzeugleiste, z. B. „Anlegen“ */
   actions?: ReactNode;
+  /** Kompakt für mehrere Tabellen untereinander (z. B. Kundenansicht): nicht über die ganze Höhe, 5/10/20 je Seite */
+  compact?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [sort, setSort] = useState<{ key: string; desc: boolean }>({ key: columns[0].key, desc: false });
-  const [pageSize, setPageSize] = useState(30);
+  const sizes = compact ? COMPACT_PAGE_SIZES : PAGE_SIZES;
+  const [pageSize, setPageSize] = useState(compact ? 10 : 30);
   const [page, setPage] = useState(0);
   // Ausgewählte Zeile (Klick), blau hervorgehoben wie in GAPTEQ
   const [selected, setSelected] = useState<string | number | null>(null);
@@ -76,9 +80,9 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   }
 
   return (
-    <section className="animate-appear flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={title}>
+    <section className={cn("animate-appear flex flex-col overflow-hidden rounded-lg border bg-card shadow-xs", compact ? "shrink-0" : "min-h-0 flex-1")} aria-label={title}>
       {/* Immer volle Höhe, auch bei wenigen Zeilen; Titel, Suche, Spaltenköpfe und Blättern bleiben stehen, nur die Zeilen scrollen */}
-      <h1 className="shrink-0 bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{title}</h1>
+      <h2 className="shrink-0 bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{title}</h2>
       <div className="flex shrink-0 items-center justify-end gap-2 border-b px-3 py-2">
         {onOpen && (
           <Button size="sm" disabled={!selectedRow} onClick={() => selectedRow && onOpen(selectedRow)} title={selectedRow ? "Markierte Zeile öffnen" : "Zuerst eine Zeile anklicken"}>
@@ -96,7 +100,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Suchen …" aria-label="Suchen" className="h-8 pl-8" />
         </div>
       </div>
-      <div className="scroll-thin min-h-0 flex-1" data-testid="table-scroll">
+      <div className={cn("scroll-thin", compact ? "max-h-[28rem]" : "min-h-0 flex-1")} data-testid="table-scroll">
         {/* border-separate: Bei border-collapse bleiben die Linien im festgehaltenen Kopf nicht stehen, dann scheinen Zeilen durch */}
         <table className="w-full table-fixed border-separate border-spacing-0 text-sm" style={{ minWidth }}>
           <colgroup>
@@ -168,7 +172,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
       </div>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t px-3 py-2 text-sm">
         <div className="flex items-center gap-1" role="group" aria-label="Einträge je Seite">
-          {PAGE_SIZES.map((size) => (
+          {sizes.map((size) => (
             <Button key={size} variant={size === pageSize ? "outline" : "ghost"} size="sm" className="h-7 px-2" aria-pressed={size === pageSize} onClick={() => { setPageSize(size); setPage(0); }}>
               {size}
             </Button>

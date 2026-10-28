@@ -2,7 +2,7 @@
  * Zugriff auf die SQL-Server-Datenbank, nur lesend. Bestehende dbo-Tabellen werden nie verändert (siehe CLAUDE.md).
  */
 import sql from "mssql";
-import type { Area, AreaFormResponse, AreaRow } from "@/lib/areas";
+import type { Area, AreaFormResponse, AreaRow, CustomerDocument } from "@/lib/areas";
 import type { CheckResult, Customer } from "@/lib/types";
 import { DB_CA, ENV } from "./env";
 
@@ -175,6 +175,72 @@ export async function getAreaRow(area: Area, id: number): Promise<AreaRow | null
     return result.recordset[0] ? toAreaRow(area, result.recordset[0]) : null;
   } catch (e) {
     throw translate(e, `dbo.${area.table}`);
+  }
+}
+
+export interface CustomerRecord {
+  id: number;
+  name: string;
+  country: string;
+  city: string;
+}
+
+export async function getCustomer(id: number): Promise<CustomerRecord | null> {
+  try {
+    const result = await (await pool()).request().input("id", sql.Int, id).query<{ ExportId: number; Kunde: string | null; Land: string | null; Stadt: string | null }>(
+      "SELECT ExportId, Kunde, Land, Stadt FROM dbo.DS_Kunden WHERE ExportId = @id",
+    );
+    const r = result.recordset[0];
+    return r ? { id: r.ExportId, name: (r.Kunde ?? "").trim(), country: (r.Land ?? "").trim(), city: (r.Stadt ?? "").trim() } : null;
+  } catch (e) {
+    throw translate(e, "dbo.DS_Kunden");
+  }
+}
+
+/** Alle Einträge eines Bereichs für eine Firma (Firma ist in den Tabellen Freitext, verglichen ohne Leerzeichen am Rand) */
+export async function listAreaForCompany(area: Area, company: string): Promise<AreaRow[]> {
+  try {
+    const result = await (await pool())
+      .request()
+      .input("company", sql.NVarChar(255), company)
+      .query(`SELECT ${areaSelect(area)} FROM dbo.${quote(area.table)} WHERE LTRIM(RTRIM([Firma])) = @company AND ${areaNotEmpty(area)} ORDER BY ID`);
+    return result.recordset.map((r) => toAreaRow(area, r));
+  } catch (e) {
+    throw translate(e, `dbo.${area.table}`);
+  }
+}
+
+/** Anhänge eines Kunden (ohne Inhalt); zugeordnet über FirmenID oder den Firmennamen */
+export async function listDocuments(customer: CustomerRecord): Promise<CustomerDocument[]> {
+  try {
+    const result = await (await pool())
+      .request()
+      .input("id", sql.Int, customer.id)
+      .input("company", sql.NVarChar(255), customer.name)
+      .query<{ ID: number; Filename: string | null; Typ: string | null }>(
+        "SELECT ID, Filename, Typ FROM dbo.Anhang WHERE FirmenID = @id OR LTRIM(RTRIM(Firma)) = @company ORDER BY ID",
+      );
+    return result.recordset.map((r) => ({ id: r.ID, name: (r.Filename ?? "").trim() || `Anhang ${r.ID}`, type: (r.Typ ?? "").trim() }));
+  } catch (e) {
+    throw translate(e, "dbo.Anhang");
+  }
+}
+
+/** Inhalt eines Anhangs, nur wenn er zum Kunden gehört */
+export async function getDocument(customer: CustomerRecord, documentId: number): Promise<{ name: string; data: Buffer } | null> {
+  try {
+    const result = await (await pool())
+      .request()
+      .input("doc", sql.Int, documentId)
+      .input("id", sql.Int, customer.id)
+      .input("company", sql.NVarChar(255), customer.name)
+      .query<{ Filename: string | null; Data: Buffer | null }>(
+        "SELECT Filename, Data FROM dbo.Anhang WHERE ID = @doc AND (FirmenID = @id OR LTRIM(RTRIM(Firma)) = @company)",
+      );
+    const r = result.recordset[0];
+    return r?.Data ? { name: (r.Filename ?? "").trim() || `anhang-${documentId}`, data: r.Data } : null;
+  } catch (e) {
+    throw translate(e, "dbo.Anhang");
   }
 }
 

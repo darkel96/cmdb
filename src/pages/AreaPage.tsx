@@ -13,6 +13,22 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/** Spalten der Übersicht eines Bereichs; in der Kundenansicht ohne Firma (steht schon oben) */
+export function areaColumns(area: Area, options: { withoutCompany?: boolean } = {}): Column<AreaRow>[] {
+  return [
+    { key: "id", label: "ID", value: (r) => String(r.id), width: 80, className: "tabular-nums" },
+    ...area.fields
+      .filter((f) => !f.detailOnly && !(options.withoutCompany && f.key === "company"))
+      .map((f): Column<AreaRow> => ({
+        key: f.key,
+        label: f.label,
+        width: f.width,
+        value: (r) => (f.date ? shortDate(String(r[f.key] || "")) : String(r[f.key] ?? "")),
+        ...(f.date ? { sortValue: (r: AreaRow) => String(r[f.key] ?? ""), className: "tabular-nums" } : {}),
+      })),
+  ];
+}
+
 /** Übersicht eines Bereichs (z. B. Hardware › Server), nur lesend */
 export function AreaPage({ area }: { area: Area }) {
   const navigate = useNavigate();
@@ -26,21 +42,7 @@ export function AreaPage({ area }: { area: Area }) {
     api.area(area.id).then(setData, (e: unknown) => setError(errorText(e)));
   }, [area.id]);
 
-  const columns = useMemo<Column<AreaRow>[]>(
-    () => [
-      { key: "id", label: "ID", value: (r) => String(r.id), width: 70, className: "tabular-nums" },
-      ...area.fields
-        .filter((f) => !f.detailOnly)
-        .map((f): Column<AreaRow> => ({
-          key: f.key,
-          label: f.label,
-          width: f.width,
-          value: (r) => (f.date ? shortDate(String(r[f.key] || "")) : String(r[f.key] ?? "")),
-          ...(f.date ? { sortValue: (r: AreaRow) => String(r[f.key] ?? ""), className: "tabular-nums" } : {}),
-        })),
-    ],
-    [area],
-  );
+  const columns = useMemo(() => areaColumns(area), [area]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">

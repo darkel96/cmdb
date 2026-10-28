@@ -28,6 +28,8 @@ const COMPANY_FORMS = ["AG", "GmbH", "KG", "GmbH & Co. KG", "SE"];
 const CITIES = ["Nordstadt", "Südheim", "Westdorf", "Ostfeld", "Bergtal", "Seeburg", "Waldau", "Flussingen", "Hafenstadt", "Talheim"];
 
 /** 42 erfundene Kunden; Namen und Orte sind ausgedacht */
+export const TEST_COUNTRIES = ["Deutschland", "Österreich", "Schweiz", "Polen"];
+
 export const TEST_CUSTOMERS: Customer[] = Array.from({ length: 42 }, (_, i) => ({
   id: i + 1,
   name: `${COMPANY_PARTS[i % COMPANY_PARTS.length]} ${String.fromCharCode(65 + (i % 26))}${i >= 26 ? "2" : ""} ${COMPANY_FORMS[i % COMPANY_FORMS.length]}`,
@@ -60,6 +62,22 @@ const VALUES: Record<string, string[]> = {
   subnet: ["255.255.255.0"],
   gateway: ["192.0.2.1", "198.51.100.1"],
   monitor: ["Ja", "Nein", "Nein"],
+  dbType: ["Oracle SE2", "Oracle ESL", "Oracle EE"],
+  dbVersion: ["19.27.0.0", "19.24.0.0", "23.5.0.0"],
+  os: ["Linux", "Windows Server 2022", "Windows Server 2019"],
+  charset: ["AL32UTF8", "WE8MSWIN1252"],
+  sga: ["8GB", "16GB", "20GB"],
+  pga: ["4GB", "8GB"],
+  rmanCopyJob: ["Ja", "Nein"],
+  rmanCopyJobPath: ["//backup-demo/rman"],
+  rmanCopyJobUser: ["rman_demo"],
+  dnsServer: ["192.0.2.53"],
+  softwareContract: ["Ja", "Nein"],
+  itServiceContract: ["Ja", "Nein"],
+  function: ["APP-Server", "DB-Server", "WinCC-Server", "Terminalserver"],
+  wincc: ["", "V8.1", "V7.5"],
+  hardware: ["VM", "VM", "Physisch"],
+  providedBy: ["Kunde", "Kunde", "Projekt-IT"],
 };
 
 /** Erfundene Einträge für einen Bereich; Firmen, Seriennummern und Bestellnummern sind ausgedacht */
@@ -79,6 +97,7 @@ export function testRows(area: Area): AreaRow[] {
       else if (field.key === "model") value = `${area.singular} ${String.fromCharCode(65 + (i % 4))}${100 + (i % 3) * 10}`;
       else if (field.key === "serviceTag" || field.key === "serialNumber") value = `TST${String(4711 + i * 13).padStart(6, "0")}`;
       else if (field.key === "ipAddress") value = `192.0.2.${10 + i}`;
+      else if (field.key === "hostname") value = `${area.id}-demo-${String(i + 1).padStart(2, "0")}`;
       else if (field.key === "eol") value = year + 4 < 2027 ? "Ja" : "Nein";
       else if (field.key === "type") value = area.singular;
       else if (list) value = list[i % list.length];

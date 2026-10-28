@@ -2,9 +2,9 @@
  * Zugriff auf den CMDB-Dienst. Im Build-Modus „pages“ (VITE_TESTMODE=1) gibt es keinen Dienst:
  * Dann beantwortet eine Attrappe im Browser alle Anfragen mit den Testbenutzern und erfundenen Daten.
  */
-import { AREAS, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow } from "./areas";
+import { AREAS, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse } from "./areas";
 import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
-import { TEST_CIS, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
+import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -24,6 +24,9 @@ export interface Api {
   areaRow(areaId: string, id: number): Promise<AreaRow>;
   areaForm(areaId: string): Promise<AreaFormResponse>;
   createAreaRow(areaId: string, values: Record<string, string>): Promise<AreaCreateResponse>;
+  customer(id: number): Promise<CustomerDetailResponse>;
+  /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
+  documentUrl(customerId: number, documentId: number): string | null;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -52,6 +55,8 @@ const serverApi: Api = {
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
   areaForm: (areaId) => request<AreaFormResponse>(`/api/areas/${areaId}/form`),
   createAreaRow: (areaId, values) => request<AreaCreateResponse>(`/api/areas/${areaId}`, { method: "POST", body: JSON.stringify({ values }) }),
+  customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
+  documentUrl: (customerId, documentId) => `/api/customers/${customerId}/documents/${documentId}`,
 };
 
 const STORAGE_KEY = "cmdb-test-session";
@@ -134,6 +139,18 @@ const browserTestApi: Api = {
     browserCreated.set(areaId, [...(browserCreated.get(areaId) ?? []), row]);
     return { id: row.id };
   },
+  customer: async (id) => {
+    if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
+    const c = TEST_CUSTOMERS.find((x) => x.id === id);
+    if (!c) throw new ApiError("Diesen Kunden gibt es nicht.", 404);
+    const systems: Record<string, AreaRow[]> = {};
+    for (const areaId of Object.keys(AREAS)) {
+      const rows = browserRows(areaId).filter((r) => r.company === c.name);
+      if (rows.length) systems[areaId] = rows;
+    }
+    return { customer: { ...c, country: TEST_COUNTRIES[id % TEST_COUNTRIES.length] }, documents: [], systems, errors: {}, source: "test" };
+  },
+  documentUrl: () => null,
 };
 
 /** Testmodus im Browser ohne Dienst (GitHub Pages) */

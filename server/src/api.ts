@@ -1,9 +1,9 @@
 /** API des CMDB-Dienstes unter /api */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { AREAS, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow } from "@/lib/areas";
+import { AREAS, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse } from "@/lib/areas";
 import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
-import { TEST_CIS, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
-import { DbError, areaForm, createAreaRow, dbCheck, getAreaRow, listArea, listCustomers } from "./db";
+import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
+import { DbError, areaForm, createAreaRow, dbCheck, getAreaRow, getCustomer, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -202,6 +202,66 @@ async function createInArea(req: IncomingMessage, res: ServerResponse, area: Are
   }
 }
 
+/** Kundenansicht: Stammdaten, Dokumente und alle Systeme je Bereich; ein nicht lesbarer Bereich verhindert die übrigen nicht */
+async function customerDetail(id: number): Promise<CustomerDetailResponse> {
+  if (ENV.testMode) {
+    const c = TEST_CUSTOMERS.find((x) => x.id === id);
+    if (!c) throw new DbError("Diesen Kunden gibt es nicht.", 404);
+    const systems: Record<string, AreaRow[]> = {};
+    for (const area of Object.values(AREAS)) {
+      const rows = areaRows(area).filter((r) => r.company === c.name);
+      if (rows.length) systems[area.id] = rows;
+    }
+    const documents = id % 3 === 0 ? [{ id: id * 10 + 1, name: `Angebot-${c.name.replace(/\W+/g, "-")}.txt`, type: "Angebot" }] : [];
+    return { customer: { ...c, country: TEST_COUNTRIES[id % TEST_COUNTRIES.length] }, documents, systems, errors: {}, source: "test" };
+  }
+  const customer = await getCustomer(id);
+  if (!customer) throw new DbError("Diesen Kunden gibt es nicht.", 404);
+  const systems: Record<string, AreaRow[]> = {};
+  const errors: Record<string, string> = {};
+  await Promise.all(
+    Object.values(AREAS).map(async (area) => {
+      try {
+        const rows = await listAreaForCompany(area, customer.name);
+        if (rows.length) systems[area.id] = rows;
+      } catch (e) {
+        if (!(e instanceof DbError)) throw e;
+        errors[area.id] = e.message;
+      }
+    }),
+  );
+  let documents: CustomerDetailResponse["documents"] = [];
+  let documentsError: string | undefined;
+  try {
+    documents = await listDocuments(customer);
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    documentsError = e.message;
+  }
+  return { customer, documents, documentsError, systems, errors, source: "db" };
+}
+
+/** Download eines Anhangs; Dateiname für den Browser bereinigt */
+async function sendDocument(res: ServerResponse, customerId: number, documentId: number): Promise<void> {
+  let doc: { name: string; data: Buffer } | null;
+  if (ENV.testMode) {
+    const c = TEST_CUSTOMERS.find((x) => x.id === customerId);
+    doc = c && documentId === customerId * 10 + 1 ? { name: `Angebot-${c.name.replace(/\W+/g, "-")}.txt`, data: Buffer.from(`Erfundenes Testdokument für ${c.name}.\n`) } : null;
+  } else {
+    const customer = await getCustomer(customerId);
+    doc = customer ? await getDocument(customer, documentId) : null;
+  }
+  if (!doc) return fail(res, 404, "Dieses Dokument gibt es nicht.");
+  const ascii = doc.name.replace(/[^\w.\- ]+/g, "_");
+  res.writeHead(200, {
+    "Content-Type": "application/octet-stream",
+    "Content-Length": doc.data.length,
+    "Content-Disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(doc.name)}`,
+    "Cache-Control": "no-store",
+  });
+  res.end(doc.data);
+}
+
 /** true, wenn die Anfrage zur API gehört und beantwortet wurde */
 export async function api(req: IncomingMessage, res: ServerResponse, path: string): Promise<boolean> {
   if (!path.startsWith("/api/")) return false;
@@ -265,6 +325,22 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
           if (!row) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
           return row;
         });
+    } else if (/^\/api\/customers\/\d+$/.test(path) && method === "GET") {
+      if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
+      else await readDb(res, () => customerDetail(Number(path.split("/")[3])));
+    } else if (/^\/api\/customers\/\d+\/documents\/\d+$/.test(path) && method === "GET") {
+      const parts = path.split("/");
+      const user = sessionFromRequest(req);
+      if (!user) fail(res, 401, "Nicht angemeldet.");
+      else {
+        try {
+          await sendDocument(res, Number(parts[3]), Number(parts[5]));
+          log(`Dokument ${parts[5]} (Kunde ${parts[3]}) geladen von ${user.username}`);
+        } catch (e) {
+          if (!(e instanceof DbError)) throw e;
+          fail(res, e.status, e.message);
+        }
+      }
     } else if (path === "/api/cis" && method === "GET") {
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
       else json(res, 200, (ENV.testMode ? { source: "test", items: TEST_CIS } : { source: "none", items: [] }) satisfies CiListResponse);
