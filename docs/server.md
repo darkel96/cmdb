@@ -81,6 +81,15 @@ Aktuelles Zertifikat: ausgestellt am 28.10.2026, gültig bis **27.10.2028**. Vor
 | `CMDB_ADMINS` | Anmeldenamen mit Rolle admin, Standard `dario.keller` |
 | `CMDB_DB_*` | SQL Server `kingstown.aberle-it.loc`, Datenbank `CMDB`, Login `svc_cmdb`; **Passwort trägt nur der Betreiber ein** |
 
+Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Die Startseite (Kundenübersicht) braucht:
+
+```sql
+USE CMDB;
+GRANT SELECT ON dbo.DS_Kunden TO svc_cmdb;
+```
+
+Das ändert nur Rechte, keine Tabellen; GAPTEQ ist nicht betroffen. Weitere Leserechte kommen mit den Bereichen in Phase 1.
+
 Der SQL Server auf kingstown (Instanz `KINGSTOWN`) nutzt seit 28.10.2026 ein Zertifikat der internen CA für
 `kingstown.aberle-it.loc` (Vorlage WebServer, gültig bis 27.10.2028, „Verschlüsselung erzwingen“ unverändert aus).
 Die CMDB prüft es über `CMDB_DB_CA=/certs/ca.crt`; `CMDB_DB_TRUST_CERT` bleibt `0`. Vor Ablauf auf kingstown neu

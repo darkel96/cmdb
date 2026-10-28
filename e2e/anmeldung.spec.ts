@@ -20,18 +20,17 @@ test("falsches Passwort wird abgelehnt", async ({ page }) => {
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test("user sieht Übersicht, aber keine Verwaltung", async ({ page }) => {
+test("user sieht Startseite, aber keine Verwaltung", async ({ page }) => {
   await login(page, "user");
-  await expect(page.getByRole("heading", { name: "Übersicht" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
   await expect(page.getByTestId("user-name")).toHaveText("Test Benutzer");
   await expect(page.getByTestId("user-role")).toHaveText("Benutzer");
   await expect(page.getByTestId("test-banner")).toBeVisible();
-  await expect(page.getByRole("table", { name: "Configuration Items" }).getByRole("row")).toHaveCount(9);
   await expect(page.getByRole("link", { name: "Verwaltung" })).toHaveCount(0);
 
-  // Direkter Aufruf führt zurück zur Übersicht, die API liefert keine Details
+  // Direkter Aufruf führt zurück zur Startseite, die API liefert keine Details
   await page.goto("/verwaltung");
-  await expect(page.getByRole("heading", { name: "Übersicht" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
   const health = await (await page.request.get("/api/health")).json();
   expect(health.details).toBeUndefined();
 });
@@ -47,7 +46,7 @@ test("admin sieht Verwaltung mit Status von LDAP und Datenbank", async ({ page }
 
 test("Abmelden beendet die Sitzung", async ({ page, context }) => {
   await login(page, "admin");
-  await expect(page.getByRole("heading", { name: "Übersicht" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
   const cookie = (await context.cookies()).find((c) => c.name === "cmdb_session");
   expect(cookie?.httpOnly).toBe(true);
   expect(cookie?.sameSite).toBe("Strict");

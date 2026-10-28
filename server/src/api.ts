@@ -1,8 +1,8 @@
 /** API des CMDB-Dienstes unter /api */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { CiListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
-import { TEST_CIS, TEST_PASSWORD, TEST_USERS } from "@/lib/testData";
-import { dbCheck } from "./db";
+import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
+import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_USERS } from "@/lib/testData";
+import { DbError, dbCheck, listCustomers } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -150,7 +150,19 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       if (user) json(res, 200, { user, testMode: ENV.testMode } satisfies MeResponse);
       else fail(res, 401, "Nicht angemeldet.");
     } else if (path === "/api/health" && method === "GET") await health(req, res);
-    else if (path === "/api/cis" && method === "GET") {
+    else if (path === "/api/customers" && method === "GET") {
+      if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
+      else if (ENV.testMode) json(res, 200, { source: "test", items: TEST_CUSTOMERS } satisfies CustomerListResponse);
+      else {
+        try {
+          json(res, 200, { source: "db", items: await listCustomers() } satisfies CustomerListResponse);
+        } catch (e) {
+          if (!(e instanceof DbError)) throw e;
+          log(`Kunden nicht lesbar: ${e.message}`);
+          fail(res, e.status, e.message);
+        }
+      }
+    } else if (path === "/api/cis" && method === "GET") {
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
       else json(res, 200, (ENV.testMode ? { source: "test", items: TEST_CIS } : { source: "none", items: [] }) satisfies CiListResponse);
     } else fail(res, 404, "Unbekannte Adresse.");

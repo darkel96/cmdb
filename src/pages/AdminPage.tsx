@@ -43,7 +43,7 @@ export function AdminPage() {
   useEffect(load, [load]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 mx-auto w-full max-w-6xl">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Verwaltung</h1>

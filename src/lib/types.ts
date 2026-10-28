@@ -36,6 +36,19 @@ export interface HealthResponse {
   };
 }
 
+export interface Customer {
+  /** ExportId aus dbo.DS_Kunden */
+  id: number;
+  name: string;
+  city: string;
+}
+
+export interface CustomerListResponse {
+  /** "test" = erfundene Daten (Testmodus), "db" = dbo.DS_Kunden (nur lesend) */
+  source: "test" | "db";
+  items: Customer[];
+}
+
 export interface CiListResponse {
   /** "test" = erfundene Daten (Testmodus), "none" = Datenanbindung folgt in Phase 1 */
   source: "test" | "none";
