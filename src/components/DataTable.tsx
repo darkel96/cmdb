@@ -74,8 +74,8 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   }
 
   return (
-    <section className="animate-appear flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={title}>
-      {/* Titel, Suche, Spaltenköpfe und Blättern bleiben stehen; nur die Zeilen scrollen */}
+    <section className="animate-appear flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={title}>
+      {/* Immer volle Höhe, auch bei wenigen Zeilen; Titel, Suche, Spaltenköpfe und Blättern bleiben stehen, nur die Zeilen scrollen */}
       <h1 className="shrink-0 bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{title}</h1>
       <div className="flex shrink-0 items-center justify-end gap-2 border-b px-3 py-2">
         {onOpen && (
