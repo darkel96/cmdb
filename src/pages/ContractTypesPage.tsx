@@ -7,15 +7,15 @@ import { cn } from "@/lib/utils";
 const TYPES: { label: string; icon: LucideIcon; areaId?: string }[] = [
   { label: "Server", icon: Server, areaId: "server" },
   { label: "Switche", icon: Network, areaId: "switche" },
-  { label: "MDEs", icon: ScanBarcode },
+  { label: "MDEs", icon: ScanBarcode, areaId: "mde" },
   { label: "VMware", icon: Boxes },
   { label: "TSPLUS", icon: MonitorSmartphone },
   { label: "PRTG", icon: Activity },
   { label: "VEEAM", icon: DatabaseBackup },
   { label: "Lizenzen", icon: KeyRound },
-  { label: "Storage", icon: HardDrive },
+  { label: "Storage", icon: HardDrive, areaId: "storage" },
   { label: "Oracle", icon: Database },
-  { label: "Client", icon: Laptop },
+  { label: "Client", icon: Laptop, areaId: "client" },
   { label: "Windows-Systeme", icon: Monitor },
 ];
 

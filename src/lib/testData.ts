@@ -34,6 +34,17 @@ export const TEST_CUSTOMERS: Customer[] = Array.from({ length: 42 }, (_, i) => (
   city: CITIES[(i * 3) % CITIES.length],
 })).sort((a, b) => a.name.localeCompare(b.name, "de"));
 
+/** Auswahllisten im Testmodus (Dienst und Testseite) */
+export const TEST_OPTIONS: Record<string, string[]> = {
+  supplier: ["Lieferant A", "Lieferant B"],
+  manufacturer: ["Hersteller A", "Hersteller B", "Hersteller C"],
+  serverType: ["Multi Site Cluster", "Single Server", "Single Site Cluster", "Windows Cluster"],
+  maintenanceType: ["Servicevertrag", "Wartungsvertrag"],
+  eol: ["Ja", "Nein"],
+  raid: ["0", "1", "1+0", "5", "5+0"],
+  monitor: ["Ja", "Nein"],
+};
+
 const VALUES: Record<string, string[]> = {
   serverType: ["Single Server", "Single Site Cluster", "Multi Site Cluster", "Windows Cluster"],
   lwlType: ["Kupfer", "Multimode SR", "Singlemode LR", "Duplex-Patchkabel 2 m"],
@@ -42,6 +53,13 @@ const VALUES: Record<string, string[]> = {
   supplier: ["Lieferant A", "Lieferant A", "Lieferant A", "Lieferant A", "Lieferant B"],
   manufacturer: ["Hersteller A", "Hersteller A", "Hersteller A", "Hersteller B"],
   status: ["Aktiv", "Aktiv", "Aktiv", "Abgeschlossen"],
+  raid: ["5", "5", "5", "1+0"],
+  diskType: ["SSD", "SAS HDD", "SSD SAS"],
+  diskCount: ["4", "5", "8", "13"],
+  // Adressen aus dem Dokumentationsbereich (RFC 5737), keine echten Netze
+  subnet: ["255.255.255.0"],
+  gateway: ["192.0.2.1", "198.51.100.1"],
+  monitor: ["Ja", "Nein", "Nein"],
 };
 
 /** Erfundene Einträge für einen Bereich; Firmen, Seriennummern und Bestellnummern sind ausgedacht */
@@ -56,8 +74,11 @@ export function testRows(area: Area): AreaRow[] {
       if (field.date) value = field.key === "supportUntil" ? `${year + 4}-${month}-15` : i % 3 === 0 ? `${year}-${month}-01` : "";
       else if (field.key === "company") value = TEST_CUSTOMERS[(i * 5) % TEST_CUSTOMERS.length].name;
       else if (field.key === "orderNumber") value = i % 7 === 6 ? "" : `TEST-${2000 + (i % 13)}-${String(100 + i * 7).padStart(3, "0")}`;
+      else if (field.key === "manufacturer" && !field.options) value = `Gerät ${String.fromCharCode(65 + (i % 3))}${10 + (i % 4)}`;
+      else if (field.key === "supplier" && !field.options) value = i % 2 ? "Händler A" : "Händler B";
       else if (field.key === "model") value = `${area.singular} ${String.fromCharCode(65 + (i % 4))}${100 + (i % 3) * 10}`;
       else if (field.key === "serviceTag" || field.key === "serialNumber") value = `TST${String(4711 + i * 13).padStart(6, "0")}`;
+      else if (field.key === "ipAddress") value = `192.0.2.${10 + i}`;
       else if (field.key === "eol") value = year + 4 < 2027 ? "Ja" : "Nein";
       else if (field.key === "type") value = area.singular;
       else if (list) value = list[i % list.length];

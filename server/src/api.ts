@@ -2,7 +2,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { AREAS, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow } from "@/lib/areas";
 import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
-import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
+import { TEST_CIS, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
 import { DbError, areaForm, createAreaRow, dbCheck, getAreaRow, listArea, listCustomers } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
@@ -148,13 +148,6 @@ function areaRows(area: Area): AreaRow[] {
   return [...testRows(area), ...(testCreated.get(area.id) ?? [])];
 }
 
-const TEST_OPTIONS: Record<string, string[]> = {
-  supplier: ["Lieferant A", "Lieferant B"],
-  manufacturer: ["Hersteller A", "Hersteller B", "Hersteller C"],
-  serverType: ["Multi Site Cluster", "Single Server", "Single Site Cluster", "Windows Cluster"],
-  maintenanceType: ["Garantie", "Wartungsvertrag"],
-  eol: ["Ja", "Nein"],
-};
 
 /** Testmodus: Formulardaten aus den erfundenen Daten */
 function testForm(area: Area): AreaFormResponse {
