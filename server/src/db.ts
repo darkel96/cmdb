@@ -2,7 +2,8 @@
  * Zugriff auf die SQL-Server-Datenbank, nur lesend. Bestehende dbo-Tabellen werden nie verändert (siehe CLAUDE.md).
  */
 import sql from "mssql";
-import type { CheckResult, Customer, Server } from "@/lib/types";
+import type { Area, AreaRow } from "@/lib/areas";
+import type { CheckResult, Customer } from "@/lib/types";
 import { DB_CA, ENV } from "./env";
 
 export class DbError extends Error {
@@ -65,48 +66,45 @@ export async function listCustomers(): Promise<Customer[]> {
   }
 }
 
-const text = (v: string | null | undefined) => (v ?? "").trim();
+/** Tabellen- und Spaltennamen stammen nur aus der festen Beschreibung in src/lib/areas.ts, nie aus Anfragen */
+const quote = (name: string) => `[${name.replace(/]/g, "]]")}]`;
 
-/** Datum aus SQL Server (date → Date um Mitternacht UTC) als JJJJ-MM-TT */
-function isoDate(v: Date | null): string | null {
-  return v ? v.toISOString().slice(0, 10) : null;
+function areaSelect(area: Area): string {
+  return ["ID", ...area.fields.map((f) => `${quote(f.column)} AS ${quote(f.key)}`)].join(", ");
 }
 
-interface ServerRow {
-  ID: number; Typ: string | null; Firma: string | null; Bestellnummer: string | null; Lieferant: string | null;
-  Hersteller: string | null; Modell: string | null; Servertyp: string | null; Servicetag: string | null;
-  Wartungstyp: string | null; Support_bis: Date | null; Besonderheiten: string | null; Lieferdatum: Date | null;
-  EOL: string | null; Status: string | null;
+// Vorab angelegte Leerzeilen gehören nicht zum Bestand. Sie sind nicht ganz leer (z. B. EOL ist vorbelegt),
+// haben aber weder Typ noch Firma; so zählt auch GAPTEQ (Server 64, Switche 34)
+function areaNotEmpty(area: Area): string {
+  const columns = area.fields.filter((f) => f.key === "type" || f.key === "company").map((f) => f.column);
+  return "(" + columns.map((c) => `NULLIF(LTRIM(RTRIM(${quote(c)})), '') IS NOT NULL`).join(" OR ") + ")";
 }
 
-const SERVER_COLUMNS = "ID, Typ, Firma, Bestellnummer, Lieferant, Hersteller, Modell, Servertyp, Servicetag, Wartungstyp, Support_bis, Besonderheiten, Lieferdatum, EOL, Status";
-// Vorab angelegte Leerzeilen (ohne Firma, Modell und Servicetag) gehören nicht zum Bestand
-const SERVER_NOT_EMPTY = "(NULLIF(LTRIM(RTRIM(Firma)), '') IS NOT NULL OR NULLIF(LTRIM(RTRIM(Modell)), '') IS NOT NULL OR NULLIF(LTRIM(RTRIM(Servicetag)), '') IS NOT NULL)";
-
-function toServer(r: ServerRow): Server {
-  return {
-    id: r.ID, type: text(r.Typ), company: text(r.Firma), orderNumber: text(r.Bestellnummer), supplier: text(r.Lieferant),
-    manufacturer: text(r.Hersteller), model: text(r.Modell), serverType: text(r.Servertyp), serviceTag: text(r.Servicetag),
-    maintenanceType: text(r.Wartungstyp), supportUntil: isoDate(r.Support_bis), notes: text(r.Besonderheiten),
-    deliveredOn: isoDate(r.Lieferdatum), eol: text(r.EOL), status: text(r.Status),
-  };
+function toAreaRow(area: Area, r: Record<string, unknown>): AreaRow {
+  const row: AreaRow = { id: Number(r.ID) };
+  for (const f of area.fields) {
+    const v = r[f.key];
+    // date → Date um Mitternacht UTC → JJJJ-MM-TT
+    row[f.key] = v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? "").trim();
+  }
+  return row;
 }
 
-export async function listServers(): Promise<Server[]> {
+export async function listArea(area: Area): Promise<AreaRow[]> {
   try {
-    const result = await (await pool()).request().query<ServerRow>(`SELECT ${SERVER_COLUMNS} FROM dbo.Server_manuell WHERE ${SERVER_NOT_EMPTY} ORDER BY ID`);
-    return result.recordset.map(toServer);
+    const result = await (await pool()).request().query(`SELECT ${areaSelect(area)} FROM dbo.${quote(area.table)} WHERE ${areaNotEmpty(area)} ORDER BY ID`);
+    return result.recordset.map((r) => toAreaRow(area, r));
   } catch (e) {
-    throw translate(e, "dbo.Server_manuell");
+    throw translate(e, `dbo.${area.table}`);
   }
 }
 
-export async function getServer(id: number): Promise<Server | null> {
+export async function getAreaRow(area: Area, id: number): Promise<AreaRow | null> {
   try {
-    const result = await (await pool()).request().input("id", sql.Int, id).query<ServerRow>(`SELECT ${SERVER_COLUMNS} FROM dbo.Server_manuell WHERE ID = @id`);
-    return result.recordset[0] ? toServer(result.recordset[0]) : null;
+    const result = await (await pool()).request().input("id", sql.Int, id).query(`SELECT ${areaSelect(area)} FROM dbo.${quote(area.table)} WHERE ID = @id`);
+    return result.recordset[0] ? toAreaRow(area, result.recordset[0]) : null;
   } catch (e) {
-    throw translate(e, "dbo.Server_manuell");
+    throw translate(e, `dbo.${area.table}`);
   }
 }
 

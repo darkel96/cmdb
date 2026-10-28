@@ -22,14 +22,13 @@ export const NAV_GROUPS: NavGroup[] = [
     id: "hardware",
     label: "Hardware",
     icon: HardDrive,
+    // Reihenfolge wie in GAPTEQ
     items: [
       { id: "server", label: "Server" },
-      { id: "storage", label: "Storage" },
       { id: "switche", label: "Switche" },
-      { id: "clients", label: "Clients" },
       { id: "mde", label: "MDE" },
-      { id: "firewall-it", label: "Firewall IT" },
-      { id: "firewall-sps", label: "Firewall SPS" },
+      { id: "storage", label: "Storage" },
+      { id: "client", label: "Client" },
     ],
   },
   {

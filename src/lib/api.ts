@@ -2,8 +2,9 @@
  * Zugriff auf den CMDB-Dienst. Im Build-Modus „pages“ (VITE_TESTMODE=1) gibt es keinen Dienst:
  * Dann beantwortet eine Attrappe im Browser alle Anfragen mit den Testbenutzern und erfundenen Daten.
  */
-import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse, Server, ServerListResponse } from "./types";
-import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_SERVERS, TEST_USERS } from "./testData";
+import { AREAS, type AreaListResponse, type AreaRow } from "./areas";
+import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
+import { TEST_CIS, TEST_CUSTOMERS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -19,8 +20,8 @@ export interface Api {
   health(): Promise<HealthResponse>;
   cis(): Promise<CiListResponse>;
   customers(): Promise<CustomerListResponse>;
-  servers(): Promise<ServerListResponse>;
-  server(id: number): Promise<Server>;
+  area(areaId: string): Promise<AreaListResponse>;
+  areaRow(areaId: string, id: number): Promise<AreaRow>;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -45,8 +46,8 @@ const serverApi: Api = {
   health: () => request<HealthResponse>("/api/health"),
   cis: () => request<CiListResponse>("/api/cis"),
   customers: () => request<CustomerListResponse>("/api/customers"),
-  servers: () => request<ServerListResponse>("/api/servers"),
-  server: (id) => request<Server>(`/api/servers/${id}`),
+  area: (areaId) => request<AreaListResponse>(`/api/areas/${areaId}`),
+  areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
 };
 
 const STORAGE_KEY = "cmdb-test-session";
@@ -98,15 +99,15 @@ const browserTestApi: Api = {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
     return { source: "test", items: TEST_CUSTOMERS };
   },
-  servers: async () => {
+  area: async (areaId) => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
-    return { source: "test", items: TEST_SERVERS };
+    return { source: "test", items: testRows(AREAS[areaId]) };
   },
-  server: async (id) => {
+  areaRow: async (areaId, id) => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
-    const server = TEST_SERVERS.find((s) => s.id === id);
-    if (!server) throw new ApiError("Diesen Server gibt es nicht.", 404);
-    return server;
+    const row = testRows(AREAS[areaId]).find((r) => r.id === id);
+    if (!row) throw new ApiError("Diesen Eintrag gibt es nicht.", 404);
+    return row;
   },
 };
 

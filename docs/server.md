@@ -87,14 +87,19 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 |---|---|---|
 | Startseite (Kundenübersicht) | `dbo.DS_Kunden` | 28.10.2026 |
 | Hardware › Server | `dbo.Server_manuell` | 28.10.2026 |
+| Hardware › Switche | `dbo.Switche_manuell` | 28.10.2026 |
 
 ```sql
 USE CMDB;
 GRANT SELECT ON dbo.DS_Kunden TO svc_cmdb;
 GRANT SELECT ON dbo.Server_manuell TO svc_cmdb;
+GRANT SELECT ON dbo.Switche_manuell TO svc_cmdb;
 ```
 
 Das ändert nur Rechte, keine Tabellen; GAPTEQ ist nicht betroffen. Weitere Leserechte kommen mit den Bereichen in Phase 1.
+Vorab angelegte Leerzeilen (ohne Typ und Firma, EOL ist teils vorbelegt) blendet die CMDB aus, wie GAPTEQ.
+Neue Bereiche werden in `src/lib/areas.ts` beschrieben (Tabelle, Spalten, Breiten); Übersicht, Öffnen, API und
+Testdaten entstehen daraus.
 
 Der SQL Server auf kingstown (Instanz `KINGSTOWN`) nutzt seit 28.10.2026 ein Zertifikat der internen CA für
 `kingstown.aberle-it.loc` (Vorlage WebServer, gültig bis 27.10.2028, „Verschlüsselung erzwingen“ unverändert aus).
