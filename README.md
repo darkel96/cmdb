@@ -36,6 +36,7 @@ und nutzt dieselbe SQL-Server-Datenbank.
 - [ ] Leserechte VMware, VEEAM, TSPLUS, PRTG, Vertragsdaten für `svc_cmdb`
 - [x] Kunden anlegen, bearbeiten (Umbenennen in allen verknüpften Tabellen) und löschen (nur ohne Verweise), nur Admins
 - [x] Anlage VMware, VEEAM, TSPLUS, PRTG und Windows-Lizenzen wie in GAPTEQ; Lizenzen › Windows-Lizenzen
+- [x] Anlage Oracle (ohne Passwortfeld) und Anlage Windows-System; damit sind alle zwölf Typen bei Anlage Vertrag anlegbar
 - [ ] Datei-Upload bei Windows-Lizenzen (Anhang)
 - [x] Verwaltung: Anmelde-Protokoll, Rollen mit Rechten je Bereich (Personen und AD-Gruppen)
 - [x] Schema `cmdb` angelegt (28.10.2026)
