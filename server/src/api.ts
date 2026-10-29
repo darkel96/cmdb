@@ -1,6 +1,6 @@
 /** API des CMDB-Dienstes unter /api */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { AREAS, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
+import { AREAS, SYSTEM_STATUS, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
 import type { CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
@@ -463,11 +463,20 @@ function originalValues(raw: unknown): Record<string, string> {
   return Object.fromEntries(Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k, typeof v === "string" ? v : String(v ?? "")]));
 }
 
+/** Nur den Status setzen (Auslaufende Kundensysteme): genau ein Feld „status“, Wert aus SYSTEM_STATUS oder leer */
+function statusOnly(area: Area, raw: unknown): Record<string, string> | undefined {
+  if (!raw || typeof raw !== "object" || Object.keys(raw).join() !== "status") return undefined;
+  const v = (raw as Record<string, unknown>).status;
+  if (!area.fields.some((f) => f.key === "status")) throw new LoginError("Dieser Bereich hat keinen Status.", 400);
+  if (typeof v !== "string" || (v !== "" && !SYSTEM_STATUS.includes(v))) throw new LoginError("Status: ungültiger Wert.", 400);
+  return { status: v };
+}
+
 async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser, id: number): Promise<void> {
   const body = await readJson(req);
   try {
     const original = originalValues(body.original);
-    const values = validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area), original);
+    const values = statusOnly(area, body.values) ?? validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area), original);
     let changed: string[];
     if (ENV.testMode) {
       const row = areaRows(area).find((r) => r.id === id);

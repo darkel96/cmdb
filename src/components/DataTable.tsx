@@ -30,7 +30,7 @@ function csvCell(value: string): string {
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters, highlight }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters, highlight, selectedActions }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
@@ -49,6 +49,8 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   initialFilters?: Record<string, string>;
   /** Zeile rot hervorheben, z. B. EOL = Ja bei den auslaufenden Systemen */
   highlight?: (row: T) => boolean;
+  /** Bedienelemente für die markierte Zeile in der Werkzeugleiste, z. B. Status setzen */
+  selectedActions?: (row: T) => ReactNode;
 }) {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>(initialFilters ?? {});
@@ -100,6 +102,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           </Button>
         )}
         {actions}
+        {selectedRow && selectedActions?.(selectedRow)}
         <span className="flex-1" />
         <Button variant="outline" size="sm" onClick={exportCsv} title="Als CSV exportieren (Excel)" aria-label="Als CSV exportieren">
           <FileSpreadsheet aria-hidden />
