@@ -201,3 +201,17 @@
     transition-duration: 0s !important;
   }
 }
+
+/* Druck (Kundendatenblatt): A4, Farben wie am Bildschirm */
+@page {
+  size: A4;
+  margin: 14mm 12mm;
+}
+@media print {
+  html,
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

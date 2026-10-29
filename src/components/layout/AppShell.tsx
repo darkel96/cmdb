@@ -131,9 +131,9 @@ export function AppShell() {
 
   return (
     // Kopf- und Seitenleiste stehen fest, nur der Inhalt scrollt
-    <div className="flex h-svh flex-col overflow-hidden">
-      {testMode && <TestBanner />}
-      <header className="vt-header flex h-12 shrink-0 items-center gap-2 bg-brand px-2 text-brand-foreground shadow-sm">
+    <div className="flex h-svh flex-col overflow-hidden print:block print:h-auto print:overflow-visible">
+      {testMode && <div className="print:hidden"><TestBanner /></div>}
+      <header className="vt-header flex h-12 print:!hidden shrink-0 items-center gap-2 bg-brand px-2 text-brand-foreground shadow-sm">
         <button type="button" className={cn(topButton, "px-2.5 lg:hidden")} onClick={() => setMenuOpen((o) => !o)} aria-label="Menü ein- oder ausblenden" aria-expanded={menuOpen}>
           <Menu className="size-5" aria-hidden />
         </button>
@@ -169,8 +169,8 @@ export function AppShell() {
           </button>
         </div>
       </header>
-      <div className="relative flex min-h-0 flex-1">
-        <aside data-testid="sidebar" className={cn("vt-sidebar hidden shrink-0 bg-sidebar transition-[width] duration-200 ease-out lg:block", collapsed ? "w-14" : "w-60")}>
+      <div className="relative flex min-h-0 flex-1 print:block">
+        <aside data-testid="sidebar" className={cn("vt-sidebar hidden shrink-0 print:!hidden bg-sidebar transition-[width] duration-200 ease-out lg:block", collapsed ? "w-14" : "w-60")}>
           <Sidebar onNavigate={closeMenu} collapsed={collapsed} onExpand={() => toggleCollapsed(false)} />
         </aside>
         {menuOpen && (
@@ -182,7 +182,7 @@ export function AppShell() {
             </aside>
           </>
         )}
-        <main className="scroll-thin flex min-w-0 flex-1 flex-col p-4 lg:p-5">
+        <main className="scroll-thin flex min-w-0 flex-1 flex-col p-4 lg:p-5 print:block print:overflow-visible print:p-0">
           <Outlet />
         </main>
       </div>
