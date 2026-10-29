@@ -1,5 +1,5 @@
-import { useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, MoveHorizontal, Search } from "lucide-react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, MoveHorizontal, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,8 @@ function includes(haystack: string, needle: string): boolean {
 }
 
 const clampWidth = (w: number) => Math.round(Math.min(800, Math.max(48, w)));
+/** Obergrenze beim automatischen Anpassen, damit eine lange Spalte nicht alles verdrängt */
+const AUTO_MAX = 320;
 
 function readWidths(key: string): Record<string, number> {
   try {
@@ -37,6 +39,12 @@ function readWidths(key: string): Record<string, number> {
   } catch {
     return {};
   }
+}
+
+/** Schrift eines Elements für die Messung; computed font ist leer, sobald z. B. tabular-nums gesetzt ist */
+function fontOf(el: Element): string {
+  const s = getComputedStyle(el);
+  return `${s.fontStyle} ${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
 }
 
 let measureContext: CanvasRenderingContext2D | null = null;
@@ -88,7 +96,10 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   // Spaltenbreiten, die die Person gezogen oder per Doppelklick angepasst hat; je Tabelle im Browser gemerkt
   const widthsKey = `cmdb-spalten:${storageKey ?? title}`;
   const [widths, setWidths] = useState<Record<string, number>>(() => readWidths(widthsKey));
-  const widthOf = (c: Column<T>) => widths[c.key] ?? c.width;
+  // Automatisch an den Inhalt angepasste Breiten (beim ersten Anzeigen, nicht gespeichert); gezogene haben Vorrang
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [autoWidths, setAutoWidths] = useState<Record<string, number>>({});
+  const widthOf = (c: Column<T>) => widths[c.key] ?? autoWidths[c.key] ?? c.width;
   const saveWidths = (next: Record<string, number>) => {
     setWidths(next);
     try {
@@ -145,18 +156,39 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   }
 
   /** Doppelklick: so breit wie der längste Inhalt (alle gefilterten Zeilen, nicht nur die sichtbare Seite) */
-  function autoFit(e: React.MouseEvent<HTMLSpanElement>, c: Column<T>) {
-    e.preventDefault();
-    e.stopPropagation();
-    const th = e.currentTarget.closest("th")!;
-    const td = th.closest("table")?.querySelector("tbody td");
-    const header = measure(c.label, getComputedStyle(th).font) + 24 + 18;
-    const cellFont = getComputedStyle(td ?? th).font;
+  /** Breite für den Inhalt einer Spalte: längster Wert aller gefilterten Zeilen bzw. die Überschrift, mit Polster */
+  function fitWidth(table: HTMLTableElement, index: number, max = 800): number {
+    const c = columns[index];
+    const th = table.querySelector(`thead tr th:nth-child(${index + 1})`);
+    const td = table.querySelector(`tbody tr td:nth-child(${index + 1})`);
+    const header = th ? measure(c.label, fontOf(th)) + 28 + 18 : 0;
+    const cellFont = fontOf(td ?? th ?? table);
     let content = 0;
     for (const row of filtered.slice(0, 2000)) content = Math.max(content, measure(c.value(row), cellFont));
     // Eigene Darstellung (z. B. Auswahlliste in der Zeile) braucht Platz für Rahmen und Pfeil
-    saveWidths({ ...widths, [c.key]: clampWidth(Math.max(header, content + 24 + (c.render ? 48 : 0))) });
+    return Math.min(max, clampWidth(Math.max(header, content + 30 + (c.render ? 48 : 0))));
   }
+
+  function autoFit(e: React.MouseEvent<HTMLSpanElement>, c: Column<T>) {
+    e.preventDefault();
+    e.stopPropagation();
+    const table = e.currentTarget.closest("table")!;
+    saveWidths({ ...widths, [c.key]: fitWidth(table, columns.indexOf(c)) });
+  }
+
+  /** Alle Spalten an den Inhalt anpassen (Knopf), höchstens 320 px je Spalte; wird gemerkt */
+  function fitAll() {
+    if (!tableRef.current) return;
+    saveWidths(Object.fromEntries(columns.map((c, i) => [c.key, fitWidth(tableRef.current!, i, AUTO_MAX)])));
+  }
+
+  // Beim ersten Anzeigen mit Daten: Spalten ohne gemerkte Breite passen sich dem Inhalt an (nicht gespeichert)
+  const hasRows = filtered.length > 0;
+  useLayoutEffect(() => {
+    if (!hasRows || !tableRef.current || Object.keys(autoWidths).length) return;
+    setAutoWidths(Object.fromEntries(columns.map((c, i) => [c.key, fitWidth(tableRef.current!, i, AUTO_MAX)])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRows]);
 
   function exportCsv() {
     const lines = [columns.map((c) => csvCell(c.label)).join(";"), ...filtered.map((row) => columns.map((c) => csvCell(c.value(row))).join(";"))];
@@ -183,9 +215,12 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
         {actions}
         {selectedRow && selectedActions?.(selectedRow)}
         <span className="flex-1" />
+        <Button variant="outline" size="sm" onClick={fitAll} title="Alle Spalten an den Inhalt anpassen" aria-label="Spalten an Inhalt anpassen">
+          <MoveHorizontal aria-hidden />
+        </Button>
         {Object.keys(widths).length > 0 && (
-          <Button variant="outline" size="sm" onClick={() => saveWidths({})} title="Spaltenbreiten zurücksetzen" aria-label="Spaltenbreiten zurücksetzen">
-            <MoveHorizontal aria-hidden />
+          <Button variant="outline" size="sm" onClick={() => saveWidths({})} title="Gezogene Spaltenbreiten verwerfen" aria-label="Spaltenbreiten zurücksetzen">
+            <RotateCcw aria-hidden />
           </Button>
         )}
         <Button variant="outline" size="sm" onClick={exportCsv} title="Als CSV exportieren (Excel)" aria-label="Als CSV exportieren">
@@ -200,16 +235,16 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           Mausrad und die Seite scrollt nicht weiter. Blättern über die Seiten. Volle Höhe: nur die Zeilen scrollen. */}
       <div className={cn(compact ? "scroll-thin-x" : "scroll-thin min-h-0 flex-1")} data-testid="table-scroll">
         {/* border-separate: Bei border-collapse bleiben die Linien im festgehaltenen Kopf nicht stehen, dann scheinen Zeilen durch */}
-        <table className="w-full table-fixed border-separate border-spacing-0 text-sm" style={{ minWidth }}>
+        <table ref={tableRef} className="w-full table-fixed border-separate border-spacing-0 text-sm" style={{ minWidth }}>
           <colgroup>
             {columns.map((c) => (
               <col key={c.key} style={widthOf(c) ? { width: widthOf(c) } : undefined} />
             ))}
           </colgroup>
           <thead className="sticky top-0 z-[1] bg-card">
-            <tr className="text-left text-muted-foreground">
+            <tr className="text-left text-foreground/75">
               {columns.map((c, i) => (
-                <th key={c.key} className={cn("group/th relative border-b bg-card py-2 pr-4 pl-3 font-medium", c.className)} title={c.label} aria-label={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
+                <th key={c.key} className={cn("group/th relative border-b bg-muted py-2.5 pr-4 pl-3 font-medium", c.className)} title={c.label} aria-label={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
                   {/* Text wird im Knopf gekürzt („…“), damit er nicht über den Griff in die nächste Spalte läuft */}
                   <button type="button" className="flex max-w-full items-center gap-1 transition-colors duration-150 hover:text-foreground" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : false }))}>
                     <span className="min-w-0 truncate">{c.label}</span>
@@ -282,7 +317,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                   {columns.map((c) => {
                     const text = c.value(row);
                     return (
-                      <td key={c.key} title={text} className={cn("truncate border-b px-3 py-1.5", c.render && "py-1", c.className)}>
+                      <td key={c.key} title={text} className={cn("truncate border-r border-b border-border/60 px-3 py-2 last:border-r-0", c.render && "py-1", c.className)}>
                         {c.render ? c.render(row) : text}
                       </td>
                     );
