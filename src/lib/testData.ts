@@ -64,6 +64,8 @@ const VALUES: Record<string, string[]> = {
   supplier: ["Lieferant A", "Lieferant A", "Lieferant A", "Lieferant A", "Lieferant B"],
   manufacturer: ["Hersteller A", "Hersteller A", "Hersteller A", "Hersteller B"],
   status: ["", "", "In Bearbeitung", "", "Angeboten", "Abgeschlossen"],
+  product: ["OPC-Server Standard", "OPC-Server Suite Produktion", "OPC-Server Treiberpaket"],
+  version: ["6.14", "6.15", "6.16"],
   raid: ["5", "5", "5", "1+0"],
   diskType: ["SSD", "SAS HDD", "SSD SAS"],
   diskCount: ["4", "5", "8", "13"],
@@ -110,7 +112,7 @@ export function testRows(area: Area): AreaRow[] {
       else if (field.key === "supplier" && !field.options) value = i % 2 ? "Händler A" : "Händler B";
       else if (field.key === "model") value = `${area.singular} ${String.fromCharCode(65 + (i % 4))}${100 + (i % 3) * 10}`;
       else if (field.key === "serviceTag" || field.key === "serialNumber") value = `TST${String(4711 + i * 13).padStart(6, "0")}`;
-      else if (field.key === "license") value = `TEST-${String(10000 + i * 7919).slice(-5)}-LIZENZ`;
+      else if (field.key === "license" || field.key === "licenseKey") value = `TEST-${String(10000 + i * 7919).slice(-5)}-LIZENZ`;
       else if (field.key === "licensee") value = TEST_CUSTOMERS[(i * 5) % TEST_CUSTOMERS.length].name;
       else if (field.key === "ipAddress") value = `192.0.2.${10 + i}`;
       else if (field.key === "hostname") value = `${area.id}-demo-${String(i + 1).padStart(2, "0")}`;

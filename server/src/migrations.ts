@@ -1,12 +1,17 @@
 /**
  * Versionierte Migrationen für das eigene Schema cmdb (server/migrations/NNN_*.sql). Der Dienst spielt beim Start
  * fehlende Skripte der Reihe nach ein und merkt sie sich in cmdb.SchemaVersion. dbo wird nie verändert.
+ * Neue Bereiche (Systemarten) entstehen hier als Tabelle in cmdb mit IDENTITY ab ihrem Nummernkreis, z. B. 002_kepware.
  */
 import sql from "mssql";
 import m001 from "../migrations/001_anmeldungen_und_rollen.sql?raw";
+import m002 from "../migrations/002_kepware.sql?raw";
 import { log } from "./log";
 
-const MIGRATIONS: { version: number; name: string; script: string }[] = [{ version: 1, name: "001_anmeldungen_und_rollen", script: m001 }];
+const MIGRATIONS: { version: number; name: string; script: string }[] = [
+  { version: 1, name: "001_anmeldungen_und_rollen", script: m001 },
+  { version: 2, name: "002_kepware", script: m002 },
+];
 
 export async function migrate(pool: sql.ConnectionPool): Promise<void> {
   const schema = await pool.request().query<{ ok: number }>("SELECT CASE WHEN SCHEMA_ID('cmdb') IS NULL THEN 0 ELSE 1 END AS ok");

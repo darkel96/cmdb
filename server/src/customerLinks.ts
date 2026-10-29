@@ -4,7 +4,9 @@
  * beim Löschen prüft sie, dass hier nichts mehr auf den Kunden verweist.
  * Stand: Schema-Export 28.10.2026 (docs/schema/columns.csv). Ohne DS_Kunden selbst und ohne die View.
  */
-export const CUSTOMER_LINKS: { table: string; column: string; label: string; maxLength: number }[] = [
+export const CUSTOMER_LINKS: { schema?: "dbo" | "cmdb"; table: string; column: string; label: string; maxLength: number }[] = [
+  // Eigene Tabellen der CMDB (Schema cmdb)
+  { schema: "cmdb", table: "KEPware", column: "Firma", label: "KEPware", maxLength: 255 },
   { table: "Server_manuell", column: "Firma", label: "Server", maxLength: 255 },
   { table: "Switche_manuell", column: "Firma", label: "Switche", maxLength: 255 },
   { table: "MDE_manuell", column: "Firma", label: "MDEs", maxLength: 255 },

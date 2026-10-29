@@ -41,6 +41,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "vmware", label: "VMware" },
       { id: "tsplus", label: "TSplus" },
       { id: "prtg", label: "PRTG" },
+      { id: "kepware", label: "KEPware" },
       { id: "pms-module", label: "PMS-Module" },
     ],
   },

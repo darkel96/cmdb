@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
 
 /** Bereiche in der Reihenfolge wie in GAPTEQ („Auslaufende Kundensysteme“) */
-export const EXPIRING_AREAS = ["server", "switche", "storage", "vmware", "tsplus", "prtg", "veeam", "windows"];
+export const EXPIRING_AREAS = ["server", "switche", "storage", "vmware", "tsplus", "prtg", "veeam", "kepware", "windows"];
 
 /** Status, mit denen ein System erledigt ist und ins Archiv wandert */
 export const ARCHIVE_STATUS = ["Verlängert", "Abgeschlossen"];
@@ -168,8 +168,8 @@ export function ExpiringPage() {
     { key: "id", label: "ID", value: (i) => String(i.row.id), width: 80, className: "tabular-nums" },
     { key: "company", label: "Firma", value: (i) => String(i.row.company ?? "") },
     // Bezeichnung und Kennung je nach Bereich aus dem passenden Feld
-    { key: "name", label: "Bezeichnung", value: (i) => text(i.row, "model", "licenseType", "hostname", "function", "manufacturer") || (i.row.sensorCount ? `${i.row.sensorCount} Sensoren` : "") },
-    { key: "tag", label: "Servicetag / Lizenz", value: (i) => text(i.row, "serviceTag", "license", "ipAddress", "orderNumber"), width: 170 },
+    { key: "name", label: "Bezeichnung", value: (i) => text(i.row, "model", "licenseType", "product", "hostname", "function", "manufacturer") || (i.row.sensorCount ? `${i.row.sensorCount} Sensoren` : "") },
+    { key: "tag", label: "Servicetag / Lizenz", value: (i) => text(i.row, "serviceTag", "license", "licenseKey", "ipAddress", "orderNumber"), width: 170 },
     { key: "supportUntil", label: "Support bis", value: (i) => shortDate(String(i.row.supportUntil ?? "")), sortValue: (i) => String(i.row.supportUntil ?? ""), width: 100, className: "tabular-nums" },
     { key: "eol", label: "EOL", value: (i) => String(i.row.eol ?? ""), width: 60 },
     {
