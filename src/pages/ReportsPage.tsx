@@ -32,7 +32,7 @@ const EMPTY = "(leer)";
 export function ReportsIndex() {
   const { can } = useAuth();
   const tiles = [
-    ...(EXPIRING_AREAS.some((id) => can(id, "read"))
+    ...(can("auslaufend", "read") && EXPIRING_AREAS.some((id) => can(id, "read"))
       ? [{ id: "auslaufend", title: "Auslaufende Kundensysteme", description: "Support endet bis Ende des dritten Monats oder ist abgelaufen", icon: CalendarClock }]
       : []),
     ...REPORTS.filter((r) => can(r.area, "read")).map((r) => ({ ...r, icon: BarChart3 })),

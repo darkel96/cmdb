@@ -79,7 +79,7 @@ function StatusCell({ item, editable, onSaved }: { item: Item; editable: boolean
           setBusy(true);
           setError("");
           try {
-            await api.updateAreaRow(item.area.id, item.row.id, { status }, { status: current });
+            await api.setStatus(item.area.id, item.row.id, status, current);
             onSaved({ ...item.row, status });
           } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
@@ -177,10 +177,12 @@ export function ExpiringPage() {
       label: "Status",
       value: (i) => String(i.row.status ?? ""),
       width: 170,
-      render: (i) => <StatusCell key={i.key} item={i} editable={can(i.area.id, "edit")} onSaved={(row) => saved(i.area.id, row)} />,
+      render: (i) => <StatusCell key={i.key} item={i} editable={can("auslaufend", "edit")} onSaved={(row) => saved(i.area.id, row)} />,
     },
     { key: "notes", label: "Besonderheiten", value: (i) => String(i.row.notes ?? "") },
   ];
+
+  if (!can("auslaufend", "read")) return <p className="text-sm text-muted-foreground">Dafür fehlt die Berechtigung (Auslaufende Kundensysteme: Lesen).</p>;
 
   const tab = (active: boolean) =>
     cn(

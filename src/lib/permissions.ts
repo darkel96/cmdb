@@ -20,10 +20,13 @@ export const ACTIONS: { id: Action; label: string }[] = [
   { id: "delete", label: "Löschen" },
 ];
 
-export const PERMISSION_AREAS: { id: string; label: string }[] = [
+/** Bereiche in der Rechte-Tabelle; actions: nur diese Rechte sind dort sinnvoll (sonst alle vier) */
+export const PERMISSION_AREAS: { id: string; label: string; actions?: Action[] }[] = [
   { id: "kunden", label: "Kunden" },
   ...Object.values(AREAS).map((a) => ({ id: a.id, label: a.plural ?? a.singular })),
   { id: "stammdaten", label: "Stammdaten (Auswahllisten)" },
+  // Lesen: Seite sehen (welche Systeme, hängt am Leserecht der Bereiche); Bearbeiten: Status setzen
+  { id: "auslaufend", label: "Auslaufende Kundensysteme", actions: ["read", "edit"] },
 ];
 
 const NONE: AreaPermission = { read: false, create: false, edit: false, delete: false };

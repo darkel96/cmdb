@@ -732,14 +732,20 @@ function statusOnly(area: Area, raw: unknown): Record<string, string> | undefine
   return { status: v };
 }
 
-async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser, id: number): Promise<void> {
+/**
+ * Eintrag bearbeiten (Recht Bearbeiten des Bereichs) oder mit status nur den Status setzen (PUT …/status, Recht
+ * „Auslaufende Kundensysteme: Bearbeiten“). Über das normale Bearbeiten lässt sich der Status nicht setzen.
+ */
+async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser, id: number, status = false): Promise<void> {
   const body = await readJson(req);
   try {
     const original = originalValues(body.original);
-    const values = statusOnly(area, body.values) ?? {
-      ...validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area), original),
-      ...secretValue(area, body.values, body.clearSecret === true),
-    };
+    const values = status
+      ? (statusOnly(area, body.values) ?? (() => { throw new LoginError("Nur der Status kann hier gesetzt werden.", 400); })())
+      : {
+          ...validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area), original),
+          ...secretValue(area, body.values, body.clearSecret === true),
+        };
     let changed: string[];
     if (ENV.testMode) {
       const row = areaRows(area).find((r) => r.id === id);
@@ -878,6 +884,14 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       else {
         const user = await allowed(req, res, area.id, "delete");
         if (user) await deleteInArea(req, res, area, user, Number(rawId));
+      }
+    } else if (/^\/api\/areas\/[a-z-]+\/\d+\/status$/.test(path) && method === "PUT") {
+      const [, , , areaId, rawId] = path.split("/");
+      const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
+      if (!area?.createFields) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Unbekannte Adresse." : "Nicht angemeldet.");
+      else {
+        const user = await allowed(req, res, "auslaufend", "edit");
+        if (user) await editInArea(req, res, area, user, Number(rawId), true);
       }
     } else if (/^\/api\/areas\/[a-z-]+\/\d+\/secret$/.test(path) && method === "GET") {
       const [, , , areaId, rawId] = path.split("/");
