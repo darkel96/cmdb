@@ -106,7 +106,8 @@ export function checkEnv(): string[] {
   if (Boolean(ENV.tlsCert) !== Boolean(ENV.tlsKey)) errors.push("CMDB_TLS_CERT und CMDB_TLS_KEY nur zusammen angeben.");
   if (!ENV.testMode) {
     if (!/^ldaps?:\/\//i.test(ENV.ldapUrl)) errors.push("CMDB_LDAP_URL muss mit ldaps:// oder ldap:// beginnen.");
-    if (!ENV.admins.length && !ENV.adminGroup) errors.push("CMDB_ADMINS oder CMDB_ADMIN_GROUP angeben.");
+    // Mindestens ein Weg zum Admin: Anmeldenamen, AD-Gruppe oder lokales Admin-Konto
+    if (!ENV.admins.length && !ENV.adminGroup && !(ENV.localAdminUser && ENV.localAdminHash)) errors.push("CMDB_ADMINS, CMDB_ADMIN_GROUP oder ein lokales Admin-Konto angeben.");
   }
   return errors;
 }
