@@ -2,7 +2,7 @@
  * Zugriff auf den CMDB-Dienst. Im Build-Modus „pages“ (VITE_TESTMODE=1) gibt es keinen Dienst:
  * Dann beantwortet eine Attrappe im Browser alle Anfragen mit den Testbenutzern und erfundenen Daten.
  */
-import { AREAS, firstFreeId, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
+import { AREAS, firstFreeId, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDocument, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
 import type { SettingsInput, SettingsResponse, SettingsSectionId } from "./settings";
 import { READ_ALL, allPermissions, PERMISSION_AREAS, type Action, type LoginLogEntry, type Role } from "./permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
@@ -28,12 +28,18 @@ export interface Api {
   areaForm(areaId: string): Promise<AreaFormResponse>;
   createAreaRow(areaId: string, values: Record<string, string>): Promise<AreaCreateResponse>;
   /** clearSecret: Passwort des Eintrags (area.secret) entfernen */
+  /** Eintrag löschen (Recht Löschen); original: Werte beim Öffnen */
+  deleteAreaRow(areaId: string, id: number, original: Record<string, string>): Promise<void>;
   /** Status setzen (Auslaufende Kundensysteme, Recht dort Bearbeiten) */
   setStatus(areaId: string, id: number, status: string, original: string): Promise<{ id: number; changed: string[] }>;
   updateAreaRow(areaId: string, id: number, values: Record<string, string>, original: Record<string, string>, clearSecret?: boolean): Promise<{ id: number; changed: string[] }>;
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
   documentUrl(customerId: number, documentId: number): string | null;
+  /** Dokumente eines Systems (wie GAPTEQ: dbo.Anhang, Vertrag_ID = ID) */
+  systemDocuments(areaId: string, id: number): Promise<{ documents: CustomerDocument[] }>;
+  systemDocumentUrl(areaId: string, id: number, documentId: number): string | null;
+  uploadSystemDocument(areaId: string, id: number, file: File): Promise<{ id: number }>;
   /** Dokument direkt am Kunden hochladen (wie GAPTEQ: dbo.Anhang, Typ „Angebot“) */
   uploadDocument(customerId: number, file: File): Promise<{ id: number }>;
   /** Passwort eines Eintrags (z. B. Oracle RMAN), nur mit dem Recht Bearbeiten */
@@ -111,12 +117,17 @@ const serverApi: Api = {
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
   areaForm: (areaId) => request<AreaFormResponse>(`/api/areas/${areaId}/form`),
   createAreaRow: (areaId, values) => request<AreaCreateResponse>(`/api/areas/${areaId}`, { method: "POST", body: JSON.stringify({ values }) }),
+  deleteAreaRow: (areaId, id, original) => request<void>(`/api/areas/${areaId}/${id}`, { method: "DELETE", body: JSON.stringify({ original }) }),
   setStatus: (areaId, id, status, original) =>
     request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}/status`, { method: "PUT", body: JSON.stringify({ values: { status }, original: { status: original } }) }),
   updateAreaRow: (areaId, id, values, original, clearSecret) =>
     request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original, ...(clearSecret ? { clearSecret } : {}) }) }),
   customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
   documentUrl: (customerId, documentId) => `/api/customers/${customerId}/documents/${documentId}`,
+  systemDocuments: (areaId, id) => request<{ documents: CustomerDocument[] }>(`/api/areas/${areaId}/${id}/documents`),
+  systemDocumentUrl: (areaId, id, documentId) => `/api/areas/${areaId}/${id}/documents/${documentId}`,
+  uploadSystemDocument: async (areaId, id, file) =>
+    request<{ id: number }>(`/api/areas/${areaId}/${id}/documents`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) }),
   uploadDocument: async (customerId, file) =>
     request<{ id: number }>(`/api/customers/${customerId}/documents`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) }),
   areaSecret: (areaId, id) => request<{ value: string }>(`/api/areas/${areaId}/${id}/secret`),
@@ -150,7 +161,9 @@ const BROWSER_SETTINGS_DEFAULT: SettingsResponse["sections"] = {
   smtp: { values: { host: "", port: 587, security: "starttls", user: "", from: "", fromName: "CMDB" }, changed: [], passwordSet: false },
 };
 const browserSettings: SettingsResponse["sections"] = structuredClone(BROWSER_SETTINGS_DEFAULT);
+const browserDeleted = new Set<string>();
 const browserDocuments = new Map<number, { id: number; name: string }[]>();
+const browserSystemDocuments = new Map<string, { id: number; name: string }[]>();
 let browserCustomers = [...TEST_CUSTOMERS];
 const browserRenames = new Map<string, string>();
 const browserExtra = new Map<number, { country: string; zip: string; address: string; email: string }>();
@@ -161,7 +174,8 @@ const renamed = (name: string) => {
 };
 const browserEdits = new Map<string, AreaRow>();
 const browserRows = (areaId: string) =>
-  [...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])]
+  [...new Map([...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])].map((r) => [r.id, r])).values()]
+    .filter((r) => !browserDeleted.has(`${areaId}:${r.id}`))
     .map((r) => browserEdits.get(`${areaId}:${r.id}`) ?? r)
     .map((r) => (typeof r.company === "string" ? { ...r, company: renamed(r.company) } : r));
 const browserLookups = new Map<string, string[]>(LOOKUP_LISTS.map((l) => [l.id, [...(TEST_OPTIONS[l.testKey] ?? [])]]));
@@ -255,8 +269,15 @@ const browserTestApi: Api = {
     const area = AREAS[areaId];
     const row: AreaRow = { id: firstFreeId(area, browserRows(areaId).map((r) => r.id)) };
     for (const f of area.fields) row[f.key] = f.key === "type" ? area.typeValue : (values[f.key] ?? "");
-    browserCreated.set(areaId, [...(browserCreated.get(areaId) ?? []), row]);
+    browserDeleted.delete(`${areaId}:${row.id}`);
+    browserEdits.delete(`${areaId}:${row.id}`);
+    browserCreated.set(areaId, [...(browserCreated.get(areaId) ?? []).filter((r) => r.id !== row.id), row]);
     return { id: row.id };
+  },
+  deleteAreaRow: async (areaId, id) => {
+    requireAdmin();
+    if (!browserRows(areaId).some((r) => r.id === id)) throw new ApiError("Diesen Eintrag gibt es nicht.", 404);
+    browserDeleted.add(`${areaId}:${id}`);
   },
   setStatus: async (areaId, id, status) => browserTestApi.updateAreaRow(areaId, id, { status }, {}),
   updateAreaRow: async (areaId, id, values) => {
@@ -281,6 +302,15 @@ const browserTestApi: Api = {
     return { customer: { ...c, ...extra }, documents, systems, errors: {}, source: "test" };
   },
   documentUrl: () => null,
+  systemDocuments: async (areaId, id) => ({ documents: (browserSystemDocuments.get(`${areaId}:${id}`) ?? []).map((d) => ({ ...d, type: AREAS[areaId].typeValue })) }),
+  systemDocumentUrl: () => null,
+  uploadSystemDocument: async (areaId, id, file) => {
+    requireAdmin();
+    const key = `${areaId}:${id}`;
+    const docId = 950_000 + [...browserSystemDocuments.values()].flat().length + 1;
+    browserSystemDocuments.set(key, [...(browserSystemDocuments.get(key) ?? []), { id: docId, name: file.name }]);
+    return { id: docId };
+  },
   uploadDocument: async (customerId, file) => {
     requireAdmin();
     const id = 900_000 + [...browserDocuments.values()].flat().length + 1;
