@@ -293,6 +293,20 @@ Admins ändern unter **Verwaltung › Status** die Anbindungen, ohne die `.env` 
 - Notfall: Ist die Anmeldung nach einer Änderung nicht mehr möglich, Datei löschen und Dienst neu starten:
   `docker exec -u root cmdb-dev rm /app/data/einstellungen.json && docker restart cmdb-dev`.
 
+## Lokales Admin-Konto
+
+Für Tests von Rechten mit dem eigenen AD-Konto (oder als Notzugang ohne AD) gibt es ein lokales Admin-Konto. In
+`server/.env` stehen nur `CMDB_LOCAL_ADMIN_USER` und der scrypt-Hash `CMDB_LOCAL_ADMIN_HASH`, nie das Passwort. Setzen
+bzw. ändern (Passwort wird verdeckt abgefragt, mindestens 12 Zeichen):
+
+```bash
+docker run --rm -it -v /root/cmdb/server:/s node:24-alpine node /s/tools/lokaler-admin.mjs admin
+docker compose -p cmdb-dev up -d
+```
+
+Der Name wird nie gegen das AD geprüft; Fehlversuche zählen wie bei allen Konten (Sperre). Entfernen: beide Zeilen
+aus `server/.env` löschen und den Dienst neu starten.
+
 ## Start und Stopp
 
 ```bash

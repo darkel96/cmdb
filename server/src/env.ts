@@ -56,6 +56,9 @@ export const ENV = {
 
   /** Anmeldenamen mit Rolle admin, durch Komma getrennt */
   admins: list(env.CMDB_ADMINS ?? "dario.keller"),
+  /** Lokales Admin-Konto ohne AD (Name und scrypt-Hash, gesetzt mit server/tools/lokaler-admin.mjs); leer = keins */
+  localAdminUser: str(env.CMDB_LOCAL_ADMIN_USER).toLowerCase(),
+  localAdminHash: str(env.CMDB_LOCAL_ADMIN_HASH),
   /** Optional: AD-Gruppe (CN oder vollständiger DN), deren Mitglieder admin sind */
   adminGroup: str(env.CMDB_ADMIN_GROUP).toLowerCase(),
 

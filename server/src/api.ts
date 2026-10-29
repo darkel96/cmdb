@@ -13,6 +13,7 @@ import { sendMail, smtpCheck } from "./mail";
 import { candidate, resetSettings, saveSettings, settings, settingsMeta, settingsView, type AllSettings, type DbSettings, type LdapSettings, type Section, type SmtpSettings } from "./settings";
 import { SETTINGS_SECTIONS, type SettingsResponse } from "@/lib/settings";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
+import { isLocalAdmin, localAdminLogin } from "./localAccount";
 import { log } from "./log";
 import { lockedFor, recordFailure, recordSuccess } from "./rateLimit";
 import { clearSessionCookie, sessionFromRequest, setSessionCookie } from "./session";
@@ -112,6 +113,12 @@ async function authenticate(username: string, password: string): Promise<Session
     const user = TEST_USERS[username];
     if (!user || password !== TEST_PASSWORD) throw new LoginError("Benutzername oder Passwort falsch.", 401);
     return user;
+  }
+  // Lokales Konto: nie gegen das AD, falsches Passwort zählt wie jeder Fehlversuch (Sperre nach Fehlversuchen)
+  if (isLocalAdmin(username)) {
+    const local = localAdminLogin(username, password);
+    if (!local) throw new LoginError("Benutzername oder Passwort falsch.", 401);
+    return local;
   }
   return ldapLogin(username, password);
 }
