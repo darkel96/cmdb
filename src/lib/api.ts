@@ -2,7 +2,7 @@
  * Zugriff auf den CMDB-Dienst. Im Build-Modus „pages“ (VITE_TESTMODE=1) gibt es keinen Dienst:
  * Dann beantwortet eine Attrappe im Browser alle Anfragen mit den Testbenutzern und erfundenen Daten.
  */
-import { AREAS, firstFreeId, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
+import { AREAS, firstFreeId, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDocument, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
 import { READ_ALL, allPermissions, PERMISSION_AREAS, type LoginLogEntry, type Role } from "./permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
 import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
@@ -31,6 +31,10 @@ export interface Api {
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
   documentUrl(customerId: number, documentId: number): string | null;
+  /** Dokumente eines Systems (wie GAPTEQ: dbo.Anhang, Vertrag_ID = ID) */
+  systemDocuments(areaId: string, id: number): Promise<{ documents: CustomerDocument[] }>;
+  systemDocumentUrl(areaId: string, id: number, documentId: number): string | null;
+  uploadSystemDocument(areaId: string, id: number, file: File): Promise<{ id: number }>;
   /** Dokument direkt am Kunden hochladen (wie GAPTEQ: dbo.Anhang, Typ „Angebot“) */
   uploadDocument(customerId: number, file: File): Promise<{ id: number }>;
   /** Passwort eines Eintrags (z. B. Oracle RMAN), nur mit dem Recht Bearbeiten */
@@ -106,6 +110,10 @@ const serverApi: Api = {
     request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original, ...(clearSecret ? { clearSecret } : {}) }) }),
   customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
   documentUrl: (customerId, documentId) => `/api/customers/${customerId}/documents/${documentId}`,
+  systemDocuments: (areaId, id) => request<{ documents: CustomerDocument[] }>(`/api/areas/${areaId}/${id}/documents`),
+  systemDocumentUrl: (areaId, id, documentId) => `/api/areas/${areaId}/${id}/documents/${documentId}`,
+  uploadSystemDocument: async (areaId, id, file) =>
+    request<{ id: number }>(`/api/areas/${areaId}/${id}/documents`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) }),
   uploadDocument: async (customerId, file) =>
     request<{ id: number }>(`/api/customers/${customerId}/documents`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) }),
   areaSecret: (areaId, id) => request<{ value: string }>(`/api/areas/${areaId}/${id}/secret`),
@@ -128,6 +136,7 @@ const STORAGE_KEY = "cmdb-test-session";
 // Testseite: neu angelegte Einträge nur bis zum Neuladen
 const browserCreated = new Map<string, AreaRow[]>();
 const browserDocuments = new Map<number, { id: number; name: string }[]>();
+const browserSystemDocuments = new Map<string, { id: number; name: string }[]>();
 let browserCustomers = [...TEST_CUSTOMERS];
 const browserRenames = new Map<string, string>();
 const browserExtra = new Map<number, { country: string; zip: string; address: string; email: string }>();
@@ -248,6 +257,15 @@ const browserTestApi: Api = {
     return { customer: { ...c, ...extra }, documents, systems, errors: {}, source: "test" };
   },
   documentUrl: () => null,
+  systemDocuments: async (areaId, id) => ({ documents: (browserSystemDocuments.get(`${areaId}:${id}`) ?? []).map((d) => ({ ...d, type: AREAS[areaId].typeValue })) }),
+  systemDocumentUrl: () => null,
+  uploadSystemDocument: async (areaId, id, file) => {
+    requireAdmin();
+    const key = `${areaId}:${id}`;
+    const docId = 950_000 + [...browserSystemDocuments.values()].flat().length + 1;
+    browserSystemDocuments.set(key, [...(browserSystemDocuments.get(key) ?? []), { id: docId, name: file.name }]);
+    return { id: docId };
+  },
   uploadDocument: async (customerId, file) => {
     requireAdmin();
     const id = 900_000 + [...browserDocuments.values()].flat().length + 1;

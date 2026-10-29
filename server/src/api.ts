@@ -7,7 +7,7 @@ import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "@/lib/stammdaten";
-import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getAreaSecret, getCustomer, addCustomerDocument, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
+import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getAreaSecret, getCustomer, addCustomerDocument, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -340,16 +340,22 @@ const testDocuments = new Map<number, { id: number; name: string; data: Buffer }
 let testDocumentId = 900_000;
 
 /** Dokument direkt am Kunden hochladen ({name, data: Base64}); gespeichert wie in GAPTEQ (dbo.Anhang, Typ „Angebot“) */
-async function uploadDocument(req: IncomingMessage, res: ServerResponse, customerId: number, user: SessionUser): Promise<void> {
+/** Hochgeladene Datei aus der Anfrage ({name, data: Base64}) prüfen; für Kunden und Systeme gleich */
+async function readUpload(req: IncomingMessage): Promise<{ name: string; data: Buffer }> {
   const body = await readJson(req, MAX_DOCUMENT_BODY);
   // Nur der Dateiname, ohne Pfad; Steuerzeichen raus
   const name = (typeof body.name === "string" ? body.name : "").split(/[\\/]/).pop()!.replace(/[\u0000-\u001f]/g, "").trim();
-  if (!name) return fail(res, 400, "Dateiname fehlt.");
-  if (name.length > 255) return fail(res, 400, "Der Dateiname ist zu lang (höchstens 255 Zeichen).");
-  if (typeof body.data !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(body.data)) return fail(res, 400, "Ungültiger Dateiinhalt.");
+  if (!name) throw new LoginError("Dateiname fehlt.", 400);
+  if (name.length > 255) throw new LoginError("Der Dateiname ist zu lang (höchstens 255 Zeichen).", 400);
+  if (typeof body.data !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(body.data)) throw new LoginError("Ungültiger Dateiinhalt.", 400);
   const data = Buffer.from(body.data, "base64");
-  if (data.length === 0) return fail(res, 400, "Die Datei ist leer.");
-  if (data.length > MAX_DOCUMENT) return fail(res, 413, "Die Datei ist zu gross (höchstens 15 MB).");
+  if (data.length === 0) throw new LoginError("Die Datei ist leer.", 400);
+  if (data.length > MAX_DOCUMENT) throw new LoginError("Die Datei ist zu gross (höchstens 15 MB).", 413);
+  return { name, data };
+}
+
+async function uploadDocument(req: IncomingMessage, res: ServerResponse, customerId: number, user: SessionUser): Promise<void> {
+  const { name, data } = await readUpload(req);
   try {
     let id: number;
     if (ENV.testMode) {
@@ -369,6 +375,55 @@ async function uploadDocument(req: IncomingMessage, res: ServerResponse, custome
   }
 }
 
+// Testmodus: Dokumente an Systemen im Speicher, Schlüssel „bereich:id“
+const testSystemDocuments = new Map<string, { id: number; name: string; data: Buffer }[]>();
+
+/** Dokumente eines Systems: Liste (GET …/documents), Download (GET …/documents/<id>), Hochladen (POST …/documents) */
+async function systemDocuments(req: IncomingMessage, res: ServerResponse, area: Area, id: number, documentId: number | undefined, method: string): Promise<void> {
+  const user = await allowed(req, res, area.id, method === "POST" ? "edit" : "read");
+  if (!user) return;
+  try {
+    const row = ENV.testMode ? areaRows(area).find((r) => r.id === id) : await getAreaRow(area, id);
+    if (!row) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
+    const key = `${area.id}:${id}`;
+    if (method === "POST") {
+      const { name, data } = await readUpload(req);
+      let docId: number;
+      if (ENV.testMode) {
+        docId = ++testDocumentId;
+        testSystemDocuments.set(key, [...(testSystemDocuments.get(key) ?? []), { id: docId, name, data }]);
+      } else docId = await addSystemDocument(area, row, name, data);
+      log(`Dokument ${docId} (${area.singular} ${id}, ${Math.ceil(data.length / 1024)} KB) hochgeladen von ${user.username}`);
+      return json(res, 201, { id: docId });
+    }
+    if (documentId === undefined) {
+      const documents = ENV.testMode
+        ? (testSystemDocuments.get(key) ?? []).map((d) => ({ id: d.id, name: d.name, type: area.typeValue }))
+        : await listSystemDocuments(id);
+      return json(res, 200, { documents });
+    }
+    const doc = ENV.testMode ? (testSystemDocuments.get(key)?.find((d) => d.id === documentId) ?? null) : await getSystemDocument(id, documentId);
+    if (!doc) return fail(res, 404, "Dieses Dokument gibt es nicht.");
+    log(`Dokument ${documentId} (${area.singular} ${id}) geladen von ${user.username}`);
+    sendFile(res, doc);
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    fail(res, e.status, e.message);
+  }
+}
+
+/** Datei an den Browser; Dateiname bereinigt */
+function sendFile(res: ServerResponse, doc: { name: string; data: Buffer }): void {
+  const ascii = doc.name.replace(/[^\w.\- ]+/g, "_");
+  res.writeHead(200, {
+    "Content-Type": "application/octet-stream",
+    "Content-Length": doc.data.length,
+    "Content-Disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(doc.name)}`,
+    "Cache-Control": "no-store",
+  });
+  res.end(doc.data);
+}
+
 /** Download eines Anhangs; Dateiname für den Browser bereinigt */
 async function sendDocument(res: ServerResponse, customerId: number, documentId: number): Promise<void> {
   let doc: { name: string; data: Buffer } | null;
@@ -383,14 +438,7 @@ async function sendDocument(res: ServerResponse, customerId: number, documentId:
     doc = customer ? await getDocument(customer, documentId) : null;
   }
   if (!doc) return fail(res, 404, "Dieses Dokument gibt es nicht.");
-  const ascii = doc.name.replace(/[^\w.\- ]+/g, "_");
-  res.writeHead(200, {
-    "Content-Type": "application/octet-stream",
-    "Content-Length": doc.data.length,
-    "Content-Disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(doc.name)}`,
-    "Cache-Control": "no-store",
-  });
-  res.end(doc.data);
+  sendFile(res, doc);
 }
 
 /** Eingaben für Kunden prüfen: Name Pflicht und höchstens so lang wie die kürzeste verknüpfte Spalte */
@@ -682,6 +730,11 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
         const user = await allowed(req, res, area.id, "edit");
         if (user) await editInArea(req, res, area, user, Number(rawId));
       }
+    } else if (/^\/api\/areas\/[a-z-]+\/\d+\/documents(\/\d+)?$/.test(path) && (method === "GET" || method === "POST")) {
+      const [, , , areaId, rawId, , rawDoc] = path.split("/");
+      const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
+      if (!area?.createFields || (method === "POST" && rawDoc)) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Unbekannte Adresse." : "Nicht angemeldet.");
+      else await systemDocuments(req, res, area, Number(rawId), rawDoc ? Number(rawDoc) : undefined, method);
     } else if (/^\/api\/areas\/[a-z-]+\/\d+\/secret$/.test(path) && method === "GET") {
       const [, , , areaId, rawId] = path.split("/");
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
