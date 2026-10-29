@@ -208,8 +208,8 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           </colgroup>
           <thead className="sticky top-0 z-[1] bg-card">
             <tr className="text-left text-muted-foreground">
-              {columns.map((c) => (
-                <th key={c.key} className={cn("group/th relative truncate border-b bg-card py-2 pr-4 pl-3 font-medium", c.className)} title={c.label} aria-label={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
+              {columns.map((c, i) => (
+                <th key={c.key} className={cn("group/th relative border-b bg-card py-2 pr-4 pl-3 font-medium", c.className)} title={c.label} aria-label={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
                   {/* Text wird im Knopf gekürzt („…“), damit er nicht über den Griff in die nächste Spalte läuft */}
                   <button type="button" className="flex max-w-full items-center gap-1 transition-colors duration-150 hover:text-foreground" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : false }))}>
                     <span className="min-w-0 truncate">{c.label}</span>
@@ -231,7 +231,11 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                       const current = e.currentTarget.closest("th")!.getBoundingClientRect().width;
                       saveWidths({ ...widths, [c.key]: clampWidth(current + (e.key === "ArrowRight" ? 16 : -16)) });
                     }}
-                    className="absolute top-0 right-0 z-[2] flex h-full w-2.5 cursor-col-resize touch-none justify-center outline-none after:h-full after:w-px after:bg-border after:transition-colors hover:after:w-0.5 hover:after:bg-brand focus-visible:after:w-0.5 focus-visible:after:bg-brand"
+                    className={cn(
+                      // Mittig auf der Spaltengrenze: die Linie ist genau die Grenze, greifbar 6 px links und rechts davon
+                      "absolute top-0 z-[2] flex h-full w-3 cursor-col-resize touch-none justify-center outline-none after:h-full after:w-px after:bg-border after:transition-colors hover:after:w-0.5 hover:after:bg-brand focus-visible:after:w-0.5 focus-visible:after:bg-brand",
+                      i === columns.length - 1 ? "right-0 justify-end" : "-right-1.5",
+                    )}
                   />
                 </th>
               ))}
