@@ -7,7 +7,7 @@ import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "@/lib/stammdaten";
-import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getCustomer, addCustomerDocument, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
+import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getAreaSecret, getCustomer, addCustomerDocument, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -184,6 +184,8 @@ async function readDb(res: ServerResponse, read: () => Promise<unknown>): Promis
 // Testmodus: neu angelegte und geänderte Einträge, Kunden und Umbenennungen nur im Speicher (bis zum Neustart)
 const testCreated = new Map<string, AreaRow[]>();
 const testEdits = new Map<string, AreaRow>();
+// Testmodus: Passwörter (erfunden), Schlüssel „bereich:id“
+const testSecrets = new Map<string, string>();
 let testCustomers: Customer[] = [...TEST_CUSTOMERS];
 const testRenames = new Map<string, string>();
 const testExtra = new Map<number, { zip: string; address: string; email: string; country?: string }>();
@@ -236,14 +238,40 @@ function validValues(area: Area, raw: unknown, form: AreaFormResponse, original?
   return values;
 }
 
+/** Neues Passwort aus dem Formular; leer = nicht übergeben (beim Bearbeiten: unverändert) */
+function secretValue(area: Area, raw: unknown): Record<string, string> {
+  if (!area.secret || !raw || typeof raw !== "object") return {};
+  const v = (raw as Record<string, unknown>)[area.secret.key];
+  if (v === undefined || v === "") return {};
+  if (typeof v !== "string") throw new LoginError(`${area.secret.label}: ungültiger Wert.`, 400);
+  if (v.length > 255) throw new LoginError(`${area.secret.label}: höchstens 255 Zeichen.`, 400);
+  return { [area.secret.key]: v };
+}
+
+/** Passwort eines Eintrags einzeln abrufen (Anzeigen/Kopieren); protokolliert wird nur, wer es abgerufen hat */
+async function sendSecret(res: ServerResponse, area: Area, id: number, user: SessionUser): Promise<void> {
+  try {
+    let value: string | null;
+    if (ENV.testMode) value = areaRows(area).some((r) => r.id === id) ? (testSecrets.get(`${area.id}:${id}`) ?? `Test-${id}-Kennwort`) : null;
+    else value = await getAreaSecret(area, id);
+    if (value === null) return fail(res, 404, `Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`);
+    log(`${area.secret?.label} abgerufen: ${area.singular} ${id} von ${user.username}`);
+    json(res, 200, { value });
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    fail(res, e.status, e.message);
+  }
+}
+
 async function createInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser): Promise<void> {
   const body = await readJson(req);
   try {
     // Feste Werte (z. B. EOL „Nein“) setzt der Dienst selbst, nicht der Browser
-    const values = { ...validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area)), ...(area.createFixed ?? {}) };
+    const values = { ...validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area)), ...secretValue(area, body.values), ...(area.createFixed ?? {}) };
     if (ENV.testMode) {
       const row: AreaRow = { id: testForm(area).nextId ?? area.testIdBase };
       for (const f of area.fields) row[f.key] = f.key === "type" ? area.typeValue : (values[f.key] ?? "");
+      if (area.secret) testSecrets.set(`${area.id}:${row.id}`, values[area.secret.key] ?? "");
       testCreated.set(area.id, [...(testCreated.get(area.id) ?? []), row]);
       log(`Angelegt (Testmodus): ${area.singular} ${row.id} von ${user.username}`);
       return json(res, 201, { id: row.id } satisfies AreaCreateResponse);
@@ -519,7 +547,10 @@ async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area,
   const body = await readJson(req);
   try {
     const original = originalValues(body.original);
-    const values = statusOnly(area, body.values) ?? validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area), original);
+    const values = statusOnly(area, body.values) ?? {
+      ...validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area), original),
+      ...secretValue(area, body.values),
+    };
     let changed: string[];
     if (ENV.testMode) {
       const row = areaRows(area).find((r) => r.id === id);
@@ -527,7 +558,12 @@ async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area,
       const meanwhile = area.fields.filter((f) => f.key in values && String(row[f.key] ?? "") !== (original[f.key] ?? ""));
       if (meanwhile.length) throw new DbError(`Der Eintrag wurde inzwischen geändert (${meanwhile.map((f) => f.label).join(", ")}). Bitte neu laden und erneut bearbeiten.`, 409);
       changed = area.fields.filter((f) => f.key in values && values[f.key] !== String(row[f.key] ?? "")).map((f) => f.label);
-      testEdits.set(`${area.id}:${id}`, { ...row, ...values });
+      const { [area.secret?.key ?? ""]: secret, ...plain } = values;
+      if (area.secret && secret) {
+        testSecrets.set(`${area.id}:${id}`, secret);
+        changed.push(area.secret.label);
+      }
+      testEdits.set(`${area.id}:${id}`, { ...row, ...plain });
     } else changed = await updateAreaRow(area, id, values, original);
     log(`Geändert: ${area.singular} ${id} von ${user.username}${changed.length ? ` (${changed.join(", ")})` : " (keine Änderung)"}`);
     json(res, 200, { id, changed });
@@ -640,6 +676,14 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       else {
         const user = await allowed(req, res, area.id, "edit");
         if (user) await editInArea(req, res, area, user, Number(rawId));
+      }
+    } else if (/^\/api\/areas\/[a-z-]+\/\d+\/secret$/.test(path) && method === "GET") {
+      const [, , , areaId, rawId] = path.split("/");
+      const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
+      if (!area?.secret) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Dieser Bereich hat kein Passwort." : "Nicht angemeldet.");
+      else {
+        const user = await allowed(req, res, area.id, "edit");
+        if (user) await sendSecret(res, area, Number(rawId), user);
       }
     } else if (/^\/api\/areas\/[a-z-]+(\/\d+)?$/.test(path) && method === "GET") {
       const [, , , areaId, rawId] = path.split("/");

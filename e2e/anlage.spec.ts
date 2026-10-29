@@ -215,23 +215,54 @@ test("Software- und Lizenzanlagen: Felder wie in GAPTEQ, Lieferant als Freitext"
   await expect(page.locator("dd", { hasText: "Windows Server 2025 Standard" })).toBeVisible();
 });
 
-test("Anlage Oracle ohne Passwortfeld, Anlage Windows-System mit festem EOL", async ({ page }) => {
+test("Anlage Oracle mit Hostname und RMAN-Passwort, Anlage Windows-System mit festem EOL", async ({ page, context }) => {
   await login(page, "admin");
   await page.goto("/bereich/oracle/neu");
   await expect(page.getByRole("heading", { name: "Anlage Oracle" })).toBeVisible();
   const oracleLabels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
   expect(oracleLabels).toEqual([
-    "Firma *", "DB-Typ *", "DB-Version", "Linux/Windows", "Zeichensatz", "SGA", "PGA", "RMAN-Copy-Job *", "RMAN-Pfad", "RMAN-Benutzer",
-    "DNS-Server", "IP-Adresse", "Gateway", "Softwarepflege *", "Softwarepflege bis", "IT-Servicevertrag *", "IT-Service bis", "Besonderheiten",
+    "Firma *", "DB-Typ *", "DB-Version", "Linux/Windows", "Hostname", "Zeichensatz", "SGA", "PGA", "RMAN-Copy-Job *", "RMAN-Pfad", "RMAN-Benutzer",
+    "RMAN-Passwort", "DNS-Server", "IP-Adresse", "Gateway", "Softwarepflege *", "Softwarepflege bis", "IT-Servicevertrag *", "IT-Service bis", "Besonderheiten",
   ]);
-  await expect(page.locator("form").getByText(/PW|Passwort/)).toHaveCount(0);
-  // Auch über die API lässt sich kein Passwort setzen: unbekannte Felder werden ignoriert
+  // Passwortfeld verdeckt, Auge zeigt die Eingabe
+  const pw = page.getByLabel("RMAN-Passwort", { exact: true });
+  await expect(pw).toHaveAttribute("type", "password");
+  await page.getByRole("button", { name: "RMAN-Passwort anzeigen" }).click();
+  await expect(pw).toHaveAttribute("type", "text");
+
+  const company = (await (await page.request.get("/api/areas/oracle/form")).json()).options.company[0];
   const res = await page.request.post("/api/areas/oracle", {
-    data: { values: { company: (await (await page.request.get("/api/areas/oracle/form")).json()).options.company[0], dbType: "Oracle XE", rmanCopyJob: "Nein", softwareContract: "Nein", itServiceContract: "Nein", rmanCopyJobPw: "geheim" } },
+    data: { values: { company, dbType: "Oracle XE", hostname: "ora-demo-neu", rmanCopyJob: "Nein", softwareContract: "Nein", itServiceContract: "Nein", rmanPassword: "Geheim-123" } },
   });
   expect(res.status()).toBe(201);
-  const created = await (await page.request.get(`/api/areas/oracle/${(await res.json()).id}`)).json();
-  expect(JSON.stringify(created)).not.toContain("geheim");
+  const id = (await res.json()).id;
+  // Liste und Detail enthalten das Passwort nie, nur der eigene Abruf
+  const created = await (await page.request.get(`/api/areas/oracle/${id}`)).json();
+  expect(created.hostname).toBe("ora-demo-neu");
+  expect(JSON.stringify(created)).not.toContain("Geheim-123");
+  expect(JSON.stringify(await (await page.request.get("/api/areas/oracle")).json())).not.toContain("Geheim-123");
+  expect((await (await page.request.get(`/api/areas/oracle/${id}/secret`)).json()).value).toBe("Geheim-123");
+
+  // Detail: verdeckt, Auge zeigt, Kopieren legt es in die Zwischenablage
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto(`/bereich/oracle/${id}`);
+  await expect(page.getByTestId("secret-value")).toHaveText("••••••••");
+  await page.getByRole("button", { name: "RMAN-Passwort anzeigen" }).click();
+  await expect(page.getByTestId("secret-value")).toHaveText("Geheim-123");
+  await page.getByRole("button", { name: "RMAN-Passwort verbergen" }).click();
+  await expect(page.getByTestId("secret-value")).toHaveText("••••••••");
+  await page.getByRole("button", { name: "RMAN-Passwort kopieren" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Kopiert" })).toBeVisible();
+  expect(await page.evaluate("navigator.clipboard.readText()")).toBe("Geheim-123");
+
+  // Bearbeiten: leer lassen = unverändert, neue Eingabe überschreibt
+  const original = { ...created };
+  const keep = await page.request.put(`/api/areas/oracle/${id}`, { data: { values: { ...created, rmanPassword: "" }, original } });
+  expect((await keep.json()).changed).toEqual([]);
+  expect((await (await page.request.get(`/api/areas/oracle/${id}/secret`)).json()).value).toBe("Geheim-123");
+  const change = await page.request.put(`/api/areas/oracle/${id}`, { data: { values: { ...created, rmanPassword: "Neu-456" }, original } });
+  expect((await change.json()).changed).toEqual(["RMAN-Passwort"]);
+  expect((await (await page.request.get(`/api/areas/oracle/${id}/secret`)).json()).value).toBe("Neu-456");
 
   await page.goto("/bereich/windows/neu");
   await expect(page.getByRole("heading", { name: "Anlage Windows-System" })).toBeVisible();
@@ -246,4 +277,13 @@ test("Anlage Oracle ohne Passwortfeld, Anlage Windows-System mit festem EOL", as
   await expect(page.locator("main").getByRole("status")).toHaveText(/^Windows-System \d+ wurde angelegt\.$/);
   await expect(page.locator("dd", { hasText: "app-demo-neu" })).toBeVisible();
   await expect(page.locator("dt", { hasText: "EOL" }).locator("xpath=following-sibling::dd[1]")).toHaveText("Nein");
+});
+
+test("Grundrolle sieht das Oracle-Passwort nur verdeckt und kann es nicht abrufen", async ({ page }) => {
+  await login(page, "user");
+  await page.goto("/bereich/oracle/100000");
+  await expect(page.getByText("RMAN-Passwort")).toBeVisible();
+  await expect(page.getByRole("button", { name: /RMAN-Passwort (anzeigen|kopieren)/ })).toHaveCount(0);
+  expect((await page.request.get("/api/areas/oracle/100000/secret")).status()).toBe(403);
+  expect((await page.request.get("/api/areas/server/10000/secret")).status()).toBe(404);
 });

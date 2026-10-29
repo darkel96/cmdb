@@ -32,6 +32,8 @@ export interface Api {
   documentUrl(customerId: number, documentId: number): string | null;
   /** Dokument direkt am Kunden hochladen (wie GAPTEQ: dbo.Anhang, Typ „Angebot“) */
   uploadDocument(customerId: number, file: File): Promise<{ id: number }>;
+  /** Passwort eines Eintrags (z. B. Oracle RMAN), nur mit dem Recht Bearbeiten */
+  areaSecret(areaId: string, id: number): Promise<{ value: string }>;
   createCustomer(values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   updateCustomer(id: number, values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   deleteCustomer(id: number): Promise<void>;
@@ -104,6 +106,7 @@ const serverApi: Api = {
   documentUrl: (customerId, documentId) => `/api/customers/${customerId}/documents/${documentId}`,
   uploadDocument: async (customerId, file) =>
     request<{ id: number }>(`/api/customers/${customerId}/documents`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) }),
+  areaSecret: (areaId, id) => request<{ value: string }>(`/api/areas/${areaId}/${id}/secret`),
   createCustomer: (values) => request<CustomerSaveResponse>("/api/customers", { method: "POST", body: JSON.stringify({ values }) }),
   updateCustomer: (id, values) => request<CustomerSaveResponse>(`/api/customers/${id}`, { method: "PUT", body: JSON.stringify({ values }) }),
   // Leerer JSON-Inhalt, damit die Ursprungsprüfung des Dienstes greift
@@ -248,6 +251,10 @@ const browserTestApi: Api = {
     const id = 900_000 + [...browserDocuments.values()].flat().length + 1;
     browserDocuments.set(customerId, [...(browserDocuments.get(customerId) ?? []), { id, name: file.name }]);
     return { id };
+  },
+  areaSecret: async (_areaId, id) => {
+    requireAdmin();
+    return { value: `Test-${id}-Kennwort` };
   },
   createCustomer: async (values) => {
     requireAdmin();
