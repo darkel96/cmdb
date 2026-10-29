@@ -4,7 +4,7 @@
  */
 import { AREAS, firstFreeId, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
 import type { SettingsInput, SettingsResponse, SettingsSectionId } from "./settings";
-import { READ_ALL, allPermissions, PERMISSION_AREAS, type LoginLogEntry, type Role } from "./permissions";
+import { READ_ALL, allPermissions, PERMISSION_AREAS, type Action, type LoginLogEntry, type Role } from "./permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
 import type { CheckResult, CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
@@ -28,6 +28,8 @@ export interface Api {
   areaForm(areaId: string): Promise<AreaFormResponse>;
   createAreaRow(areaId: string, values: Record<string, string>): Promise<AreaCreateResponse>;
   /** clearSecret: Passwort des Eintrags (area.secret) entfernen */
+  /** Status setzen (Auslaufende Kundensysteme, Recht dort Bearbeiten) */
+  setStatus(areaId: string, id: number, status: string, original: string): Promise<{ id: number; changed: string[] }>;
   updateAreaRow(areaId: string, id: number, values: Record<string, string>, original: Record<string, string>, clearSecret?: boolean): Promise<{ id: number; changed: string[] }>;
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
@@ -66,7 +68,7 @@ export interface AdminLoginsResponse {
 
 export interface AdminRolesResponse {
   items: Role[];
-  areas: { id: string; label: string }[];
+  areas: { id: string; label: string; actions?: Action[] }[];
   schema: SchemaState;
 }
 
@@ -109,6 +111,8 @@ const serverApi: Api = {
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
   areaForm: (areaId) => request<AreaFormResponse>(`/api/areas/${areaId}/form`),
   createAreaRow: (areaId, values) => request<AreaCreateResponse>(`/api/areas/${areaId}`, { method: "POST", body: JSON.stringify({ values }) }),
+  setStatus: (areaId, id, status, original) =>
+    request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}/status`, { method: "PUT", body: JSON.stringify({ values: { status }, original: { status: original } }) }),
   updateAreaRow: (areaId, id, values, original, clearSecret) =>
     request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original, ...(clearSecret ? { clearSecret } : {}) }) }),
   customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
@@ -254,6 +258,7 @@ const browserTestApi: Api = {
     browserCreated.set(areaId, [...(browserCreated.get(areaId) ?? []), row]);
     return { id: row.id };
   },
+  setStatus: async (areaId, id, status) => browserTestApi.updateAreaRow(areaId, id, { status }, {}),
   updateAreaRow: async (areaId, id, values) => {
     requireAdmin();
     const row = browserRows(areaId).find((r) => r.id === id);

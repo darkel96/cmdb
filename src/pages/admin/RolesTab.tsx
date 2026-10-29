@@ -38,8 +38,8 @@ function RoleEditor({ role, areas, onSave, onCancel }: { role?: Role; areas: Adm
   }
 
   function toggleColumn(action: Action) {
-    const all = areas.every((a) => permissions[a.id]?.[action]);
-    for (const a of areas) toggle(a.id, action, !all);
+    const all = areas.filter((a) => !a.actions || a.actions.includes(action)).every((a) => permissions[a.id]?.[action]);
+    for (const a of areas) if (!a.actions || a.actions.includes(action)) toggle(a.id, action, !all);
   }
 
   function addMember() {
@@ -118,6 +118,9 @@ function RoleEditor({ role, areas, onSave, onCancel }: { role?: Role; areas: Adm
                       <td className="px-3 py-1">{area.label}</td>
                       {ACTIONS.map((a) => (
                         <td key={a.id} className="px-2 py-1 text-center">
+                          {area.actions && !area.actions.includes(a.id) ? (
+                            <span className="text-muted-foreground" title="Für diesen Bereich nicht vorgesehen">–</span>
+                          ) : (
                           <input
                             type="checkbox"
                             aria-label={`${area.label}: ${a.label}`}
@@ -125,6 +128,7 @@ function RoleEditor({ role, areas, onSave, onCancel }: { role?: Role; areas: Adm
                             checked={Boolean(permissions[area.id]?.[a.id])}
                             onChange={(e) => toggle(area.id, a.id, e.target.checked)}
                           />
+                          )}
                         </td>
                       ))}
                     </tr>
