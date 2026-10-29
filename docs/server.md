@@ -169,6 +169,10 @@ GRANT UPDATE ON dbo.Lizenzen_manuell TO svc_cmdb;
 GRANT UPDATE (Typ, Firma, DB_Typ, DB_Version, LinuxOS_WinOS, Zeichensatz, SGA, PGA, RMAN_Copy_Job, RMAN_Copy_Job_Pfad,
   RMAN_Copy_Job_Username, DNS_Server, IP_Adresse, Gateway, Software_Pflegevertrag, Software_pflegevertragsende,
   IT_Servicevertrag, IT_Servicevertragsende, Besonderheiten) ON dbo.Oracle_manuell TO svc_cmdb;
+-- Oracle: Hostname bearbeiten, RMAN-Passwort setzen und mit Recht „Oracle: Bearbeiten“ anzeigen/kopieren (29.10.2026).
+-- Die CMDB liest die Spalte nur einzeln auf Klick (wird protokolliert), nie in Listen oder Exporten.
+GRANT UPDATE (Hostname, RMAN_Copy_Job_PW) ON dbo.Oracle_manuell TO svc_cmdb;
+GRANT SELECT (RMAN_Copy_Job_PW) ON dbo.Oracle_manuell TO svc_cmdb;
 -- Anlage Windows-System
 GRANT UPDATE ON dbo.Windowssysteme_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.DD_DB_Typ TO svc_cmdb;

@@ -30,6 +30,8 @@ export interface Api {
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
   documentUrl(customerId: number, documentId: number): string | null;
+  /** Passwort eines Eintrags (z. B. Oracle RMAN), nur mit dem Recht Bearbeiten */
+  areaSecret(areaId: string, id: number): Promise<{ value: string }>;
   createCustomer(values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   updateCustomer(id: number, values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   deleteCustomer(id: number): Promise<void>;
@@ -89,6 +91,7 @@ const serverApi: Api = {
   updateAreaRow: (areaId, id, values, original) => request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original }) }),
   customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
   documentUrl: (customerId, documentId) => `/api/customers/${customerId}/documents/${documentId}`,
+  areaSecret: (areaId, id) => request<{ value: string }>(`/api/areas/${areaId}/${id}/secret`),
   createCustomer: (values) => request<CustomerSaveResponse>("/api/customers", { method: "POST", body: JSON.stringify({ values }) }),
   updateCustomer: (id, values) => request<CustomerSaveResponse>(`/api/customers/${id}`, { method: "PUT", body: JSON.stringify({ values }) }),
   // Leerer JSON-Inhalt, damit die Ursprungsprüfung des Dienstes greift
@@ -226,6 +229,10 @@ const browserTestApi: Api = {
     return { customer: { ...c, ...extra }, documents: [], systems, errors: {}, source: "test" };
   },
   documentUrl: () => null,
+  areaSecret: async (_areaId, id) => {
+    requireAdmin();
+    return { value: `Test-${id}-Kennwort` };
+  },
   createCustomer: async (values) => {
     requireAdmin();
     if (browserCustomers.some((c) => c.name.toLowerCase() === values.name.trim().toLowerCase())) throw new ApiError(`Den Kunden „${values.name}“ gibt es schon.`, 409);

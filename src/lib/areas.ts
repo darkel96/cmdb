@@ -25,6 +25,16 @@ export interface AreaField {
   defaultValue?: string;
 }
 
+/**
+ * Passwortspalte eines Bereichs (Oracle: RMAN_Copy_Job_PW). Steht bewusst nicht in fields: Übersicht, Detail, Export
+ * und Kundenansicht enthalten sie nie. Lesen nur einzeln über /api/areas/<id>/<itemId>/secret mit dem Recht Bearbeiten.
+ */
+export interface AreaSecret {
+  key: string;
+  column: string;
+  label: string;
+}
+
 export interface Area {
   /** Teil der Adresse: /bereich/<id> */
   id: string;
@@ -47,6 +57,8 @@ export interface Area {
   /** Testmodus: Anzahl und erste ID der erfundenen Einträge */
   testCount: number;
   testIdBase: number;
+  /** Passwortspalte, getrennt von fields (siehe AreaSecret) */
+  secret?: AreaSecret;
 }
 
 /** Ein Eintrag: ID plus Werte je Feld (Datum als JJJJ-MM-TT, leer als "") */
@@ -245,7 +257,6 @@ export const AREAS: Record<string, Area> = {
       f.type,
     ],
   },
-  // Nur lesend. RMAN_Copy_Job_PW (Passwörter im Klartext) wird bewusst nie gelesen oder angezeigt.
   oracle: {
     id: "oracle",
     table: "Oracle_manuell",
@@ -253,8 +264,9 @@ export const AREAS: Record<string, Area> = {
     singular: "Oracle",
     plural: "Oracle",
     typeValue: "Oracle",
-    // Ohne RMAN_Copy_Job_PW: Passwörter gehören in den Passwort-Manager, die CMDB liest und schreibt die Spalte nie
-    createFields: ["company", "dbType", "dbVersion", "os", "charset", "sga", "pga", "rmanCopyJob", "rmanCopyJobPath", "rmanCopyJobUser", "dnsServer", "ipAddress", "gateway", "softwareContract", "softwareContractEnd", "itServiceContract", "itServiceContractEnd", "notes"],
+    // RMAN_Copy_Job_PW nur als secret: nie in Listen, Anzeigen mit Klick und Recht Bearbeiten
+    createFields: ["company", "dbType", "dbVersion", "os", "hostname", "charset", "sga", "pga", "rmanCopyJob", "rmanCopyJobPath", "rmanCopyJobUser", "rmanPassword", "dnsServer", "ipAddress", "gateway", "softwareContract", "softwareContractEnd", "itServiceContract", "itServiceContractEnd", "notes"],
+    secret: { key: "rmanPassword", column: "RMAN_Copy_Job_PW", label: "RMAN-Passwort" },
     testCount: 12,
     testIdBase: 100000,
     fields: [

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CheckCircle2, Pencil, Plus } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { DataTable, type Column } from "@/components/DataTable";
+import { SecretValue } from "@/components/SecretValue";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { AREAS, type Area, type AreaListResponse, type AreaRow } from "@/lib/areas";
@@ -151,8 +152,18 @@ export function AreaDetailPage() {
                 </div>
               );
             })}
+            {area.secret && (
+              <div className="contents">
+                <dt className="text-muted-foreground">{area.secret.label}</dt>
+                <dd className="min-h-5">
+                  <SecretValue areaId={area.id} id={row.id} label={area.secret.label} allowed={can(area.id, "edit")} />
+                </dd>
+              </div>
+            )}
           </dl>
-          <p className="border-t px-4 py-2 text-xs text-muted-foreground">Nur lesend. Ändern ist weiterhin in GAPTEQ möglich.</p>
+          <p className="border-t px-4 py-2 text-xs text-muted-foreground">
+            {area.createFields && can(area.id, "edit") ? "Ändern über „Bearbeiten“ oder weiterhin in GAPTEQ." : "Nur lesend."}
+          </p>
         </section>
       )}
     </div>
