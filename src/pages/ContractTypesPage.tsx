@@ -1,4 +1,4 @@
-import { Activity, Boxes, ChevronRight, Database, DatabaseBackup, HardDrive, KeyRound, Laptop, Monitor, MonitorSmartphone, Network, ScanBarcode, Server, type LucideIcon } from "lucide-react";
+import { Activity, Boxes, Cable, ChevronRight, Database, DatabaseBackup, HardDrive, KeyRound, Laptop, Monitor, MonitorSmartphone, Network, ScanBarcode, Server, type LucideIcon } from "lucide-react";
 import { Link } from "react-router";
 import { AREAS } from "@/lib/areas";
 import { useAuth } from "@/state/auth";
@@ -11,6 +11,7 @@ const TYPES: { label: string; icon: LucideIcon; areaId?: string }[] = [
   { label: "VMware", icon: Boxes, areaId: "vmware" },
   { label: "TSPLUS", icon: MonitorSmartphone, areaId: "tsplus" },
   { label: "PRTG", icon: Activity, areaId: "prtg" },
+  { label: "KEPware", icon: Cable, areaId: "kepware" },
   { label: "VEEAM", icon: DatabaseBackup, areaId: "veeam" },
   { label: "Lizenzen", icon: KeyRound, areaId: "lizenzen" },
   { label: "Storage", icon: HardDrive, areaId: "storage" },

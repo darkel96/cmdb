@@ -21,6 +21,9 @@ Hinweise für Claude Code in diesem Repository.
   Konfiguration über Umgebungsvariablen bzw. lokale, ignorierte Dateien.
 - Datenbankänderungen nur als versionierte Migrationsskripte in `server/migrations/NNN_*.sql` (nur Schema `cmdb`),
   eingetragen in `server/src/migrations.ts`. Ein eingespieltes Skript nie ändern, sondern ein neues anlegen.
+- Neue Systemarten entstehen als Tabelle im Schema `cmdb` (Migration) mit `IDENTITY` ab ihrem Nummernkreis
+  (z. B. KEPware ab 130000) und `schema: "cmdb", identity: true` in `src/lib/areas.ts`, nicht mehr als dbo-Tabelle
+  mit vorab angelegten Leerzeilen. Kundennamen-Spalte in `server/src/customerLinks.ts` eintragen.
 - Neue Endpunkte prüfen Rechte mit `allowed(req, res, bereich, aktion)` (server/src/api.ts), neue Bereiche erscheinen
   automatisch in der Rechte-Tabelle.
 - Schreiben in `dbo` nur wie GAPTEQ (nächste freie, vorab angelegte Zeile füllen, mit Sperre), nur für Admins und nur

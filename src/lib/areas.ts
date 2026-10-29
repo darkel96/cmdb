@@ -59,6 +59,13 @@ export interface Area {
   testIdBase: number;
   /** Passwortspalte, getrennt von fields (siehe AreaSecret) */
   secret?: AreaSecret;
+  /** Schema der Tabelle; Standard dbo (bestehende GAPTEQ-Tabellen). Neue Bereiche liegen in cmdb. */
+  schema?: "dbo" | "cmdb";
+  /**
+   * ID vergibt die Datenbank (IDENTITY ab dem Nummernkreis, z. B. 130000) statt vorab angelegter Leerzeilen wie in
+   * GAPTEQ: Anlegen ist ein normales INSERT.
+   */
+  identity?: boolean;
 }
 
 /** Ein Eintrag: ID plus Werte je Feld (Datum als JJJJ-MM-TT, leer als "") */
@@ -425,6 +432,38 @@ export const AREAS: Record<string, Area> = {
       f.supportUntil,
       f.eol,
       { ...f.notes, width: 220 },
+      f.type,
+      f.status,
+    ],
+  },
+  // KEPware-Lizenzen (OPC-Server): erster Bereich im Schema cmdb, Nummernkreis ab 130000 (server/migrations/002_kepware.sql)
+  kepware: {
+    id: "kepware",
+    table: "KEPware",
+    schema: "cmdb",
+    identity: true,
+    title: "Übersicht KEPware",
+    singular: "KEPware-Lizenz",
+    plural: "KEPware",
+    typeValue: "KEPware",
+    createTitle: "Anlage KEPware-Lizenz",
+    createFields: ["company", "product", "version", "licensee", "supplier", "orderNumber", "deliveredOn", "licenseKey", "emergencyKey", "hostname", "supportUntil", "eol", "notes"],
+    secret: { key: "emergencyKey", column: "Notfallkey", label: "Notfall-Key" },
+    testCount: 8,
+    testIdBase: 130000,
+    fields: [
+      f.company,
+      { key: "product", column: "Produkt", label: "Produkt/Edition", width: 220, required: true },
+      { key: "version", column: "Version", label: "Version", width: 90 },
+      { key: "licensee", column: "Lizenznehmer", label: "Lizenznehmer", width: 180 },
+      f.supplierText,
+      f.orderNumber,
+      { key: "deliveredOn", column: "Lieferdatum", label: "Lieferdatum", date: true, width: 100 },
+      { key: "licenseKey", column: "Lizenzkey", label: "Lizenzkey", width: 220 },
+      { key: "hostname", column: "Hostname", label: "Server/Hostname", width: 140 },
+      f.supportUntil,
+      f.eol,
+      { ...f.notes, width: 200 },
       f.type,
       f.status,
     ],

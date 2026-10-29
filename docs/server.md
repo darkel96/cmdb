@@ -94,6 +94,16 @@ GRANT CREATE TABLE TO svc_cmdb;
 GO
 ```
 
+**Neue Systemarten im Schema cmdb:** Seit 29.10.2026 entstehen neue Bereiche als eigene Tabelle in `cmdb` mit
+`IDENTITY` ab ihrem Nummernkreis, ohne vorab angelegte Leerzeilen und ohne zusätzliche Rechte (die Tabelle gehört
+`svc_cmdb`). Erster Bereich: `cmdb.KEPware` (KEPware-/OPC-Server-Lizenzen, IDs ab 130000, Migration `002_kepware`).
+Der Notfall-Key steht dort wie das Oracle-RMAN-Passwort nie in Listen, nur einzeln mit dem Recht Bearbeiten.
+
+| Nummernkreis | Bereich | Tabelle |
+|---|---|---|
+| 10000–120000 (je 1001) | Server bis Windows-Systeme | `dbo.*_manuell` (GAPTEQ, vorab angelegte Zeilen) |
+| ab 130000 | KEPware | `cmdb.KEPware` (IDENTITY) |
+
 **Rollen und Rechte:** Verwaltung › Rollen. Jede Rolle hat je Bereich (Kunden und alle Bereiche der Seitenleiste) die
 Rechte Lesen, Anlegen, Bearbeiten, Löschen; Mitglieder sind Personen (Anmeldename) oder AD-Gruppen (CN). Die Grundrolle
 „Alle Angemeldeten“ gilt für jede Person und darf anfangs alles lesen. Admins aus `CMDB_ADMINS`/`CMDB_ADMIN_GROUP`

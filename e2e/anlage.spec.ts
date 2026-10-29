@@ -36,8 +36,8 @@ test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
   await expect(page.getByRole("navigation", { name: "Hauptnavigation" }).getByRole("link", { name: "Anlage Vertrag" })).toHaveCount(0);
   await page.getByRole("link", { name: "Verwaltung" }).click();
   await expect(page.getByRole("tab", { name: "Anlage Vertrag" })).toHaveAttribute("aria-selected", "true");
-  // Alle zwölf Typen wie in GAPTEQ sind anlegbar
-  await expect(page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link")).toHaveCount(12);
+  // Alle zwölf Typen wie in GAPTEQ und KEPware sind anlegbar
+  await expect(page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link")).toHaveCount(13);
   await page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link", { name: "Server", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "Anlage Server" })).toBeVisible();

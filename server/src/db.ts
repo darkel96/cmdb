@@ -74,6 +74,16 @@ export async function listCustomers(): Promise<Customer[]> {
 /** Tabellen- und Spaltennamen stammen nur aus der festen Beschreibung in src/lib/areas.ts, nie aus Anfragen */
 const quote = (name: string) => `[${name.replace(/]/g, "]]")}]`;
 
+/** Tabelle eines Bereichs mit Schema (bestehende in dbo, neue in cmdb) */
+function tableOf(area: Area): string {
+  return `${area.schema ?? "dbo"}.${quote(area.table)}`;
+}
+
+/** Name für Meldungen, z. B. „dbo.Server_manuell“ */
+function objectOf(area: Area): string {
+  return `${area.schema ?? "dbo"}.${area.table}`;
+}
+
 function areaSelect(area: Area): string {
   return ["ID", ...area.fields.map((f) => `${quote(f.column)} AS ${quote(f.key)}`)].join(", ");
 }
@@ -102,10 +112,10 @@ function toAreaRow(area: Area, r: Record<string, unknown>): AreaRow {
 
 export async function listArea(area: Area): Promise<AreaRow[]> {
   try {
-    const result = await (await pool()).request().query(`SELECT ${areaSelect(area)} FROM dbo.${quote(area.table)} WHERE ${areaNotEmpty(area)} ORDER BY ID`);
+    const result = await (await pool()).request().query(`SELECT ${areaSelect(area)} FROM ${tableOf(area)} WHERE ${areaNotEmpty(area)} ORDER BY ID`);
     return result.recordset.map((r) => toAreaRow(area, r));
   } catch (e) {
-    throw translate(e, `dbo.${area.table}`);
+    throw translate(e, objectOf(area));
   }
 }
 
@@ -116,7 +126,8 @@ export async function listArea(area: Area): Promise<AreaRow[]> {
  * die nächste. Es werden nur Spalten aus der festen Beschreibung des Bereichs gesetzt.
  */
 export async function createAreaRow(area: Area, values: Record<string, string>): Promise<number> {
-  const table = `dbo.${quote(area.table)}`;
+  const table = `${tableOf(area)}`;
+  if (area.identity) return insertAreaRow(area, values);
   const free = `NOT ${areaNotEmpty(area)}`;
   const p = await pool();
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -154,13 +165,47 @@ export async function createAreaRow(area: Area, values: Record<string, string>):
   throw new DbError("Die freie Zeile wurde gerade anderweitig belegt. Bitte noch einmal speichern.", 409);
 }
 
+/** Neuer Eintrag in einem Bereich mit IDENTITY (Schema cmdb): die Datenbank vergibt die nächste Nummer */
+async function insertAreaRow(area: Area, values: Record<string, string>): Promise<number> {
+  try {
+    const request = (await pool()).request();
+    const columns: string[] = [];
+    const params: string[] = [];
+    for (const [i, f] of area.fields.entries()) {
+      if (f.key !== "type" && !(f.key in values)) continue;
+      const value = f.key === "type" ? area.typeValue : values[f.key].trim();
+      request.input(`v${i}`, f.date ? sql.Date : sql.NVarChar(255), value === "" ? null : f.date ? new Date(`${value}T00:00:00Z`) : value);
+      columns.push(quote(f.column));
+      params.push(`@v${i}`);
+    }
+    const secret = area.secret && values[area.secret.key];
+    if (area.secret && secret) {
+      request.input("secret", sql.NVarChar(255), secret);
+      columns.push(quote(area.secret.column));
+      params.push("@secret");
+    }
+    const result = await request.query<{ ID: number }>(`INSERT INTO ${tableOf(area)} (${columns.join(", ")}) OUTPUT INSERTED.ID VALUES (${params.join(", ")})`);
+    return result.recordset[0].ID;
+  } catch (e) {
+    throw translate(e, objectOf(area));
+  }
+}
+
 /** Formular „Anlage“: voraussichtliche nächste freie ID (ohne Sperre, nur zur Anzeige) und Auswahllisten */
 export async function areaForm(area: Area): Promise<AreaFormResponse> {
   const p = await pool();
   const options: Record<string, string[]> = {};
-  let object = `dbo.${area.table}`;
+  let object = objectOf(area);
   try {
-    const next = await p.request().query<{ ID: number | null }>(`SELECT MIN(ID) AS ID FROM dbo.${quote(area.table)} WHERE NOT ${areaNotEmpty(area)}`);
+    // GAPTEQ-Tabellen: erste vorab angelegte Leerzeile; IDENTITY: nächster Wert (ohne Zeilen der Startwert)
+    const ident = objectOf(area).replace(/'/g, "''");
+    const next = await p
+      .request()
+      .query<{ ID: number | null }>(
+        area.identity
+          ? `SELECT CAST(CASE WHEN EXISTS (SELECT 1 FROM ${tableOf(area)}) OR IDENT_CURRENT('${ident}') <> IDENT_SEED('${ident}') THEN IDENT_CURRENT('${ident}') + IDENT_INCR('${ident}') ELSE IDENT_SEED('${ident}') END AS int) AS ID`
+          : `SELECT MIN(ID) AS ID FROM ${tableOf(area)} WHERE NOT ${areaNotEmpty(area)}`,
+      );
     for (const f of area.fields) {
       if (!f.options || !area.createFields?.includes(f.key)) continue;
       if (f.options === "customers") {
@@ -168,10 +213,10 @@ export async function areaForm(area: Area): Promise<AreaFormResponse> {
         options[f.key] = (await listCustomers()).map((c) => c.name).filter(Boolean);
       } else if (f.options === "distinct") {
         // Keine Liste in der Datenbank: die Werte, die in der Spalte schon vorkommen
-        object = `dbo.${area.table}`;
+        object = objectOf(area);
         const column = quote(f.column);
         const result = await p.request().query<{ v: string }>(
-          `SELECT DISTINCT LTRIM(RTRIM(${column})) AS v FROM dbo.${quote(area.table)} WHERE NULLIF(LTRIM(RTRIM(${column})), '') IS NOT NULL ORDER BY v`,
+          `SELECT DISTINCT LTRIM(RTRIM(${column})) AS v FROM ${tableOf(area)} WHERE NULLIF(LTRIM(RTRIM(${column})), '') IS NOT NULL ORDER BY v`,
         );
         options[f.key] = result.recordset.map((r) => r.v);
       } else {
@@ -194,7 +239,7 @@ export async function areaForm(area: Area): Promise<AreaFormResponse> {
  * (z. B. parallel in GAPTEQ), wird nicht gespeichert: Abgleich mit den Werten, die die Person gesehen hat.
  */
 export async function updateAreaRow(area: Area, id: number, values: Record<string, string>, original: Record<string, string>): Promise<string[]> {
-  const table = `dbo.${quote(area.table)}`;
+  const table = `${tableOf(area)}`;
   const tx = new sql.Transaction(await pool());
   await tx.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
   try {
@@ -225,16 +270,16 @@ export async function updateAreaRow(area: Area, id: number, values: Record<strin
     return [...changed.map((f) => f.label), ...(area.secret && secret ? [area.secret.label] : [])];
   } catch (e) {
     await tx.rollback().catch(() => undefined);
-    throw translate(e, `dbo.${area.table}`);
+    throw translate(e, objectOf(area));
   }
 }
 
 export async function getAreaRow(area: Area, id: number): Promise<AreaRow | null> {
   try {
-    const result = await (await pool()).request().input("id", sql.Int, id).query(`SELECT ${areaSelect(area)} FROM dbo.${quote(area.table)} WHERE ID = @id`);
+    const result = await (await pool()).request().input("id", sql.Int, id).query(`SELECT ${areaSelect(area)} FROM ${tableOf(area)} WHERE ID = @id`);
     return result.recordset[0] ? toAreaRow(area, result.recordset[0]) : null;
   } catch (e) {
-    throw translate(e, `dbo.${area.table}`);
+    throw translate(e, objectOf(area));
   }
 }
 
@@ -245,10 +290,10 @@ export async function getAreaSecret(area: Area, id: number): Promise<string | nu
     const result = await (await pool())
       .request()
       .input("id", sql.Int, id)
-      .query<{ v: string | null }>(`SELECT ${quote(area.secret.column)} AS v FROM dbo.${quote(area.table)} WHERE ID = @id AND ${areaNotEmpty(area)}`);
+      .query<{ v: string | null }>(`SELECT ${quote(area.secret.column)} AS v FROM ${tableOf(area)} WHERE ID = @id AND ${areaNotEmpty(area)}`);
     return result.recordset[0] ? String(result.recordset[0].v ?? "") : null;
   } catch (e) {
-    throw translate(e, `dbo.${area.table}`);
+    throw translate(e, objectOf(area));
   }
 }
 
@@ -332,11 +377,11 @@ export async function updateCustomer(id: number, values: CustomerValues): Promis
     const renamed: { label: string; count: number }[] = [];
     if (renaming) {
       for (const link of CUSTOMER_LINKS) {
-        object = `dbo.${link.table}.${link.column}`;
+        object = `${link.schema ?? "dbo"}.${link.table}.${link.column}`;
         const r = await new sql.Request(tx)
           .input("old", sql.NVarChar(255), oldName)
           .input("new", sql.NVarChar(255), newName)
-          .query(`UPDATE dbo.${quote(link.table)} SET ${quote(link.column)} = @new WHERE LTRIM(RTRIM(${quote(link.column)})) = @old`);
+          .query(`UPDATE ${link.schema ?? "dbo"}.${quote(link.table)} SET ${quote(link.column)} = @new WHERE LTRIM(RTRIM(${quote(link.column)})) = @old`);
         if (r.rowsAffected[0]) renamed.push({ label: link.label, count: r.rowsAffected[0] });
       }
     }
@@ -356,7 +401,7 @@ async function customerReferences(request: () => sql.Request, customer: { id: nu
     const r = await request()
       .input("name", sql.NVarChar(255), customer.name)
       .input("id", sql.Int, customer.id)
-      .query<{ n: number }>(`SELECT COUNT(*) AS n FROM dbo.${quote(link.table)} WHERE LTRIM(RTRIM(${quote(link.column)})) = @name${extra}`);
+      .query<{ n: number }>(`SELECT COUNT(*) AS n FROM ${link.schema ?? "dbo"}.${quote(link.table)} WHERE LTRIM(RTRIM(${quote(link.column)})) = @name${extra}`);
     if (r.recordset[0].n) refs.push({ label: link.label, count: r.recordset[0].n });
   }
   return refs;
@@ -385,10 +430,10 @@ export async function listAreaForCompany(area: Area, company: string): Promise<A
     const result = await (await pool())
       .request()
       .input("company", sql.NVarChar(255), company)
-      .query(`SELECT ${areaSelect(area)} FROM dbo.${quote(area.table)} WHERE LTRIM(RTRIM(${quote(companyColumn(area))})) = @company AND ${areaNotEmpty(area)} ORDER BY ID`);
+      .query(`SELECT ${areaSelect(area)} FROM ${tableOf(area)} WHERE LTRIM(RTRIM(${quote(companyColumn(area))})) = @company AND ${areaNotEmpty(area)} ORDER BY ID`);
     return result.recordset.map((r) => toAreaRow(area, r));
   } catch (e) {
-    throw translate(e, `dbo.${area.table}`);
+    throw translate(e, objectOf(area));
   }
 }
 

@@ -89,7 +89,7 @@ test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen 
   await expect(rowOf(page, area, id)).toBeVisible();
 
   // Ungültiger Status wird abgelehnt
-  const areaId = { Server: "server", Switche: "switche", Storage: "storage", VMware: "vmware", TSPLUS: "tsplus", PRTG: "prtg", Veeam: "veeam", "Windows-Systeme": "windows" }[area];
+  const areaId = { Server: "server", Switche: "switche", Storage: "storage", VMware: "vmware", TSPLUS: "tsplus", PRTG: "prtg", Veeam: "veeam", KEPware: "kepware", "Windows-Systeme": "windows" }[area];
   expect((await page.request.put(`/api/areas/${areaId}/${id}`, { data: { values: { status: "Erfunden" }, original: { status: "" } } })).status()).toBe(400);
 
   // Grundrolle: lesen ja, Status setzen nein
