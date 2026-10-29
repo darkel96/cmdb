@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, CalendarClock, ChevronRight } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router";
+import { NavLink, useNavigate, useParams } from "react-router";
 import { api } from "@/lib/api";
 import { AREAS, type AreaRow } from "@/lib/areas";
 import { cn } from "@/lib/utils";
@@ -15,148 +15,210 @@ interface Report {
   area: string;
   field: string;
   unit: string;
-  /** "count": nach Anzahl, "value": nach Wert (z. B. Versionen numerisch) */
+  /** Anfangs-Sortierung: "count" nach Anzahl, "value" nach Wert (Versionen numerisch) */
   sort: "count" | "value";
+  /** Werte zu Gruppen zusammenfassen (z. B. Oracle-Hauptversion); Filter beim Klick als Präfix */
+  group?: { label: string; of: (value: string) => string };
 }
+
+/** Oracle: 11.2 und 12.1/12.2 sind eigene Hauptversionen, ab 18 zählt die erste Zahl */
+const oracleMajor = (v: string) => {
+  const [a, b] = v.split(".");
+  return Number(a) <= 12 && b !== undefined ? `${a}.${b}` : a;
+};
 
 /** Auflistungen wie in GAPTEQ (Admin › Auflistungen) */
 export const REPORTS: Report[] = [
   { id: "oracle-systeme", title: "Aufstellung Oracle-Systeme", description: "Oracle-Datenbanken nach DB-Typ", area: "oracle", field: "dbType", unit: "Systeme", sort: "count" },
-  { id: "oracle-versionen", title: "Aufstellung Oracle-Versionen", description: "Oracle-Datenbanken nach Version", area: "oracle", field: "dbVersion", unit: "Systeme", sort: "value" },
+  {
+    id: "oracle-versionen",
+    title: "Aufstellung Oracle-Versionen",
+    description: "Oracle-Datenbanken nach Version",
+    area: "oracle",
+    field: "dbVersion",
+    unit: "Systeme",
+    sort: "value",
+    group: { label: "Nach Hauptversion", of: oracleMajor },
+  },
   { id: "server", title: "Aufstellung Server", description: "Server nach Servertyp", area: "server", field: "serverType", unit: "Server", sort: "count" },
 ];
 
 const EMPTY = "(leer)";
+const compareVersions = (a: string, b: string) => a.localeCompare(b, "de", { numeric: true });
 
-/** Übersicht der Auflistungen als Kacheln */
-export function ReportsIndex() {
+/** Linke Liste der Auflistungen (wie Stammdaten); Auslaufende Kundensysteme als eigene Seite */
+function ReportsNav() {
   const { can } = useAuth();
-  const tiles = [
-    ...(can("auslaufend", "read") && EXPIRING_AREAS.some((id) => can(id, "read"))
-      ? [{ id: "auslaufend", title: "Auslaufende Kundensysteme", description: "Support endet bis Ende des dritten Monats oder ist abgelaufen", icon: CalendarClock }]
-      : []),
-    ...REPORTS.filter((r) => can(r.area, "read")).map((r) => ({ ...r, icon: BarChart3 })),
+  const items = [
+    ...REPORTS.filter((r) => can(r.area, "read")).map((r) => ({ id: r.id, title: r.title, icon: BarChart3 })),
+    ...(can("auslaufend", "read") && EXPIRING_AREAS.some((id) => can(id, "read")) ? [{ id: "auslaufend", title: "Auslaufende Kundensysteme", icon: CalendarClock }] : []),
   ];
   return (
-    <section className="flex w-full flex-col gap-4" aria-label="Auflistungen">
-      <h1 className="animate-appear rounded-lg bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground shadow-xs">Auflistungen</h1>
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3">
-        {tiles.map((r, i) => (
-          <li key={r.id} className="contents">
-            <Link
+    <nav aria-label="Auflistungen" className="animate-appear self-start overflow-hidden rounded-lg border bg-card p-1 shadow-xs">
+      <ul className="flex flex-col gap-0.5">
+        {items.map((r) => (
+          <li key={r.id}>
+            <NavLink
               to={`/auflistungen/${r.id}`}
               viewTransition
-              style={{ "--i": i } as React.CSSProperties}
-              className="group animate-appear flex min-h-28 flex-col justify-between gap-3 rounded-lg border bg-card p-4 shadow-xs transition-[box-shadow,border-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-brand hover:shadow-md"
+              className={({ isActive }) =>
+                cn("flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors duration-100", isActive ? "bg-brand text-brand-foreground" : "hover:bg-accent")
+              }
             >
-              <span className="flex size-10 items-center justify-center rounded-md bg-brand/10 text-brand">
-                <r.icon className="size-5" aria-hidden />
-              </span>
-              <span className="flex flex-col">
-                <span className="flex items-center justify-between gap-2 font-medium">
-                  {r.title}
-                  <ChevronRight className="size-4 text-brand transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />
-                </span>
-                <span className="text-xs text-muted-foreground">{r.description}</span>
-              </span>
-            </Link>
+              <r.icon className="size-4 shrink-0 opacity-80" aria-hidden />
+              <span className="flex-1 truncate">{r.title}</span>
+              {r.id === "auslaufend" && <ChevronRight className="size-4 opacity-60" aria-hidden />}
+            </NavLink>
           </li>
         ))}
       </ul>
-    </section>
+    </nav>
   );
 }
 
-function compareVersions(a: string, b: string): number {
-  return a.localeCompare(b, "de", { numeric: true });
+function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex w-full flex-col gap-3">
+      <h1 className="text-2xl font-semibold">Auflistungen</h1>
+      <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
+        <ReportsNav />
+        {children}
+      </div>
+    </div>
+  );
 }
 
-/**
- * Eine Auflistung: Gesamtzahl als eigene Kennzahl (nicht als Balken, der die übrigen staucht), darunter waagrechte
- * Balken je Wert. Ein Klick auf einen Balken öffnet die Übersicht, gefiltert auf diesen Wert.
- */
-export function ReportPage() {
-  const { reportId = "" } = useParams();
+/** Seitenleiste „Auflistungen“: Liste links, rechts die erste lesbare Auflistung */
+export function ReportsIndex() {
+  const { can } = useAuth();
+  const first = REPORTS.find((r) => can(r.area, "read"));
+  return <Layout>{first ? <ReportCard report={first} /> : <p className="text-sm text-muted-foreground">Keine Auflistung mit Leserecht.</p>}</Layout>;
+}
+
+/** Eine Auflistung: Gesamtzahl und schmale Balken je Wert; Klick öffnet die gefilterte Übersicht */
+function ReportCard({ report }: { report: Report }) {
   const navigate = useNavigate();
-  const report = REPORTS.find((r) => r.id === reportId);
   const [rows, setRows] = useState<AreaRow[] | null>(null);
   const [error, setError] = useState("");
+  const [sort, setSort] = useState(report.sort);
+  const [grouped, setGrouped] = useState(false);
 
   useEffect(() => {
-    if (!report) return;
+    setRows(null);
+    setError("");
+    setSort(report.sort);
+    setGrouped(false);
     api.area(report.area).then((d) => setRows(d.items), (e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [report]);
 
   const groups = useMemo(() => {
-    if (!report || !rows) return [];
+    if (!rows) return [];
     const counts = new Map<string, number>();
     for (const r of rows) {
-      const v = String(r[report.field] ?? "").trim() || EMPTY;
+      const raw = String(r[report.field] ?? "").trim();
+      const v = !raw ? EMPTY : grouped && report.group ? report.group.of(raw) : raw;
       counts.set(v, (counts.get(v) ?? 0) + 1);
     }
     const list = [...counts].map(([label, count]) => ({ label, count }));
-    return list.sort((a, b) => (report.sort === "count" ? b.count - a.count || a.label.localeCompare(b.label, "de") : compareVersions(a.label, b.label)));
-  }, [report, rows]);
+    return list.sort((a, b) => (sort === "count" ? b.count - a.count || compareVersions(a.label, b.label) : compareVersions(a.label, b.label)));
+  }, [report, rows, sort, grouped]);
 
-  if (!report) return <NotFoundPage />;
   const area = AREAS[report.area];
-  const max = Math.max(1, ...groups.map((g) => g.count));
   const field = area.fields.find((f) => f.key === report.field);
+  const total = rows?.length ?? 0;
+  const max = Math.max(1, ...groups.map((g) => g.count));
+
+  const open = (label: string) => {
+    // Einzelwert: genau dieser Wert; Hauptversion: alle Versionen, die damit beginnen
+    const filter = label === EMPTY ? '""' : grouped && report.group ? `${label}.` : `"${label}"`;
+    navigate(`/bereich/${report.area}?${new URLSearchParams({ [`filter.${report.field}`]: filter })}`, { viewTransition: true });
+  };
+
+  const chip = (active: boolean) =>
+    cn("rounded-md px-2.5 py-1 text-xs font-medium transition-colors duration-100", active ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground");
 
   return (
-    <div className="flex w-full flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{report.title}</h1>
+    <section className="animate-appear flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={report.title}>
+      <div className="flex flex-wrap items-start gap-x-6 gap-y-3 border-b px-5 py-4">
+        <div className="mr-auto">
+          <h2 className="text-lg font-semibold">{report.title}</h2>
           <p className="text-sm text-muted-foreground">{report.description} · Klick auf einen Balken öffnet die gefilterte Übersicht</p>
         </div>
-        <Link to="/bereich/auflistungen" viewTransition className="text-sm text-brand underline-offset-4 hover:underline">
-          Alle Auflistungen
-        </Link>
-      </div>
-      {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
-      {!rows && !error && <p className="text-sm text-muted-foreground">Wird geladen …</p>}
-      {rows && (
-        <>
-          <div className="animate-appear flex w-fit flex-col rounded-lg border bg-card px-5 py-3 shadow-xs" data-testid="report-total">
-            <span className="text-xs text-muted-foreground">Gesamt</span>
-            <span className="text-3xl font-semibold tabular-nums">{rows.length}</span>
-            <span className="text-xs text-muted-foreground">
+        {rows && (
+          <div className="flex items-baseline gap-2" data-testid="report-total">
+            <span className="text-3xl font-semibold tabular-nums">{total}</span>
+            <span className="text-sm text-muted-foreground">
               {report.unit} · {groups.length} {groups.length === 1 ? "Wert" : "Werte"}
             </span>
           </div>
-          <section className="animate-appear overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={report.title}>
-            <h2 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">
-              Anzahl {report.unit} je {field?.label ?? report.field}
-            </h2>
-            <ul className="flex flex-col gap-0.5 p-4" aria-label={`${report.unit} je ${field?.label ?? report.field}`}>
-              {groups.map((g) => (
-                <li key={g.label}>
-                  <button
-                    type="button"
-                    className="group grid w-full grid-cols-[minmax(8rem,14rem)_1fr_3rem] items-center gap-3 rounded-md px-2 py-1 text-left text-sm transition-colors duration-100 hover:bg-accent"
-                    title={`${g.label}: ${g.count} ${report.unit} – Übersicht öffnen`}
-                    aria-label={`${g.label}: ${g.count}`}
-                    onClick={() =>
-                      navigate(`/bereich/${report.area}?${new URLSearchParams({ [`filter.${report.field}`]: `"${g.label === EMPTY ? "" : g.label}"` })}`, { viewTransition: true })
-                    }
-                  >
-                    <span className={cn("truncate", g.label === EMPTY && "text-muted-foreground")}>{g.label}</span>
-                    <span className="flex h-5 items-center">
-                      {/* Balken: dünn, abgerundetes Ende, an der Grundlinie links verankert */}
+        )}
+      </div>
+      {rows && (
+        <div className="flex flex-wrap items-center gap-2 border-b px-5 py-2">
+          <span className="text-xs text-muted-foreground">Sortieren</span>
+          <div className="inline-flex rounded-md bg-muted p-0.5" role="group" aria-label="Sortieren">
+            <button type="button" className={chip(sort === "count")} aria-pressed={sort === "count"} onClick={() => setSort("count")}>
+              nach Anzahl
+            </button>
+            <button type="button" className={chip(sort === "value")} aria-pressed={sort === "value"} onClick={() => setSort("value")}>
+              nach {field?.label ?? "Wert"}
+            </button>
+          </div>
+          {report.group && (
+            <label className="ml-2 flex cursor-pointer items-center gap-2 text-xs">
+              <input type="checkbox" className="size-4 accent-[var(--brand)]" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
+              {report.group.label} zusammenfassen
+            </label>
+          )}
+        </div>
+      )}
+      {error && <p role="alert" className="px-5 py-3 text-sm text-destructive">{error}</p>}
+      {!rows && !error && <p className="px-5 py-3 text-sm text-muted-foreground">Wird geladen …</p>}
+      {rows && (
+        <ul className="flex max-w-4xl flex-col gap-0.5 px-3 py-3" aria-label={`${report.unit} je ${field?.label ?? report.field}`}>
+          {groups.map((g) => {
+            const share = total ? Math.round((g.count / total) * 100) : 0;
+            return (
+              <li key={g.label}>
+                <button
+                  type="button"
+                  className="group grid w-full grid-cols-[minmax(7rem,12rem)_1fr] items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm transition-colors duration-100 hover:bg-accent"
+                  title={`${g.label}: ${g.count} ${report.unit} (${share} %) – Übersicht öffnen`}
+                  aria-label={`${g.label}: ${g.count}`}
+                  onClick={() => open(g.label)}
+                >
+                  <span className={cn("truncate", g.label === EMPTY && "text-muted-foreground")}>{g.label}</span>
+                  {/* Spur über die volle Breite, Balken mit abgerundetem Ende, Zahl direkt dahinter */}
+                  <span className="flex items-center gap-2">
+                    <span className="relative h-2.5 flex-1 rounded-full bg-muted">
                       <span
-                        className="h-3.5 rounded-r-[4px] bg-brand transition-[filter] duration-100 group-hover:brightness-90"
-                        style={{ width: `${Math.max(1, (g.count / max) * 100)}%` }}
+                        className="absolute inset-y-0 left-0 rounded-full bg-brand transition-[filter] duration-100 group-hover:brightness-90"
+                        style={{ width: `${Math.max(1.5, (g.count / max) * 100)}%` }}
                       />
                     </span>
-                    <span className="text-right tabular-nums text-muted-foreground">{g.count}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </>
+                    <span className="w-20 shrink-0 text-right tabular-nums">
+                      {g.count}
+                      <span className="ml-1.5 text-xs text-muted-foreground">{share} %</span>
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
-    </div>
+    </section>
   );
 }
+
+export function ReportPage() {
+  const { reportId = "" } = useParams();
+  const report = REPORTS.find((r) => r.id === reportId);
+  if (!report) return <NotFoundPage />;
+  return (
+    <Layout>
+      <ReportCard report={report} />
+    </Layout>
+  );
+}
+
