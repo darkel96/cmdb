@@ -284,6 +284,46 @@ export async function getAreaRow(area: Area, id: number): Promise<AreaRow | null
   }
 }
 
+/**
+ * Eintrag löschen. GAPTEQ-Tabellen (dbo, vorab angelegte Zeilen): die Zeile wird geleert und ist damit wieder frei,
+ * ihre Nummer kommt beim nächsten Anlegen wieder dran (kleinste freie Nummer); Vorbelegungen wie EOL „Nein“ wie bei
+ * den übrigen Leerzeilen. Bereiche mit IDENTITY (cmdb): echtes DELETE. Hat sich der Eintrag seit dem Öffnen geändert
+ * oder hängen noch Dokumente daran (dbo.Anhang, Vertrag_ID = ID), wird nicht gelöscht.
+ */
+export async function deleteAreaRow(area: Area, id: number, original: Record<string, string>): Promise<void> {
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
+  let object = objectOf(area);
+  try {
+    const current = await new sql.Request(tx).input("id", sql.Int, id)
+      .query(`SELECT ${areaSelect(area)} FROM ${tableOf(area)} WITH (UPDLOCK, ROWLOCK) WHERE ID = @id AND ${areaNotEmpty(area)}`);
+    if (!current.recordset[0]) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
+    const row = toAreaRow(area, current.recordset[0]);
+    const changedMeanwhile = area.fields.filter((f) => f.key in original && String(row[f.key] ?? "") !== String(original[f.key] ?? ""));
+    if (changedMeanwhile.length)
+      throw new DbError(`Der Eintrag wurde inzwischen geändert (${changedMeanwhile.map((f) => f.label).join(", ")}). Bitte neu laden.`, 409);
+    object = "dbo.Anhang";
+    const docs = await new sql.Request(tx).input("id", sql.Int, id).query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.Anhang WHERE Vertrag_ID = @id");
+    if (docs.recordset[0].n)
+      throw new DbError(`An ${area.singular} ${id} hängen noch ${docs.recordset[0].n} Dokument(e). Die CMDB löscht keine Dokumente; bitte zuerst in GAPTEQ entfernen.`, 409);
+    object = objectOf(area);
+    if (area.identity) await new sql.Request(tx).input("id", sql.Int, id).query(`DELETE FROM ${tableOf(area)} WHERE ID = @id`);
+    else {
+      const request = new sql.Request(tx).input("id", sql.Int, id);
+      const sets = area.fields.map((f, i) => {
+        request.input(`v${i}`, sql.NVarChar(255), f.defaultValue ?? null);
+        return `${quote(f.column)} = @v${i}`;
+      });
+      if (area.secret) sets.push(`${quote(area.secret.column)} = NULL`);
+      await request.query(`UPDATE ${tableOf(area)} SET ${sets.join(", ")} WHERE ID = @id`);
+    }
+    await tx.commit();
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, object);
+  }
+}
+
 /** Passwort eines Eintrags (nur über den eigenen Endpunkt mit Recht Bearbeiten); null = Eintrag gibt es nicht */
 export async function getAreaSecret(area: Area, id: number): Promise<string | null> {
   if (!area.secret) return null;

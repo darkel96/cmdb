@@ -27,6 +27,8 @@ export interface Api {
   areaForm(areaId: string): Promise<AreaFormResponse>;
   createAreaRow(areaId: string, values: Record<string, string>): Promise<AreaCreateResponse>;
   /** clearSecret: Passwort des Eintrags (area.secret) entfernen */
+  /** Eintrag löschen (Recht Löschen); original: Werte beim Öffnen */
+  deleteAreaRow(areaId: string, id: number, original: Record<string, string>): Promise<void>;
   updateAreaRow(areaId: string, id: number, values: Record<string, string>, original: Record<string, string>, clearSecret?: boolean): Promise<{ id: number; changed: string[] }>;
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
@@ -102,6 +104,7 @@ const serverApi: Api = {
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
   areaForm: (areaId) => request<AreaFormResponse>(`/api/areas/${areaId}/form`),
   createAreaRow: (areaId, values) => request<AreaCreateResponse>(`/api/areas/${areaId}`, { method: "POST", body: JSON.stringify({ values }) }),
+  deleteAreaRow: (areaId, id, original) => request<void>(`/api/areas/${areaId}/${id}`, { method: "DELETE", body: JSON.stringify({ original }) }),
   updateAreaRow: (areaId, id, values, original, clearSecret) =>
     request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original, ...(clearSecret ? { clearSecret } : {}) }) }),
   customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
@@ -127,6 +130,7 @@ const STORAGE_KEY = "cmdb-test-session";
 
 // Testseite: neu angelegte Einträge nur bis zum Neuladen
 const browserCreated = new Map<string, AreaRow[]>();
+const browserDeleted = new Set<string>();
 const browserDocuments = new Map<number, { id: number; name: string }[]>();
 let browserCustomers = [...TEST_CUSTOMERS];
 const browserRenames = new Map<string, string>();
@@ -138,7 +142,8 @@ const renamed = (name: string) => {
 };
 const browserEdits = new Map<string, AreaRow>();
 const browserRows = (areaId: string) =>
-  [...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])]
+  [...new Map([...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])].map((r) => [r.id, r])).values()]
+    .filter((r) => !browserDeleted.has(`${areaId}:${r.id}`))
     .map((r) => browserEdits.get(`${areaId}:${r.id}`) ?? r)
     .map((r) => (typeof r.company === "string" ? { ...r, company: renamed(r.company) } : r));
 const browserLookups = new Map<string, string[]>(LOOKUP_LISTS.map((l) => [l.id, [...(TEST_OPTIONS[l.testKey] ?? [])]]));
@@ -223,8 +228,15 @@ const browserTestApi: Api = {
     const area = AREAS[areaId];
     const row: AreaRow = { id: firstFreeId(area, browserRows(areaId).map((r) => r.id)) };
     for (const f of area.fields) row[f.key] = f.key === "type" ? area.typeValue : (values[f.key] ?? "");
-    browserCreated.set(areaId, [...(browserCreated.get(areaId) ?? []), row]);
+    browserDeleted.delete(`${areaId}:${row.id}`);
+    browserEdits.delete(`${areaId}:${row.id}`);
+    browserCreated.set(areaId, [...(browserCreated.get(areaId) ?? []).filter((r) => r.id !== row.id), row]);
     return { id: row.id };
+  },
+  deleteAreaRow: async (areaId, id) => {
+    requireAdmin();
+    if (!browserRows(areaId).some((r) => r.id === id)) throw new ApiError("Diesen Eintrag gibt es nicht.", 404);
+    browserDeleted.add(`${areaId}:${id}`);
   },
   updateAreaRow: async (areaId, id, values) => {
     requireAdmin();
