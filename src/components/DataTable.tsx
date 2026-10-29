@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, FolderO
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { ColumnPicker, EMPTY_VALUE } from "./ColumnPicker";
 
 export interface Column<T> {
   key: string;
@@ -110,16 +111,50 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
     }
   };
 
-  const filtered = useMemo(() => {
-    const active = columns.filter((c) => filters[c.key]?.trim());
-    const result = rows.filter(
-      (row) => (!search.trim() || columns.some((c) => includes(c.value(row), search))) && active.every((c) => includes(c.value(row), filters[c.key])),
+  // Wertefilter je Spalte (Mehrfachauswahl); „(leer)“ steht für leere Zellen
+  const [picks, setPicks] = useState<Record<string, string[]>>({});
+  const cellValue = (c: Column<T>, row: T) => c.value(row).trim() || EMPTY_VALUE;
+  /** Passt die Zeile zu Suche und allen Spaltenfiltern, auf Wunsch ohne eine Spalte (für deren Werteliste)? */
+  const matches = (row: T, except?: string) =>
+    (!search.trim() || columns.some((c) => includes(c.value(row), search))) &&
+    columns.every(
+      (c) =>
+        c.key === except ||
+        ((!filters[c.key]?.trim() || includes(c.value(row), filters[c.key])) && (!picks[c.key]?.length || picks[c.key].includes(cellValue(c, row)))),
     );
+
+  // Werteliste nur bei Spalten mit wenigen, sich wiederholenden Werten (2 bis 30); bei IDs, Lizenzen usw. nur Freitext
+  const pickable = useMemo(() => {
+    const result = new Set<string>();
+    for (const c of columns) {
+      const seen = new Set<string>();
+      for (const row of rows) {
+        seen.add(cellValue(c, row));
+        if (seen.size > 30) break;
+      }
+      // Nur wenn sich Werte wiederholen (im Schnitt mindestens zweimal), sonst ist es eine Liste aller Einträge
+      if (seen.size >= 2 && seen.size <= 30 && seen.size * 2 <= rows.length) result.add(c.key);
+    }
+    return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, columns]);
+
+  /** Werte einer Spalte mit Anzahl, unter den übrigen Filtern; gewählte bleiben sichtbar, auch mit 0 */
+  const valuesOf = (c: Column<T>) => {
+    const counts = new Map<string, number>();
+    for (const row of rows) if (matches(row, c.key)) counts.set(cellValue(c, row), (counts.get(cellValue(c, row)) ?? 0) + 1);
+    for (const v of picks[c.key] ?? []) if (!counts.has(v)) counts.set(v, 0);
+    return [...counts].map(([value, count]) => ({ value, count })).sort((a, b) => (a.value === EMPTY_VALUE ? 1 : b.value === EMPTY_VALUE ? -1 : a.value.localeCompare(b.value, "de", { numeric: true })));
+  };
+
+  const filtered = useMemo(() => {
+    const result = rows.filter((row) => matches(row));
     const column = columns.find((c) => c.key === sort.key) ?? columns[0];
     const key = column.sortValue ?? column.value;
     result.sort((a, b) => key(a).localeCompare(key(b), "de", { sensitivity: "base", numeric: true }) * (sort.desc ? -1 : 1));
     return result;
-  }, [rows, columns, search, filters, sort]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, columns, search, filters, picks, sort]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = Math.min(page, pages - 1);
@@ -284,8 +319,18 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                       value={filters[c.key] ?? ""}
                       onChange={(e) => { setFilters((f) => ({ ...f, [c.key]: e.target.value })); setPage(0); }}
                       aria-label={`Filter ${c.label}`}
-                      className="h-7 border-transparent pl-7 shadow-none focus-visible:border-input"
+                      className={cn("h-7 border-transparent pl-7 shadow-none focus-visible:border-input", pickable.has(c.key) && "pr-9")}
                     />
+                    {pickable.has(c.key) && (
+                      <span className="absolute top-1/2 right-1 -translate-y-1/2">
+                        <ColumnPicker
+                          label={c.label}
+                          load={() => valuesOf(c)}
+                          picked={picks[c.key] ?? []}
+                          onChange={(next) => { setPicks((p) => ({ ...p, [c.key]: next })); setPage(0); }}
+                        />
+                      </span>
+                    )}
                   </div>
                 </th>
               ))}
