@@ -45,6 +45,19 @@ interface Item {
 
 type Result = { rows: AreaRow[] } | { error: string };
 
+/** Ab Desktop-Breite (lg) feste Höhe mit scrollender Tabelle; darunter scrollt die Seite und die Tabelle ist kompakt */
+function useWide(): boolean {
+  const query = "(min-width: 1024px)";
+  const [wide, setWide] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const update = () => setWide(m.matches);
+    m.addEventListener("change", update);
+    return () => m.removeEventListener("change", update);
+  }, []);
+  return wide;
+}
+
 function StatusCell({ item, editable, onSaved }: { item: Item; editable: boolean; onSaved: (row: AreaRow) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -93,6 +106,7 @@ export function ExpiringPage() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const cutoff = expiringBefore();
+  const wide = useWide();
 
   useEffect(() => {
     for (const area of areas) {
@@ -175,7 +189,7 @@ export function ExpiringPage() {
     );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
+    <div className="flex flex-col gap-3 lg:min-h-0 lg:flex-1">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Auslaufende Kundensysteme</h1>
@@ -198,7 +212,7 @@ export function ExpiringPage() {
       </div>
       {errors.length > 0 && <p role="alert" className="text-sm text-destructive">Nicht geladen: {errors.join(" · ")}</p>}
 
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[17rem_1fr]">
+      <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[17rem_1fr]">
         {/* Kunden: wählen filtert die Tabelle rechts */}
         <section aria-label="Kunden" className="animate-appear flex max-h-72 min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs lg:max-h-none">
           {/* Suche und „Alle Kunden“ bleiben stehen, nur die Kunden darunter scrollen */}
@@ -243,7 +257,7 @@ export function ExpiringPage() {
           </ul>
         </section>
 
-        <div className="flex min-h-0 flex-col gap-2">
+        <div className="flex flex-col gap-2 lg:min-h-0">
           {/* Bereiche ein- und ausblenden, mit Anzahl */}
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Bereiche ein- und ausblenden">
             {areas.filter((a) => !results[a.id] || perArea(a.id) > 0).map((a) => {
@@ -273,6 +287,7 @@ export function ExpiringPage() {
           </div>
           <DataTable
             key={`${archive}:${customer ?? ""}`}
+            compact={!wide}
             title={`${archive ? "Archiv" : "Offen"} · ${customer ?? "Alle Kunden"}`}
             columns={columns}
             rows={items}

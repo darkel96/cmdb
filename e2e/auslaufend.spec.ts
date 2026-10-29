@@ -28,7 +28,7 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support bis Ende des dritten 
   await open(page);
   const t = table(page);
   await expect(t).toHaveAccessibleName("Offen · Alle Kunden");
-  await t.getByRole("button", { name: "100", exact: true }).click();
+  await t.getByRole("button", { name: /^(20|100)$/ }).last().click();
   const header = (await t.locator("thead tr").first().locator("th").allTextContents()).map((h) => h.trim());
   const col = (name: string) => header.findIndex((h) => h.startsWith(name));
   const cutoff = (() => {
@@ -69,7 +69,9 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support bis Ende des dritten 
   await expect(t.locator(`tbody td:nth-child(${col("Bereich") + 1})`, { hasText: /^Server$/ })).toHaveCount(0);
 });
 
-test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen holt es wieder", async ({ page, browser }) => {
+test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen holt es wieder", async ({ page }) => {
+  // Viele Schritte über zwei Reiter; auf langsamen Prüf-Rechnern (GitHub) mehr Zeit als die üblichen 30 s
+  test.slow();
   await login(page);
   await open(page);
   const t = table(page);
@@ -82,26 +84,30 @@ test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen 
 
   await page.getByRole("tab", { name: /Archiv/ }).click();
   await expect(t).toHaveAccessibleName("Archiv · Alle Kunden");
-  await t.getByRole("button", { name: "100", exact: true }).click();
+  await t.getByLabel("Suchen", { exact: true }).fill(id);
   const archived = rowOf(page, area, id);
   await expect(archived).toContainText("Verlängert");
   await archived.getByRole("combobox").click();
   await page.getByRole("option", { name: "– keine Auswahl –" }).click();
   await expect(rowOf(page, area, id)).toHaveCount(0);
   await page.getByRole("tab", { name: /Offen/ }).click();
-  await t.getByRole("button", { name: "100", exact: true }).click();
+  await t.getByLabel("Suchen", { exact: true }).fill(id);
   await expect(rowOf(page, area, id)).toBeVisible();
 
   // Ungültiger Status wird abgelehnt
   const areaId = { Server: "server", Switche: "switche", Storage: "storage", VMware: "vmware", TSPLUS: "tsplus", PRTG: "prtg", Veeam: "veeam", KEPware: "kepware", "Windows-Systeme": "windows" }[area];
   expect((await page.request.put(`/api/areas/${areaId}/${id}`, { data: { values: { status: "Erfunden" }, original: { status: "" } } })).status()).toBe(400);
 
-  // Grundrolle: lesen ja, Status setzen nein
-  const user = await browser.newPage();
-  await login(user, "user");
-  await open(user);
-  await expect(table(user).locator("tbody tr").first()).toBeVisible();
-  await expect(table(user).getByRole("combobox")).toHaveCount(0);
-  expect((await user.request.put(`/api/areas/${areaId}/${id}`, { data: { values: { status: "Angeboten" }, original: { status: "" } } })).status()).toBe(403);
-  await user.close();
+});
+
+test("Status: Grundrolle sieht die Liste, kann den Status aber nicht setzen", async ({ page }) => {
+  await login(page, "user");
+  await open(page);
+  const row = table(page).locator("tbody tr").first();
+  await expect(row).toBeVisible();
+  await expect(table(page).getByRole("combobox")).toHaveCount(0);
+  const id = (await row.locator("td").nth(1).textContent())!.trim();
+  const area = (await row.locator("td").nth(0).textContent())!.trim();
+  const areaId = { Server: "server", Switche: "switche", Storage: "storage", VMware: "vmware", TSPLUS: "tsplus", PRTG: "prtg", Veeam: "veeam", KEPware: "kepware", "Windows-Systeme": "windows" }[area];
+  expect((await page.request.put(`/api/areas/${areaId}/${id}`, { data: { values: { status: "Angeboten" }, original: { status: "" } } })).status()).toBe(403);
 });
