@@ -183,6 +183,8 @@ GRANT INSERT, UPDATE, DELETE ON dbo.DD_Servertyp TO svc_cmdb;
 GRANT INSERT, UPDATE, DELETE ON dbo.DD_Vertragstyp TO svc_cmdb;
 GRANT INSERT, UPDATE, DELETE ON dbo.DD_Zeichensatz TO svc_cmdb;
 GRANT INSERT, UPDATE, DELETE ON dbo.DD_FW_Server_OS TO svc_cmdb;
+-- Dokumente direkt am Kunden hochladen (Recht „Kunden: Bearbeiten“), wie GAPTEQ mit Typ „Angebot“; nur INSERT
+GRANT INSERT ON dbo.Anhang TO svc_cmdb;
 -- Kunden anlegen, bearbeiten, löschen (nur Admins in der CMDB)
 GRANT INSERT, UPDATE, DELETE ON dbo.DS_Kunden TO svc_cmdb;
 -- Umbenennen in allen verknüpften Tabellen und Prüfung vor dem Löschen: nur die Namensspalte
