@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, Eye, EyeOff, Save } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Save, Trash2, Undo2 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -30,6 +30,8 @@ export function AreaCreatePage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
+  // Beim Bearbeiten: vorhandenes Passwort beim Speichern entfernen
+  const [clearSecret, setClearSecret] = useState(false);
 
   useEffect(() => {
     if (!area?.createFields) return;
@@ -68,7 +70,7 @@ export function AreaCreatePage() {
     try {
       const payload = Object.fromEntries(fields.map((f) => [f.key, values[f.key] ?? ""]));
       if (editing && original) {
-        const { changed } = await api.updateAreaRow(area.id, Number(itemId), payload, original);
+        const { changed } = await api.updateAreaRow(area.id, Number(itemId), payload, original, clearSecret);
         navigate(detail, { viewTransition: true, state: { saved: true, changed, back } });
       } else {
         const { id: newId } = await api.createAreaRow(area.id, payload);
@@ -135,15 +137,17 @@ export function AreaCreatePage() {
                   {f.required && <span className="text-destructive"> *</span>}
                 </Label>
                 {f.key === secret?.key ? (
-                  <div className="relative">
+                  <div className="flex gap-2">
+                  <div className="relative flex-1">
                     <Input
                       {...common}
                       type={showSecret ? "text" : "password"}
                       autoComplete="new-password"
                       maxLength={255}
                       className="pr-10 font-mono"
-                      placeholder={editing ? "Leer lassen = unverändert" : ""}
-                      value={values[f.key] ?? ""}
+                      disabled={clearSecret}
+                      placeholder={clearSecret ? "Wird beim Speichern entfernt" : editing ? "Leer lassen = unverändert" : ""}
+                      value={clearSecret ? "" : (values[f.key] ?? "")}
                       onChange={(e) => set(f.key, e.target.value)}
                     />
                     <button
@@ -154,6 +158,21 @@ export function AreaCreatePage() {
                     >
                       {showSecret ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
                     </button>
+                  </div>
+                  {editing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setClearSecret((c) => !c);
+                        set(f.key, "");
+                      }}
+                      title={clearSecret ? "Doch nicht entfernen" : `${f.label} beim Speichern entfernen`}
+                    >
+                      {clearSecret ? <Undo2 aria-hidden /> : <Trash2 aria-hidden />}
+                      {clearSecret ? "Rückgängig" : "Entfernen"}
+                    </Button>
+                  )}
                   </div>
                 ) : f.options ? (
                   <Combobox
