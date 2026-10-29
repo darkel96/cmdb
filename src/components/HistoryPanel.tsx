@@ -20,7 +20,7 @@ const show = (v?: string) => (!v ? "–" : /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v.
  * Änderungsverlauf eines Eintrags (System oder Kunde): wer hat wann was geändert, neueste oben. Zuerst die letzten
  * fünf, „Alle anzeigen“ zeigt den Rest. Passwörter nur als „geändert“. Änderungen in GAPTEQ erscheinen hier nicht.
  */
-export function HistoryPanel({ area, id, refresh = 0 }: { area: string; id: number; refresh?: number }) {
+export function HistoryPanel({ area, id, refresh = 0, compact = false }: { area: string; id: number; refresh?: number; compact?: boolean }) {
   const [data, setData] = useState<HistoryResponse | null>(null);
   const [error, setError] = useState("");
   const [all, setAll] = useState(false);
@@ -38,23 +38,37 @@ export function HistoryPanel({ area, id, refresh = 0 }: { area: string; id: numb
         <History className="size-4 text-muted-foreground" aria-hidden />
         <h2 className="font-semibold">Änderungsverlauf</h2>
         {items.length > 0 && <span className="text-xs text-muted-foreground">{items.length} Einträge</span>}
-        <span className="ml-auto text-xs text-muted-foreground">Änderungen in GAPTEQ erscheinen hier nicht</span>
+        <span className="ml-auto text-xs text-muted-foreground" title="Änderungen in GAPTEQ erscheinen hier nicht">
+          {compact ? "nur über die CMDB" : "Änderungen in GAPTEQ erscheinen hier nicht"}
+        </span>
       </div>
       {error && <p role="alert" className="px-4 py-3 text-sm text-destructive">{error}</p>}
       {!data && !error && <p className="px-4 py-3 text-sm text-muted-foreground">Wird geladen …</p>}
       {data && !data.available && <p className="px-4 py-3 text-sm text-muted-foreground">Der Verlauf ist hier nicht verfügbar.</p>}
       {data?.available && items.length === 0 && <p className="px-4 py-3 text-sm text-muted-foreground">Noch keine Änderungen über die CMDB.</p>}
       {shown.length > 0 && (
-        <ol className="divide-y text-sm" aria-label="Einträge im Verlauf">
+        // Kompakt (Seitenspalte): untereinander, die Liste scrollt im Kasten
+        <ol className={cn("divide-y text-sm", compact && "scroll-thin max-h-[calc(100svh-26rem)] min-h-24")} aria-label="Einträge im Verlauf">
           {shown.map((h) => (
-            <li key={h.id} className="flex flex-col gap-1 px-4 py-2.5 sm:flex-row sm:gap-4">
-              <div className="flex shrink-0 items-start gap-2 sm:w-64">
+            <li key={h.id} className={cn("flex flex-col gap-1 px-4 py-2.5", !compact && "sm:flex-row sm:gap-4")}>
+              <div className={cn("flex shrink-0 items-start gap-2", !compact && "sm:w-64")}>
                 <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium", ACTION_TONE[h.action])}>{ACTION_LABEL[h.action]}</span>
                 <span className="flex flex-col">
                   <span className="tabular-nums">{new Date(h.at).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })}</span>
                   <span className="text-xs text-muted-foreground">{h.username}</span>
                 </span>
               </div>
+              {(h.action === "angelegt" || h.action === "gelöscht") && h.changes.length > 0 ? (
+                <p className={cn("min-w-0 flex-1 break-words", h.action === "gelöscht" && "line-through decoration-muted-foreground/60")}>
+                  {h.changes.map((c, i) => (
+                    <span key={i}>
+                      {i > 0 && <span className="text-muted-foreground">, </span>}
+                      <span className="text-muted-foreground">{c.label}: </span>
+                      {c.secret ? <span className="italic">gesetzt</span> : show(h.action === "gelöscht" ? c.old : c.new)}
+                    </span>
+                  ))}
+                </p>
+              ) : (
               <ul className="flex min-w-0 flex-1 flex-col gap-0.5">
                 {h.changes.map((c, i) => (
                   <li key={i} className="break-words">
@@ -76,6 +90,7 @@ export function HistoryPanel({ area, id, refresh = 0 }: { area: string; id: numb
                 ))}
                 {h.changes.length === 0 && <li className="text-muted-foreground">–</li>}
               </ul>
+              )}
             </li>
           ))}
         </ol>

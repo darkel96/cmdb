@@ -316,3 +316,18 @@ test("Nummernkreis: Anlegen nimmt immer die kleinste freie Nummer, angezeigte un
   const used = (await (await page.request.get("/api/areas/client")).json()).items.map((r: { id: number }) => r.id);
   for (let id = 110000; id < ids[0]; id++) expect(used).toContain(id);
 });
+
+test("Ohne hinterlegtes Passwort zeigt die Detailansicht „–“ statt Punkten", async ({ page }) => {
+  await login(page, "admin");
+  const form = await (await page.request.get("/api/areas/oracle/form")).json();
+  const values: Record<string, string> = {};
+  for (const [key, options] of Object.entries(form.options as Record<string, string[]>)) values[key] = options[0];
+  const res = await page.request.post("/api/areas/oracle", { data: { values } });
+  expect(res.status(), await res.text()).toBe(201);
+  const { id } = await res.json();
+  const row = await (await page.request.get(`/api/areas/oracle/${id}`)).json();
+  expect(row.secretSet).toBe(0);
+  await page.goto(`/bereich/oracle/${id}`);
+  await expect(page.getByTestId("secret-value")).toHaveText("–");
+  await expect(page.getByRole("button", { name: "RMAN-Passwort anzeigen" })).toHaveCount(0);
+});

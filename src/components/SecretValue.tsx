@@ -9,7 +9,7 @@ const MASK = "••••••••";
  * Passwort in der Detailansicht: verdeckt; Auge zeigt es an, Kopieren legt es in die Zwischenablage. Der Wert wird erst
  * beim Klick einzeln vom Dienst geholt (Recht Bearbeiten, wird protokolliert) und nach einer Minute wieder verdeckt.
  */
-export function SecretValue({ areaId, id, label, allowed }: { areaId: string; id: number; label: string; allowed: boolean }) {
+export function SecretValue({ areaId, id, label, allowed, present = true }: { areaId: string; id: number; label: string; allowed: boolean; present?: boolean }) {
   const [value, setValue] = useState<string | null>(null);
   const [shown, setShown] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -40,6 +40,8 @@ export function SecretValue({ areaId, id, label, allowed }: { areaId: string; id
     }
   }
 
+  // Nichts hinterlegt: Strich statt Punkte, damit es nicht nach einem Passwort aussieht
+  if (!present) return <span data-testid="secret-value">–</span>;
   if (!allowed) return <span title="Anzeigen nur mit dem Recht Bearbeiten">{MASK}</span>;
   return (
     <span className="inline-flex flex-wrap items-center gap-1">

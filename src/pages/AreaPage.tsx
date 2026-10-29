@@ -180,6 +180,8 @@ export function AreaDetailPage() {
           {area.singular} {row.id} wurde angelegt.
         </p>
       )}
+      {/* Breite Bildschirme: rechts Dokumente und Verlauf in eigener Spalte, damit die Seite nicht scrollt */}
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_26rem]">
       {row && (
         <section className="animate-appear overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={`${area.singular} ${row.id}`}>
           <h1 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">
@@ -212,7 +214,7 @@ export function AreaDetailPage() {
               <div className="contents">
                 <dt className="text-muted-foreground">{area.secret.label}</dt>
                 <dd className="min-h-5">
-                  <SecretValue areaId={area.id} id={row.id} label={area.secret.label} allowed={can(area.id, "edit")} />
+                  <SecretValue areaId={area.id} id={row.id} label={area.secret.label} allowed={can(area.id, "edit")} present={row.secretSet !== 0} />
                 </dd>
               </div>
             )}
@@ -222,8 +224,13 @@ export function AreaDetailPage() {
           </p>
         </section>
       )}
-      {row && area.createFields && <SystemDocuments area={area} id={row.id} />}
-      {row && <HistoryPanel area={area.id} id={row.id} />}
+      {row && (
+        <div className="flex min-w-0 flex-col gap-3">
+          {area.createFields && <SystemDocuments area={area} id={row.id} />}
+          <HistoryPanel area={area.id} id={row.id} compact />
+        </div>
+      )}
+      </div>
     </div>
   );
 }
