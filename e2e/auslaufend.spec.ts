@@ -69,7 +69,9 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support bis Ende des dritten 
   await expect(t.locator(`tbody td:nth-child(${col("Bereich") + 1})`, { hasText: /^Server$/ })).toHaveCount(0);
 });
 
-test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen holt es wieder", async ({ page, browser }) => {
+test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen holt es wieder", async ({ page }) => {
+  // Viele Schritte über zwei Reiter; auf langsamen Prüf-Rechnern (GitHub) mehr Zeit als die üblichen 30 s
+  test.slow();
   await login(page);
   await open(page);
   const t = table(page);
@@ -96,12 +98,16 @@ test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen 
   const areaId = { Server: "server", Switche: "switche", Storage: "storage", VMware: "vmware", TSPLUS: "tsplus", PRTG: "prtg", Veeam: "veeam", "Windows-Systeme": "windows" }[area];
   expect((await page.request.put(`/api/areas/${areaId}/${id}`, { data: { values: { status: "Erfunden" }, original: { status: "" } } })).status()).toBe(400);
 
-  // Grundrolle: lesen ja, Status setzen nein
-  const user = await browser.newPage();
-  await login(user, "user");
-  await open(user);
-  await expect(table(user).locator("tbody tr").first()).toBeVisible();
-  await expect(table(user).getByRole("combobox")).toHaveCount(0);
-  expect((await user.request.put(`/api/areas/${areaId}/${id}`, { data: { values: { status: "Angeboten" }, original: { status: "" } } })).status()).toBe(403);
-  await user.close();
+});
+
+test("Status: Grundrolle sieht die Liste, kann den Status aber nicht setzen", async ({ page }) => {
+  await login(page, "user");
+  await open(page);
+  const row = table(page).locator("tbody tr").first();
+  await expect(row).toBeVisible();
+  await expect(table(page).getByRole("combobox")).toHaveCount(0);
+  const id = (await row.locator("td").nth(1).textContent())!.trim();
+  const area = (await row.locator("td").nth(0).textContent())!.trim();
+  const areaId = { Server: "server", Switche: "switche", Storage: "storage", VMware: "vmware", TSPLUS: "tsplus", PRTG: "prtg", Veeam: "veeam", KEPware: "kepware", "Windows-Systeme": "windows" }[area];
+  expect((await page.request.put(`/api/areas/${areaId}/${id}`, { data: { values: { status: "Angeboten" }, original: { status: "" } } })).status()).toBe(403);
 });
