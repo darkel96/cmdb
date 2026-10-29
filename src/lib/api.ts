@@ -30,6 +30,8 @@ export interface Api {
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
   documentUrl(customerId: number, documentId: number): string | null;
+  /** Dokument direkt am Kunden hochladen (wie GAPTEQ: dbo.Anhang, Typ „Angebot“) */
+  uploadDocument(customerId: number, file: File): Promise<{ id: number }>;
   createCustomer(values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   updateCustomer(id: number, values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   deleteCustomer(id: number): Promise<void>;
@@ -60,6 +62,17 @@ export interface AdminRolesResponse {
 
 export type RoleInput = Pick<Role, "name" | "description" | "permissions" | "members">;
 
+/** Größte Datei für Kunden-Dokumente, wie im Dienst */
+export const MAX_DOCUMENT_MB = 15;
+
+async function toBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  // In Blöcken, damit grosse Dateien den Aufruf-Stapel nicht sprengen
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, { credentials: "same-origin", ...init, headers: { Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}), ...init?.headers } });
   if (res.status === 204) return undefined as T;
@@ -89,6 +102,8 @@ const serverApi: Api = {
   updateAreaRow: (areaId, id, values, original) => request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original }) }),
   customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
   documentUrl: (customerId, documentId) => `/api/customers/${customerId}/documents/${documentId}`,
+  uploadDocument: async (customerId, file) =>
+    request<{ id: number }>(`/api/customers/${customerId}/documents`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) }),
   createCustomer: (values) => request<CustomerSaveResponse>("/api/customers", { method: "POST", body: JSON.stringify({ values }) }),
   updateCustomer: (id, values) => request<CustomerSaveResponse>(`/api/customers/${id}`, { method: "PUT", body: JSON.stringify({ values }) }),
   // Leerer JSON-Inhalt, damit die Ursprungsprüfung des Dienstes greift
@@ -107,6 +122,7 @@ const STORAGE_KEY = "cmdb-test-session";
 
 // Testseite: neu angelegte Einträge nur bis zum Neuladen
 const browserCreated = new Map<string, AreaRow[]>();
+const browserDocuments = new Map<number, { id: number; name: string }[]>();
 let browserCustomers = [...TEST_CUSTOMERS];
 const browserRenames = new Map<string, string>();
 const browserExtra = new Map<number, { country: string; zip: string; address: string; email: string }>();
@@ -223,9 +239,16 @@ const browserTestApi: Api = {
       if (rows.length) systems[areaId] = rows;
     }
     const extra = browserExtra.get(id) ?? { country: TEST_COUNTRIES[id % TEST_COUNTRIES.length], zip: "", address: "", email: "" };
-    return { customer: { ...c, ...extra }, documents: [], systems, errors: {}, source: "test" };
+    const documents = (browserDocuments.get(id) ?? []).map((d) => ({ ...d, type: "Angebot" }));
+    return { customer: { ...c, ...extra }, documents, systems, errors: {}, source: "test" };
   },
   documentUrl: () => null,
+  uploadDocument: async (customerId, file) => {
+    requireAdmin();
+    const id = 900_000 + [...browserDocuments.values()].flat().length + 1;
+    browserDocuments.set(customerId, [...(browserDocuments.get(customerId) ?? []), { id, name: file.name }]);
+    return { id };
+  },
   createCustomer: async (values) => {
     requireAdmin();
     if (browserCustomers.some((c) => c.name.toLowerCase() === values.name.trim().toLowerCase())) throw new ApiError(`Den Kunden „${values.name}“ gibt es schon.`, 409);

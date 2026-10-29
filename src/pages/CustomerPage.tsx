@@ -1,17 +1,20 @@
-import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, Download, FileText, Pencil } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, CheckCircle2, Download, FileText, Pencil, Upload } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { useAuth } from "@/state/auth";
 import { DataTable } from "@/components/DataTable";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import { api, MAX_DOCUMENT_MB } from "@/lib/api";
 import { AREAS, type CustomerDetailResponse } from "@/lib/areas";
 import { areaColumns } from "./AreaPage";
 
-function Box({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+function Box({ title, children, className, action }: { title: string; children: React.ReactNode; className?: string; action?: React.ReactNode }) {
   return (
     <section className={`animate-appear overflow-hidden rounded-lg border bg-card shadow-xs ${className ?? ""}`} aria-label={title}>
-      <h2 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{title}</h2>
+      <div className="flex items-center justify-between gap-2 bg-brand px-4 py-2.5 text-brand-foreground">
+        <h2 className="text-lg font-medium">{title}</h2>
+        {action}
+      </div>
       <div className="p-4">{children}</div>
     </section>
   );
@@ -26,11 +29,31 @@ export function CustomerPage() {
   const [data, setData] = useState<CustomerDetailResponse | null>(null);
   const [error, setError] = useState("");
 
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [upload, setUpload] = useState<{ busy?: boolean; error?: string; done?: string }>({});
+
   useEffect(() => {
     setData(null);
     setError("");
+    setUpload({});
     api.customer(Number(customerId)).then(setData, (e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, [customerId]);
+
+  async function uploadFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const tooBig = [...files].find((f) => f.size > MAX_DOCUMENT_MB * 1024 * 1024);
+    if (tooBig) return setUpload({ error: `„${tooBig.name}“ ist zu gross (höchstens ${MAX_DOCUMENT_MB} MB).` });
+    setUpload({ busy: true });
+    try {
+      for (const f of files) await api.uploadDocument(Number(customerId), f);
+      setData(await api.customer(Number(customerId)));
+      setUpload({ done: files.length === 1 ? `„${files[0].name}“ wurde gespeichert.` : `${files.length} Dateien wurden gespeichert.` });
+    } catch (e) {
+      setUpload({ error: e instanceof Error ? e.message : String(e) });
+    } finally {
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
 
   const areas = data ? Object.values(AREAS).filter((a) => data.systems[a.id]?.length) : [];
   const errors = data ? Object.entries(data.errors) : [];
@@ -75,7 +98,29 @@ export function CustomerPage() {
                 <dd>{data.customer.city || "–"}</dd>
               </dl>
             </Box>
-            <Box title="Dokumente">
+            <Box
+              title="Dokumente"
+              action={
+                can("kunden", "edit") && (
+                  <>
+                    <input ref={fileInput} type="file" multiple hidden aria-label="Dateien auswählen" onChange={(e) => void uploadFiles(e.target.files)} />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 border-white/40 bg-white/15 text-brand-foreground hover:bg-white/25 hover:text-brand-foreground"
+                      disabled={upload.busy}
+                      onClick={() => fileInput.current?.click()}
+                      title={`Datei direkt beim Kunden speichern (höchstens ${MAX_DOCUMENT_MB} MB)`}
+                    >
+                      <Upload aria-hidden />
+                      {upload.busy ? "Wird hochgeladen …" : "Hochladen"}
+                    </Button>
+                  </>
+                )
+              }
+            >
+              {upload.error && <p role="alert" className="mb-2 text-sm text-destructive">{upload.error}</p>}
+              {upload.done && <p role="status" className="mb-2 text-sm text-success">{upload.done}</p>}
               {data.documentsError ? (
                 <p className="text-sm text-muted-foreground">{data.documentsError}</p>
               ) : data.documents.length === 0 ? (

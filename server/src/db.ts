@@ -401,6 +401,27 @@ export async function getDocument(customer: CustomerRecord, documentId: number):
   }
 }
 
+/**
+ * Dokument direkt am Kunden speichern, wie GAPTEQ: neue Zeile in dbo.Anhang mit Typ „Angebot“ und
+ * Vertrag_ID = FirmenID = Kunden-ID (ExportId), Firma = Kundenname. Freigegeben am 29.10.2026 (nur INSERT).
+ */
+export async function addCustomerDocument(customer: CustomerRecord, name: string, data: Buffer): Promise<number> {
+  try {
+    const result = await (await pool())
+      .request()
+      .input("id", sql.Int, customer.id)
+      .input("company", sql.VarChar(255), customer.name)
+      .input("name", sql.VarChar(255), name)
+      .input("data", sql.VarBinary(sql.MAX), data)
+      .query<{ ID: number }>(
+        "INSERT INTO dbo.Anhang (Vertrag_ID, FirmenID, Firma, Typ, Filename, Data) OUTPUT INSERTED.ID VALUES (@id, @id, @company, 'Angebot', @name, @data)",
+      );
+    return result.recordset[0].ID;
+  } catch (e) {
+    throw translate(e, "dbo.Anhang");
+  }
+}
+
 // ---------- Stammdaten (DD_*-Tabellen ohne Schlüssel: Zeilen werden über ihren Wert angesprochen) ----------
 
 export async function lookupValues(list: LookupList): Promise<string[]> {
