@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, FilePlus2, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import type { CheckResult, HealthResponse } from "@/lib/types";
-import { Link, useSearchParams } from "react-router";
+import { Navigate, useSearchParams } from "react-router";
+import { visibleAdminTabs } from "@/lib/adminTabs";
+import { useAuth } from "@/state/auth";
+import { ContractTypesPage } from "./ContractTypesPage";
+import { StammdatenPage } from "./StammdatenPage";
 import { cn } from "@/lib/utils";
 import { LoginsTab } from "./admin/LoginsTab";
 import { RolesTab } from "./admin/RolesTab";
@@ -63,43 +67,31 @@ function StatusTab() {
         </div>
       )}
       {health && !health.details && !busy && <p className="text-sm text-muted-foreground">Keine Details verfügbar.</p>}
-      <Card className="animate-appear" style={{ "--i": 2 } as React.CSSProperties}>
-        <CardHeader>
-          <CardTitle>Anlage / Bearbeitung</CardTitle>
-          <CardDescription>Neue Einträge wie in GAPTEQ, gespeichert in die nächste freie Zeile.</CardDescription>
-        </CardHeader>
-        <Button size="sm" className="self-start" asChild>
-          <Link to="/anlage-vertrag" viewTransition>
-            <FilePlus2 aria-hidden />
-            Anlage Vertrag
-          </Link>
-        </Button>
-      </Card>
     </div>
   );
 }
 
-const TABS = [
-  { id: "status", label: "Status" },
-  { id: "anmeldungen", label: "Anmeldungen" },
-  { id: "rollen", label: "Rollen" },
-] as const;
-
-/** Nur für Admins: Status der Anbindungen, Anmelde-Protokoll, Rollen und Rechte */
+/**
+ * Verwaltung: Anlage Vertrag und Stammdaten für alle mit dem Recht dazu, Status, Anmelde-Protokoll und Rollen nur für
+ * Admins. Ohne einen einzigen erlaubten Reiter geht es zurück zur Startseite.
+ */
 export function AdminPage() {
   const [params, setParams] = useSearchParams();
-  const tab = TABS.find((t) => t.id === params.get("tab"))?.id ?? "status";
+  const { user, can } = useAuth();
+  const tabs = visibleAdminTabs(user?.role === "admin", can);
+  if (!tabs.length) return <Navigate to="/" replace />;
+  const tab = tabs.find((t) => t.id === params.get("tab"))?.id ?? tabs[0].id;
   return (
     <div className="flex w-full flex-col gap-4">
       <h1 className="text-2xl font-semibold">Verwaltung</h1>
       <div role="tablist" aria-label="Verwaltung" className="flex gap-1 border-b">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
             role="tab"
             aria-selected={tab === t.id}
-            onClick={() => setParams(t.id === "status" ? {} : { tab: t.id })}
+            onClick={() => setParams(t.id === tabs[0].id ? {} : { tab: t.id })}
             className={cn(
               "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors duration-150",
               tab === t.id ? "border-brand text-brand" : "border-transparent text-muted-foreground hover:text-foreground",
@@ -110,6 +102,8 @@ export function AdminPage() {
         ))}
       </div>
       <div role="tabpanel" className="flex min-h-0 flex-1 flex-col">
+        {tab === "anlage-vertrag" && <ContractTypesPage />}
+        {tab === "stammdaten" && <StammdatenPage />}
         {tab === "status" && <StatusTab />}
         {tab === "anmeldungen" && <LoginsTab />}
         {tab === "rollen" && <RolesTab />}

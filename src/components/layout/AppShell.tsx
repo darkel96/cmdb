@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { BookMarked, ChevronDown, Database, FilePlus2, Home, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, User } from "lucide-react";
+import { ChevronDown, Database, Home, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Settings, User } from "lucide-react";
 import { NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { Badge } from "@/components/ui/badge";
-import { AREAS } from "@/lib/areas";
+import { visibleAdminTabs } from "@/lib/adminTabs";
 import { NAV_GROUPS, NAV_LISTS, type NavGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
@@ -75,9 +75,6 @@ function SidebarGroup({ group, onNavigate, collapsed, onExpand }: { group: NavGr
 
 function Sidebar({ onNavigate, collapsed = false, onExpand = () => undefined }: { onNavigate: () => void; collapsed?: boolean; onExpand?: () => void }) {
   const ListIcon = NAV_LISTS.icon;
-  const { can } = useAuth();
-  // „Anlage Vertrag“ für alle, die in mindestens einem Bereich anlegen dürfen
-  const mayCreate = Object.values(AREAS).some((a) => a.createFields && can(a.id, "create"));
   return (
     <nav aria-label="Hauptnavigation" className="scroll-thin flex h-full flex-col gap-1 overflow-x-hidden p-2 text-sidebar-foreground">
       <ul className="flex flex-col gap-0.5">
@@ -96,23 +93,6 @@ function Sidebar({ onNavigate, collapsed = false, onExpand = () => undefined }: 
             <ItemLabel collapsed={collapsed}>{NAV_LISTS.label}</ItemLabel>
           </NavLink>
         </li>
-        {(mayCreate || can("stammdaten", "read")) && <li className="mt-2 border-t border-sidebar-foreground/20 pt-2" aria-hidden />}
-        {mayCreate && (
-          <li>
-            <NavLink to="/anlage-vertrag" viewTransition className={itemClass} onClick={onNavigate} title={collapsed ? "Anlage Vertrag" : undefined}>
-              <FilePlus2 className="size-5 shrink-0" aria-hidden />
-              <ItemLabel collapsed={collapsed}>Anlage Vertrag</ItemLabel>
-            </NavLink>
-          </li>
-        )}
-        {can("stammdaten", "read") && (
-          <li>
-            <NavLink to="/stammdaten" viewTransition className={itemClass} onClick={onNavigate} title={collapsed ? "Stammdaten" : undefined}>
-              <BookMarked className="size-5 shrink-0" aria-hidden />
-              <ItemLabel collapsed={collapsed}>Stammdaten</ItemLabel>
-            </NavLink>
-          </li>
-        )}
       </ul>
     </nav>
   );
@@ -122,7 +102,7 @@ const topButton = "inline-flex h-9 items-center gap-2 rounded-md bg-white/15 px-
 
 /** App-Rahmen für angemeldete Personen: Kopfleiste mit Name, Rolle und Abmelden, Seitenleiste mit den Bereichen */
 export function AppShell() {
-  const { user, testMode, logout } = useAuth();
+  const { user, testMode, logout, can } = useAuth();
   const location = useLocation();
   // Auf breiten Bildschirmen ist die Seitenleiste immer sichtbar, auf schmalen wird sie über das Menü eingeblendet
   const [menuOpen, setMenuOpen] = useState(false);
@@ -164,7 +144,7 @@ export function AppShell() {
           CMDB
         </div>
         <div className="ml-auto flex items-center gap-1.5">
-          {user.role === "admin" && (
+          {visibleAdminTabs(user.role === "admin", can).length > 0 && (
             <NavLink to="/verwaltung" viewTransition aria-label="Verwaltung" className={({ isActive }) => cn(topButton, isActive && "bg-white/30")}>
               <Settings className="size-4" aria-hidden />
               <span className="hidden sm:inline">Verwaltung</span>
@@ -200,11 +180,4 @@ export function AppShell() {
       </div>
     </div>
   );
-}
-
-/** Nur für admin; andere Rollen landen auf der Startseite */
-export function AdminOnly({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  if (user?.role !== "admin") return <Navigate to="/" replace />;
-  return <>{children}</>;
 }

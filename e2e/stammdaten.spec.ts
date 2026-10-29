@@ -42,7 +42,7 @@ test("Stammdaten: Wert hinzufügen, umbenennen, löschen; Formular nutzt die neu
 test("Stammdaten: Grundrolle darf nur lesen", async ({ page }) => {
   await login(page, "user");
   await page.goto("/stammdaten");
-  await expect(page.getByRole("heading", { name: "Stammdaten" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Stammdaten" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("button", { name: /Wert hinzufügen/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /bearbeiten$/ })).toHaveCount(0);
   expect((await page.request.post("/api/stammdaten/lieferant", { data: { value: "X" } })).status()).toBe(403);

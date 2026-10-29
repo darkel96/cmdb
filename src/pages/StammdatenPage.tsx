@@ -124,7 +124,6 @@ export function StammdatenPage() {
   return (
     <div className="flex w-full flex-col gap-3">
       <div>
-        <h1 className="text-2xl font-semibold">Stammdaten</h1>
         <p className="text-sm text-muted-foreground">Auswahllisten der Formulare. Ändern oder Löschen eines Werts ändert keine bestehenden Einträge, wie in GAPTEQ.</p>
       </div>
       <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">

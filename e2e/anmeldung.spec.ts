@@ -20,17 +20,20 @@ test("falsches Passwort wird abgelehnt", async ({ page }) => {
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test("user sieht Startseite, aber keine Verwaltung", async ({ page }) => {
+test("user sieht Startseite und in der Verwaltung nur die Stammdaten", async ({ page }) => {
   await login(page, "user");
   await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
   await expect(page.getByTestId("user-name")).toHaveText("Test Benutzer");
   await expect(page.getByTestId("user-role")).toHaveText("Benutzer");
   await expect(page.getByTestId("test-banner")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Verwaltung" })).toHaveCount(0);
-
-  // Direkter Aufruf führt zurück zur Startseite, die API liefert keine Details
-  await page.goto("/verwaltung");
-  await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
+  // Grundrolle: nur Lesen, also weder Anlage Vertrag noch Status, Anmeldungen oder Rollen
+  await page.getByRole("link", { name: "Verwaltung" }).click();
+  await expect(page.getByRole("tab")).toHaveText(["Stammdaten"]);
+  await page.goto("/verwaltung?tab=status");
+  await expect(page.getByRole("tab", { name: "Stammdaten" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("status-ldap")).toHaveCount(0);
+  await page.goto("/anlage-vertrag");
+  await expect(page.getByRole("region", { name: "Anlage Vertrag" })).toHaveCount(0);
   const health = await (await page.request.get("/api/health")).json();
   expect(health.details).toBeUndefined();
 });
@@ -40,6 +43,8 @@ test("admin sieht Verwaltung mit Status von LDAP und Datenbank", async ({ page }
   await expect(page.getByTestId("user-role")).toHaveText("Admin");
   await page.getByRole("link", { name: "Verwaltung" }).click();
   await expect(page.getByRole("heading", { name: "Verwaltung" })).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveText(["Anlage Vertrag", "Stammdaten", "Status", "Anmeldungen", "Rollen"]);
+  await page.getByRole("tab", { name: "Status" }).click();
   await expect(page.getByTestId("status-ldap")).toContainText("Verbunden");
   await expect(page.getByTestId("status-db")).toContainText("Verbunden");
 });
