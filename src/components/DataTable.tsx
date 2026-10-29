@@ -1,7 +1,8 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, MoveHorizontal, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { readView, writeView } from "@/lib/sessionView";
 import { cn } from "@/lib/utils";
 import { ColumnPicker, EMPTY_VALUE } from "./ColumnPicker";
 
@@ -31,6 +32,38 @@ function includes(haystack: string, needle: string): boolean {
 const clampWidth = (w: number) => Math.round(Math.min(800, Math.max(48, w)));
 /** Obergrenze beim automatischen Anpassen, damit eine lange Spalte nicht alles verdrängt */
 const AUTO_MAX = 320;
+/** Bis zu dieser Breite werden lange Spalten gestaucht, wenn die Tabelle sonst nicht ins Fenster passt (Rest mit „…“) */
+const SHRINK_MIN = 110;
+
+/**
+ * Breiten so stauchen, dass ihre Summe in `target` passt: die breitesten Spalten zuerst auf eine gemeinsame Obergrenze,
+ * keine unter ihr Minimum. Passt es auch dann nicht, bleibt es beim Minimum (die Tabelle scrollt in sich).
+ */
+export function shrinkToFit(items: { key: string; width: number; min: number }[], target: number): Record<string, number> {
+  const total = (cap: number) => items.reduce((sum, i) => sum + Math.max(i.min, Math.min(i.width, cap)), 0);
+  let cap = Math.max(0, ...items.map((i) => i.width));
+  if (target > 0 && total(cap) > target) {
+    let low = 0;
+    let high = cap;
+    while (high - low > 1) {
+      const mid = Math.floor((low + high) / 2);
+      if (total(mid) > target) high = mid;
+      else low = mid;
+    }
+    cap = low;
+  }
+  return Object.fromEntries(items.map((i) => [i.key, Math.max(i.min, Math.min(i.width, cap))]));
+}
+
+interface TableView {
+  search: string;
+  filters: Record<string, string>;
+  picks: Record<string, string[]>;
+  sort: { key: string; desc: boolean };
+  pageSize: number;
+  page: number;
+  selected: string | number | null;
+}
 
 function readWidths(key: string): Record<string, number> {
   try {
@@ -62,7 +95,7 @@ function csvCell(value: string): string {
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters, highlight, selectedActions, storageKey }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters, highlight, selectedActions, storageKey, viewKey }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
@@ -85,22 +118,46 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   selectedActions?: (row: T) => ReactNode;
   /** Unter welchem Namen die Spaltenbreiten im Browser gemerkt werden; Standard ist der Titel */
   storageKey?: string;
+  /** Suche, Filter, Sortierung, Seite und markierte Zeile für die Sitzung merken (zurück aus einem Datensatz) */
+  viewKey?: string;
 }) {
-  const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState<Record<string, string>>(initialFilters ?? {});
-  const [sort, setSort] = useState<{ key: string; desc: boolean }>(defaultSort ?? { key: columns[0].key, desc: false });
+  // Gemerkte Ansicht nur beim ersten Anzeigen lesen
+  const [view] = useState(() => readView<TableView>(viewKey));
+  const [search, setSearch] = useState(view.search ?? "");
+  const [filters, setFilters] = useState<Record<string, string>>(view.filters ?? initialFilters ?? {});
+  const [sort, setSort] = useState<{ key: string; desc: boolean }>(view.sort ?? defaultSort ?? { key: columns[0].key, desc: false });
   const sizes = compact ? COMPACT_PAGE_SIZES : PAGE_SIZES;
-  const [pageSize, setPageSize] = useState(compact ? 10 : 30);
-  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(view.pageSize && sizes.includes(view.pageSize) ? view.pageSize : compact ? 10 : 30);
+  const [page, setPage] = useState(view.page ?? 0);
   // Ausgewählte Zeile (Klick), blau hervorgehoben wie in GAPTEQ
-  const [selected, setSelected] = useState<string | number | null>(null);
+  const [selected, setSelected] = useState<string | number | null>(view.selected ?? null);
   // Spaltenbreiten, die die Person gezogen oder per Doppelklick angepasst hat; je Tabelle im Browser gemerkt
   const widthsKey = `cmdb-spalten:${storageKey ?? title}`;
   const [widths, setWidths] = useState<Record<string, number>>(() => readWidths(widthsKey));
   // Automatisch an den Inhalt angepasste Breiten (beim ersten Anzeigen, nicht gespeichert); gezogene haben Vorrang
   const tableRef = useRef<HTMLTableElement>(null);
   const [autoWidths, setAutoWidths] = useState<Record<string, number>>({});
-  const widthOf = (c: Column<T>) => widths[c.key] ?? autoWidths[c.key] ?? c.width;
+  // Verfügbare Breite; automatische Breiten werden darauf gestaucht, damit nicht nach rechts gescrollt werden muss
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [available, setAvailable] = useState(0);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const update = () => setAvailable(el.clientWidth);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  const fitted = useMemo(() => {
+    const free = columns.filter((c) => widths[c.key] === undefined && autoWidths[c.key] !== undefined);
+    const fixed = columns.reduce((sum, c) => sum + (widths[c.key] ?? (autoWidths[c.key] === undefined ? (c.width ?? 140) : 0)), 0);
+    // Spalten mit eigener Darstellung (z. B. Status-Auswahl) behalten ihre Breite
+    const items = free.map((c) => ({ key: c.key, width: autoWidths[c.key], min: c.render ? autoWidths[c.key] : Math.min(autoWidths[c.key], SHRINK_MIN) }));
+    // 1 px Luft gegen Rundung, sonst erscheint eine Scrollleiste für einen Pixel
+    return shrinkToFit(items, available - fixed - 1);
+  }, [columns, widths, autoWidths, available]);
+  const widthOf = (c: Column<T>) => widths[c.key] ?? fitted[c.key] ?? c.width;
   const saveWidths = (next: Record<string, number>) => {
     setWidths(next);
     try {
@@ -112,7 +169,8 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   };
 
   // Wertefilter je Spalte (Mehrfachauswahl); „(leer)“ steht für leere Zellen
-  const [picks, setPicks] = useState<Record<string, string[]>>({});
+  const [picks, setPicks] = useState<Record<string, string[]>>(view.picks ?? {});
+  useEffect(() => writeView(viewKey, { search, filters, picks, sort, pageSize, page, selected } satisfies TableView), [viewKey, search, filters, picks, sort, pageSize, page, selected]);
   const cellValue = (c: Column<T>, row: T) => c.value(row).trim() || EMPTY_VALUE;
   /** Passt die Zeile zu Suche und allen Spaltenfiltern, auf Wunsch ohne eine Spalte (für deren Werteliste)? */
   const matches = (row: T, except?: string) =>
@@ -211,10 +269,11 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
     saveWidths({ ...widths, [c.key]: fitWidth(table, columns.indexOf(c)) });
   }
 
-  /** Alle Spalten an den Inhalt anpassen (Knopf), höchstens 320 px je Spalte; wird gemerkt */
+  /** Alle Spalten neu an Inhalt und Fensterbreite anpassen (Knopf): gezogene Breiten verwerfen, neu messen */
   function fitAll() {
     if (!tableRef.current) return;
-    saveWidths(Object.fromEntries(columns.map((c, i) => [c.key, fitWidth(tableRef.current!, i, AUTO_MAX)])));
+    setAutoWidths(Object.fromEntries(columns.map((c, i) => [c.key, fitWidth(tableRef.current!, i, AUTO_MAX)])));
+    saveWidths({});
   }
 
   // Beim ersten Anzeigen mit Daten: Spalten ohne gemerkte Breite passen sich dem Inhalt an (nicht gespeichert)
@@ -250,7 +309,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
         {actions}
         {selectedRow && selectedActions?.(selectedRow)}
         <span className="flex-1" />
-        <Button variant="outline" size="sm" onClick={fitAll} title="Alle Spalten an den Inhalt anpassen" aria-label="Spalten an Inhalt anpassen">
+        <Button variant="outline" size="sm" onClick={fitAll} title="Alle Spalten an Inhalt und Fensterbreite anpassen" aria-label="Spalten an Inhalt anpassen">
           <MoveHorizontal aria-hidden />
         </Button>
         {Object.keys(widths).length > 0 && (
@@ -268,7 +327,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
       </div>
       {/* Kompakt (mehrere Tabellen auf einer Seite): kein eigenes senkrechtes Scrollen, sonst fängt die Tabelle das
           Mausrad und die Seite scrollt nicht weiter. Blättern über die Seiten. Volle Höhe: nur die Zeilen scrollen. */}
-      <div className={cn(compact ? "scroll-thin-x" : "scroll-thin min-h-0 flex-1")} data-testid="table-scroll">
+      <div ref={scrollRef} className={cn(compact ? "scroll-thin-x" : "scroll-thin min-h-0 flex-1")} data-testid="table-scroll">
         {/* border-separate: Bei border-collapse bleiben die Linien im festgehaltenen Kopf nicht stehen, dann scheinen Zeilen durch */}
         <table ref={tableRef} className="w-full table-fixed border-separate border-spacing-0 text-sm" style={{ minWidth }}>
           <colgroup>
