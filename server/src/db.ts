@@ -543,6 +543,63 @@ export async function addCustomerDocument(customer: CustomerRecord, name: string
   }
 }
 
+/** Dokumente eines Systems wie in GAPTEQ: dbo.Anhang mit Vertrag_ID = ID des Systems (Nummernkreise sind eindeutig) */
+export async function listSystemDocuments(id: number): Promise<CustomerDocument[]> {
+  try {
+    const result = await (await pool())
+      .request()
+      .input("id", sql.Int, id)
+      .query<{ ID: number; Filename: string | null; Typ: string | null }>("SELECT ID, Filename, Typ FROM dbo.Anhang WHERE Vertrag_ID = @id ORDER BY ID");
+    return result.recordset.map((r) => ({ id: r.ID, name: (r.Filename ?? "").trim() || `Anhang ${r.ID}`, type: (r.Typ ?? "").trim() }));
+  } catch (e) {
+    throw translate(e, "dbo.Anhang");
+  }
+}
+
+export async function getSystemDocument(id: number, documentId: number): Promise<{ name: string; data: Buffer } | null> {
+  try {
+    const result = await (await pool())
+      .request()
+      .input("doc", sql.Int, documentId)
+      .input("id", sql.Int, id)
+      .query<{ Filename: string | null; Data: Buffer | null }>("SELECT Filename, Data FROM dbo.Anhang WHERE ID = @doc AND Vertrag_ID = @id");
+    const r = result.recordset[0];
+    return r?.Data ? { name: (r.Filename ?? "").trim() || `anhang-${documentId}`, data: r.Data } : null;
+  } catch (e) {
+    throw translate(e, "dbo.Anhang");
+  }
+}
+
+/**
+ * Dokument an ein System hängen, wie GAPTEQ: Vertrag_ID = ID, Typ = Systemart (z. B. „PRTG“), dazu Firma und
+ * FirmenID des Kunden, damit es auch in der Kundenansicht erscheint. Freigabe INSERT auf dbo.Anhang (29.10.2026).
+ */
+export async function addSystemDocument(area: Area, row: AreaRow, name: string, data: Buffer): Promise<number> {
+  let object = "dbo.DS_Kunden";
+  try {
+    const p = await pool();
+    const company = String(row.company ?? "").trim();
+    const customer = company
+      ? (await p.request().input("name", sql.NVarChar(255), company).query<{ ExportId: number }>("SELECT TOP 1 ExportId FROM dbo.DS_Kunden WHERE LTRIM(RTRIM(Kunde)) = @name")).recordset[0]
+      : undefined;
+    object = "dbo.Anhang";
+    const result = await p
+      .request()
+      .input("id", sql.Int, row.id)
+      .input("customer", sql.Int, customer?.ExportId ?? null)
+      .input("company", sql.VarChar(255), company || null)
+      .input("type", sql.VarChar(255), area.typeValue)
+      .input("name", sql.VarChar(255), name)
+      .input("data", sql.VarBinary(sql.MAX), data)
+      .query<{ ID: number }>(
+        "INSERT INTO dbo.Anhang (Vertrag_ID, FirmenID, Firma, Typ, Filename, Data) OUTPUT INSERTED.ID VALUES (@id, @customer, @company, @type, @name, @data)",
+      );
+    return result.recordset[0].ID;
+  } catch (e) {
+    throw translate(e, object);
+  }
+}
+
 // ---------- Stammdaten (DD_*-Tabellen ohne Schlüssel: Zeilen werden über ihren Wert angesprochen) ----------
 
 export async function lookupValues(list: LookupList): Promise<string[]> {

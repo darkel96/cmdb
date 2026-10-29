@@ -3,6 +3,7 @@ import { ArrowLeft, CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { DataTable, type Column } from "@/components/DataTable";
 import { SecretValue } from "@/components/SecretValue";
+import { SystemDocuments } from "@/components/SystemDocuments";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { AREAS, type Area, type AreaListResponse, type AreaRow } from "@/lib/areas";
@@ -212,6 +213,7 @@ export function AreaDetailPage() {
           </p>
         </section>
       )}
+      {row && area.createFields && <SystemDocuments area={area} id={row.id} />}
     </div>
   );
 }
