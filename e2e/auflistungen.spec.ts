@@ -40,3 +40,24 @@ test("Auflistungen Oracle: Systeme nach DB-Typ und Versionen", async ({ page }) 
   // Kein Knopf „Passwort anzeigen“ wie in GAPTEQ
   await expect(page.getByRole("button", { name: /Passwort/ })).toHaveCount(0);
 });
+
+test("Auflistungen: Liste links, sortieren, Oracle-Versionen nach Hauptversion zusammenfassen", async ({ page }) => {
+  await login(page);
+  await page.goto("/bereich/auflistungen");
+  const nav = page.getByRole("navigation", { name: "Auflistungen" });
+  await expect(nav.getByRole("link")).toHaveText(["Aufstellung Oracle-Systeme", "Aufstellung Oracle-Versionen", "Aufstellung Server", "Auslaufende Kundensysteme"]);
+  await nav.getByRole("link", { name: "Aufstellung Oracle-Versionen" }).click();
+  const bars = page.getByRole("list", { name: "Systeme je DB-Version" }).getByRole("button");
+  await expect(bars.first()).toBeVisible();
+  const single = await bars.count();
+  await page.getByLabel("Nach Hauptversion zusammenfassen").check();
+  await expect.poll(() => bars.count()).toBeLessThan(single);
+  // Summe bleibt gleich
+  const sum = (await bars.evaluateAll((els) => els.map((e) => Number((e.getAttribute("aria-label") ?? "").split(": ").pop())))).reduce((a, b) => a + b, 0);
+  await expect(page.getByTestId("report-total")).toContainText(String(sum));
+  await page.getByRole("button", { name: "nach Anzahl" }).click();
+  const counts = await bars.evaluateAll((els) => els.map((e) => Number((e.getAttribute("aria-label") ?? "").split(": ").pop())));
+  expect(counts).toEqual([...counts].sort((a, b) => b - a));
+  await bars.first().click();
+  await expect(page).toHaveURL(/\/bereich\/oracle\?filter\.dbVersion=/);
+});
