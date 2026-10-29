@@ -238,9 +238,14 @@ function validValues(area: Area, raw: unknown, form: AreaFormResponse, original?
   return values;
 }
 
-/** Neues Passwort aus dem Formular; leer = nicht übergeben (beim Bearbeiten: unverändert) */
-function secretValue(area: Area, raw: unknown): Record<string, string> {
-  if (!area.secret || !raw || typeof raw !== "object") return {};
+/**
+ * Neues Passwort aus dem Formular; leer = nicht übergeben (beim Bearbeiten: unverändert). Mit clear (nur beim
+ * Bearbeiten, Knopf „Entfernen“) wird es gelöscht: Rückgabe "" für die Spalte.
+ */
+function secretValue(area: Area, raw: unknown, clear = false): Record<string, string> {
+  if (!area.secret) return {};
+  if (clear) return { [area.secret.key]: "" };
+  if (!raw || typeof raw !== "object") return {};
   const v = (raw as Record<string, unknown>)[area.secret.key];
   if (v === undefined || v === "") return {};
   if (typeof v !== "string") throw new LoginError(`${area.secret.label}: ungültiger Wert.`, 400);
@@ -549,7 +554,7 @@ async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area,
     const original = originalValues(body.original);
     const values = statusOnly(area, body.values) ?? {
       ...validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area), original),
-      ...secretValue(area, body.values),
+      ...secretValue(area, body.values, body.clearSecret === true),
     };
     let changed: string[];
     if (ENV.testMode) {
@@ -559,7 +564,7 @@ async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area,
       if (meanwhile.length) throw new DbError(`Der Eintrag wurde inzwischen geändert (${meanwhile.map((f) => f.label).join(", ")}). Bitte neu laden und erneut bearbeiten.`, 409);
       changed = area.fields.filter((f) => f.key in values && values[f.key] !== String(row[f.key] ?? "")).map((f) => f.label);
       const { [area.secret?.key ?? ""]: secret, ...plain } = values;
-      if (area.secret && secret) {
+      if (area.secret && secret !== undefined) {
         testSecrets.set(`${area.id}:${id}`, secret);
         changed.push(area.secret.label);
       }

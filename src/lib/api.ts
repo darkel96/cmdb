@@ -26,7 +26,8 @@ export interface Api {
   areaRow(areaId: string, id: number): Promise<AreaRow>;
   areaForm(areaId: string): Promise<AreaFormResponse>;
   createAreaRow(areaId: string, values: Record<string, string>): Promise<AreaCreateResponse>;
-  updateAreaRow(areaId: string, id: number, values: Record<string, string>, original: Record<string, string>): Promise<{ id: number; changed: string[] }>;
+  /** clearSecret: Passwort des Eintrags (area.secret) entfernen */
+  updateAreaRow(areaId: string, id: number, values: Record<string, string>, original: Record<string, string>, clearSecret?: boolean): Promise<{ id: number; changed: string[] }>;
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
   documentUrl(customerId: number, documentId: number): string | null;
@@ -101,7 +102,8 @@ const serverApi: Api = {
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
   areaForm: (areaId) => request<AreaFormResponse>(`/api/areas/${areaId}/form`),
   createAreaRow: (areaId, values) => request<AreaCreateResponse>(`/api/areas/${areaId}`, { method: "POST", body: JSON.stringify({ values }) }),
-  updateAreaRow: (areaId, id, values, original) => request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original }) }),
+  updateAreaRow: (areaId, id, values, original, clearSecret) =>
+    request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original, ...(clearSecret ? { clearSecret } : {}) }) }),
   customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
   documentUrl: (customerId, documentId) => `/api/customers/${customerId}/documents/${documentId}`,
   uploadDocument: async (customerId, file) =>
