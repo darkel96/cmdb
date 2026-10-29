@@ -32,12 +32,12 @@ test("user darf nicht anlegen", async ({ page }) => {
 
 test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
   await login(page, "admin");
+  // Anlage Vertrag ist der erste Reiter der Verwaltung, nicht mehr in der Seitenleiste
+  await expect(page.getByRole("navigation", { name: "Hauptnavigation" }).getByRole("link", { name: "Anlage Vertrag" })).toHaveCount(0);
   await page.getByRole("link", { name: "Verwaltung" }).click();
-  await page.locator("main").getByRole("link", { name: "Anlage Vertrag" }).click();
-  await expect(page.getByRole("heading", { name: "Anlage Vertrag" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Anlage Vertrag" })).toHaveAttribute("aria-selected", "true");
   // Alle zwölf Typen wie in GAPTEQ sind anlegbar
   await expect(page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link")).toHaveCount(12);
-  await expect(page.getByRole("region", { name: "Anlage Vertrag" }).locator("[aria-disabled=true]")).toHaveCount(0);
   await page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link", { name: "Server", exact: true }).click();
 
   await expect(page.getByRole("heading", { name: "Anlage Server" })).toBeVisible();

@@ -48,10 +48,13 @@ test("Rolle gibt einer Person Rechte je Bereich, ohne Rolle wieder nur Lesen", a
     expect((await user.request.get("/api/areas/server/form")).status()).toBe(200);
     expect((await user.request.get("/api/areas/switche/form")).status()).toBe(403);
     expect((await user.request.get("/api/admin/roles")).status()).toBe(403);
+    // Frühere Adresse führt zum Reiter; nur Typen mit dem Recht Anlegen erscheinen
     await user.goto("/anlage-vertrag");
+    await expect(user).toHaveURL(/\/verwaltung\?tab=anlage-vertrag$/);
     const tiles = user.getByRole("region", { name: "Anlage Vertrag" });
+    await expect(tiles.getByRole("link")).toHaveCount(1);
     await expect(tiles.getByRole("link", { name: "Server", exact: true })).toBeVisible();
-    await expect(tiles.locator("[aria-disabled=true]", { hasText: "Switche" })).toBeVisible();
+    await expect(user.getByRole("tab")).toHaveText(["Anlage Vertrag", "Stammdaten"]);
     await user.close();
   } finally {
     await card.getByRole("button", { name: `${roleName} löschen` }).click();

@@ -2,17 +2,16 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, createHashRouter } from "react-router";
 import { RouterProvider } from "react-router/dom";
-import { AdminOnly, AppShell } from "@/components/layout/AppShell";
+import { Navigate } from "react-router";
+import { AppShell } from "@/components/layout/AppShell";
 import { AdminPage } from "@/pages/AdminPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { SectionPage } from "@/pages/SectionPage";
 import { AreaDetailPage } from "@/pages/AreaPage";
 import { AreaCreatePage } from "@/pages/AreaCreatePage";
-import { ContractTypesPage } from "@/pages/ContractTypesPage";
 import { CustomerPage } from "@/pages/CustomerPage";
 import { CustomerFormPage } from "@/pages/CustomerFormPage";
-import { StammdatenPage } from "@/pages/StammdatenPage";
 import { ReportPage } from "@/pages/ReportsPage";
 import { StartPage } from "@/pages/StartPage";
 import { AuthProvider } from "@/state/auth";
@@ -34,10 +33,11 @@ const router = createRouter([
       { path: "/kunden/neu", element: <CustomerFormPage /> },
       { path: "/kunden/:customerId", element: <CustomerPage /> },
       { path: "/kunden/:customerId/bearbeiten", element: <CustomerFormPage /> },
-      { path: "/stammdaten", element: <StammdatenPage /> },
+      // Frühere Adressen, jetzt Reiter der Verwaltung
+      { path: "/stammdaten", element: <Navigate to="/verwaltung?tab=stammdaten" replace /> },
       { path: "/auflistungen/:reportId", element: <ReportPage /> },
-      { path: "/anlage-vertrag", element: <ContractTypesPage /> },
-      { path: "/verwaltung", element: <AdminOnly><AdminPage /></AdminOnly> },
+      { path: "/anlage-vertrag", element: <Navigate to="/verwaltung?tab=anlage-vertrag" replace /> },
+      { path: "/verwaltung", element: <AdminPage /> },
       { path: "*", element: <NotFoundPage /> },
     ],
   },
