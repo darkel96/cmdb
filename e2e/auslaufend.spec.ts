@@ -28,7 +28,7 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support bis Ende des dritten 
   await open(page);
   const t = table(page);
   await expect(t).toHaveAccessibleName("Offen · Alle Kunden");
-  await t.getByRole("button", { name: "100", exact: true }).click();
+  await t.getByRole("button", { name: /^(20|100)$/ }).last().click();
   const header = (await t.locator("thead tr").first().locator("th").allTextContents()).map((h) => h.trim());
   const col = (name: string) => header.findIndex((h) => h.startsWith(name));
   const cutoff = (() => {
@@ -84,14 +84,14 @@ test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen 
 
   await page.getByRole("tab", { name: /Archiv/ }).click();
   await expect(t).toHaveAccessibleName("Archiv · Alle Kunden");
-  await t.getByRole("button", { name: "100", exact: true }).click();
+  await t.getByLabel("Suchen", { exact: true }).fill(id);
   const archived = rowOf(page, area, id);
   await expect(archived).toContainText("Verlängert");
   await archived.getByRole("combobox").click();
   await page.getByRole("option", { name: "– keine Auswahl –" }).click();
   await expect(rowOf(page, area, id)).toHaveCount(0);
   await page.getByRole("tab", { name: /Offen/ }).click();
-  await t.getByRole("button", { name: "100", exact: true }).click();
+  await t.getByLabel("Suchen", { exact: true }).fill(id);
   await expect(rowOf(page, area, id)).toBeVisible();
 
   // Ungültiger Status wird abgelehnt
