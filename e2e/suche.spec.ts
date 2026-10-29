@@ -50,6 +50,20 @@ test("Globale Suche: Kunden, „alle anzeigen“ und nichts gefunden", async ({ 
   await expect(box(page)).toHaveValue("");
 });
 
+test("Mehrere Wörter: jedes muss passen, ein Wort darf der Bereich sein", async ({ page }) => {
+  await login(page);
+  const oracle = (await (await page.request.get("/api/areas/oracle")).json()) as { items: { id: number; company: string }[] };
+  const target = oracle.items.find((r) => r.company)!;
+  const word = target.company.split(/\s+/)[0];
+
+  await box(page).fill(`${word} oracle`);
+  const group = results(page).getByRole("group", { name: "Oracle" });
+  await expect(group.getByRole("option", { name: new RegExp(`^${target.id}\\b`) })).toBeVisible();
+  // Andere Bereiche nur, wenn dort auch „oracle“ vorkommt; Server hat kein Feld mit „oracle“
+  await expect(results(page).getByRole("group", { name: "Server" })).toHaveCount(0);
+  for (const name of await group.getByRole("option").allTextContents()) expect(name.toLowerCase()).toContain(word.toLowerCase());
+});
+
 test("Suche ohne Anmeldung abgelehnt, Begriff zu lang abgelehnt", async ({ page }) => {
   expect((await page.request.get("/api/search?q=test")).status()).toBe(401);
   await login(page);

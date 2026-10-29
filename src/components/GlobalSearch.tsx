@@ -2,26 +2,33 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/api";
-import { SEARCH_MAX, SEARCH_MIN, type SearchGroup, type SearchHit, type SearchResponse } from "@/lib/search";
+import { SEARCH_MAX, SEARCH_MIN, searchTerms, type SearchGroup, type SearchHit, type SearchResponse } from "@/lib/search";
 import { cn } from "@/lib/utils";
 
-/** Fundstelle im Text hervorheben */
+/** Fundstellen aller Suchwörter im Text hervorheben */
 function Highlight({ text, query }: { text: string; query: string }) {
-  const i = text.toLocaleLowerCase("de").indexOf(query.toLocaleLowerCase("de"));
-  if (!query || i < 0) return <>{text}</>;
+  const terms = searchTerms(query);
+  if (!terms.length) return <>{text}</>;
+  const pattern = new RegExp(`(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
   return (
     <>
-      {text.slice(0, i)}
-      <mark className="rounded-sm bg-brand/15 px-0.5 text-inherit">{text.slice(i, i + query.length)}</mark>
-      {text.slice(i + query.length)}
+      {text.split(pattern).map((part, i) =>
+        i % 2 ? (
+          <mark key={i} className="rounded-sm bg-brand/15 text-inherit">
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
+      )}
     </>
   );
 }
 
 type Option = { kind: "hit"; group: SearchGroup; hit: SearchHit } | { kind: "all"; group: SearchGroup };
 
-const hrefOf = (o: Option, q: string) =>
-  o.kind === "all" ? `/bereich/${o.group.id}?suche=${encodeURIComponent(q)}` : o.group.id === "kunden" ? `/kunden/${o.hit.id}` : `/bereich/${o.group.id}/${o.hit.id}`;
+const hrefOf = (o: Option) =>
+  o.kind === "all" ? `/bereich/${o.group.id}${o.group.filter ? `?suche=${encodeURIComponent(o.group.filter)}` : ""}` : o.group.id === "kunden" ? `/kunden/${o.hit.id}` : `/bereich/${o.group.id}/${o.hit.id}`;
 
 /**
  * Suchfeld in der Kopfzeile (Strg+K): ein Begriff über alle Bereiche, die man lesen darf, und die Kunden.
@@ -96,7 +103,7 @@ export function GlobalSearch() {
     setOpen(false);
     setQ("");
     inputRef.current?.blur();
-    navigate(hrefOf(o, term), { viewTransition: true });
+    navigate(hrefOf(o), { viewTransition: true });
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
