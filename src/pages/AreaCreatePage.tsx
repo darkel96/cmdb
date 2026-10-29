@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Save, Trash2, Undo2 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -29,6 +29,9 @@ export function AreaCreatePage() {
   const [missing, setMissing] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showSecret, setShowSecret] = useState(false);
+  // Beim Bearbeiten: vorhandenes Passwort beim Speichern entfernen
+  const [clearSecret, setClearSecret] = useState(false);
 
   useEffect(() => {
     if (!area?.createFields) return;
@@ -45,7 +48,11 @@ export function AreaCreatePage() {
 
   if (!area?.createFields) return <NotFoundPage />;
   if (!can(area.id, editing ? "edit" : "create")) return <p className="text-sm text-muted-foreground">Dafür fehlt die Berechtigung.</p>;
-  const fields = area.createFields.map((key) => area.fields.find((f) => f.key === key)).filter((f): f is AreaField => Boolean(f));
+  // Passwortfeld (area.secret) steht nicht in fields, aber an seiner Stelle im Formular
+  const secret = area.secret;
+  const fields = area.createFields
+    .map((key) => area.fields.find((f) => f.key === key) ?? (secret?.key === key ? ({ key, column: secret.column, label: secret.label } as AreaField) : undefined))
+    .filter((f): f is AreaField => Boolean(f));
   const title = editing ? `Bearbeitung ${area.singular} ${itemId}` : (area.createTitle ?? `Anlage ${area.singular}`);
   const detail = `/bereich/${area.id}/${itemId}`;
 
@@ -63,7 +70,7 @@ export function AreaCreatePage() {
     try {
       const payload = Object.fromEntries(fields.map((f) => [f.key, values[f.key] ?? ""]));
       if (editing && original) {
-        const { changed } = await api.updateAreaRow(area.id, Number(itemId), payload, original);
+        const { changed } = await api.updateAreaRow(area.id, Number(itemId), payload, original, clearSecret);
         navigate(detail, { viewTransition: true, state: { saved: true, changed, back } });
       } else {
         const { id: newId } = await api.createAreaRow(area.id, payload);
@@ -129,7 +136,45 @@ export function AreaCreatePage() {
                   {f.formLabel ?? f.label}
                   {f.required && <span className="text-destructive"> *</span>}
                 </Label>
-                {f.options ? (
+                {f.key === secret?.key ? (
+                  <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      {...common}
+                      type={showSecret ? "text" : "password"}
+                      autoComplete="new-password"
+                      maxLength={255}
+                      className="pr-10 font-mono"
+                      disabled={clearSecret}
+                      placeholder={clearSecret ? "Wird beim Speichern entfernt" : editing ? "Leer lassen = unverändert" : ""}
+                      value={clearSecret ? "" : (values[f.key] ?? "")}
+                      onChange={(e) => set(f.key, e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowSecret((s) => !s)}
+                      aria-label={showSecret ? `${f.label} verbergen` : `${f.label} anzeigen`}
+                      className="absolute top-1/2 right-1 flex size-7 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      {showSecret ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+                    </button>
+                  </div>
+                  {editing && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setClearSecret((c) => !c);
+                        set(f.key, "");
+                      }}
+                      title={clearSecret ? "Doch nicht entfernen" : `${f.label} beim Speichern entfernen`}
+                    >
+                      {clearSecret ? <Undo2 aria-hidden /> : <Trash2 aria-hidden />}
+                      {clearSecret ? "Rückgängig" : "Entfernen"}
+                    </Button>
+                  )}
+                  </div>
+                ) : f.options ? (
                   <Combobox
                     id={`f-${f.key}`}
                     value={values[f.key] ?? ""}

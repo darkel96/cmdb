@@ -134,6 +134,11 @@ export async function createAreaRow(area: Area, values: Record<string, string>):
         request.input(`v${i}`, f.date ? sql.Date : sql.NVarChar(255), value === "" ? null : f.date ? new Date(`${value}T00:00:00Z`) : value);
         sets.push(`${quote(f.column)} = @v${i}`);
       }
+      const secret = area.secret && values[area.secret.key];
+      if (area.secret && secret) {
+        request.input("secret", sql.NVarChar(255), secret);
+        sets.push(`${quote(area.secret.column)} = @secret`);
+      }
       const update = await request.query(`UPDATE ${table} SET ${sets.join(", ")} WHERE ID = @id AND ${free}`);
       if (update.rowsAffected[0] !== 1) {
         await tx.rollback();
@@ -201,17 +206,24 @@ export async function updateAreaRow(area: Area, id: number, values: Record<strin
     if (changedMeanwhile.length)
       throw new DbError(`Der Eintrag wurde inzwischen geändert (${changedMeanwhile.map((f) => f.label).join(", ")}). Bitte neu laden und erneut bearbeiten.`, 409);
     const changed = area.fields.filter((f) => f.key in values && values[f.key] !== String(row[f.key] ?? ""));
-    if (changed.length) {
+    // Passwort: nur übergeben, wenn neu eingegeben oder entfernt ("" = entfernen); der alte Wert wird nicht gelesen
+    const secretGiven = Boolean(area.secret && area.secret.key in values);
+    const secret = area.secret ? values[area.secret.key] : undefined;
+    if (changed.length || secretGiven) {
       const request = new sql.Request(tx).input("id", sql.Int, id);
       const sets = changed.map((f, i) => {
         const value = values[f.key];
         request.input(`v${i}`, f.date ? sql.Date : sql.NVarChar(255), value === "" ? null : f.date ? new Date(`${value}T00:00:00Z`) : value);
         return `${quote(f.column)} = @v${i}`;
       });
+      if (area.secret && secretGiven) {
+        request.input("secret", sql.NVarChar(255), secret || null);
+        sets.push(`${quote(area.secret.column)} = @secret`);
+      }
       await request.query(`UPDATE ${table} SET ${sets.join(", ")} WHERE ID = @id`);
     }
     await tx.commit();
-    return changed.map((f) => f.label);
+    return [...changed.map((f) => f.label), ...(area.secret && secretGiven ? [area.secret.label] : [])];
   } catch (e) {
     await tx.rollback().catch(() => undefined);
     throw translate(e, `dbo.${area.table}`);
@@ -222,6 +234,20 @@ export async function getAreaRow(area: Area, id: number): Promise<AreaRow | null
   try {
     const result = await (await pool()).request().input("id", sql.Int, id).query(`SELECT ${areaSelect(area)} FROM dbo.${quote(area.table)} WHERE ID = @id`);
     return result.recordset[0] ? toAreaRow(area, result.recordset[0]) : null;
+  } catch (e) {
+    throw translate(e, `dbo.${area.table}`);
+  }
+}
+
+/** Passwort eines Eintrags (nur über den eigenen Endpunkt mit Recht Bearbeiten); null = Eintrag gibt es nicht */
+export async function getAreaSecret(area: Area, id: number): Promise<string | null> {
+  if (!area.secret) return null;
+  try {
+    const result = await (await pool())
+      .request()
+      .input("id", sql.Int, id)
+      .query<{ v: string | null }>(`SELECT ${quote(area.secret.column)} AS v FROM dbo.${quote(area.table)} WHERE ID = @id AND ${areaNotEmpty(area)}`);
+    return result.recordset[0] ? String(result.recordset[0].v ?? "") : null;
   } catch (e) {
     throw translate(e, `dbo.${area.table}`);
   }

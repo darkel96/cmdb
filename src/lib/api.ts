@@ -26,12 +26,15 @@ export interface Api {
   areaRow(areaId: string, id: number): Promise<AreaRow>;
   areaForm(areaId: string): Promise<AreaFormResponse>;
   createAreaRow(areaId: string, values: Record<string, string>): Promise<AreaCreateResponse>;
-  updateAreaRow(areaId: string, id: number, values: Record<string, string>, original: Record<string, string>): Promise<{ id: number; changed: string[] }>;
+  /** clearSecret: Passwort des Eintrags (area.secret) entfernen */
+  updateAreaRow(areaId: string, id: number, values: Record<string, string>, original: Record<string, string>, clearSecret?: boolean): Promise<{ id: number; changed: string[] }>;
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
   documentUrl(customerId: number, documentId: number): string | null;
   /** Dokument direkt am Kunden hochladen (wie GAPTEQ: dbo.Anhang, Typ „Angebot“) */
   uploadDocument(customerId: number, file: File): Promise<{ id: number }>;
+  /** Passwort eines Eintrags (z. B. Oracle RMAN), nur mit dem Recht Bearbeiten */
+  areaSecret(areaId: string, id: number): Promise<{ value: string }>;
   createCustomer(values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   updateCustomer(id: number, values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   deleteCustomer(id: number): Promise<void>;
@@ -99,11 +102,13 @@ const serverApi: Api = {
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
   areaForm: (areaId) => request<AreaFormResponse>(`/api/areas/${areaId}/form`),
   createAreaRow: (areaId, values) => request<AreaCreateResponse>(`/api/areas/${areaId}`, { method: "POST", body: JSON.stringify({ values }) }),
-  updateAreaRow: (areaId, id, values, original) => request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original }) }),
+  updateAreaRow: (areaId, id, values, original, clearSecret) =>
+    request<{ id: number; changed: string[] }>(`/api/areas/${areaId}/${id}`, { method: "PUT", body: JSON.stringify({ values, original, ...(clearSecret ? { clearSecret } : {}) }) }),
   customer: (id) => request<CustomerDetailResponse>(`/api/customers/${id}`),
   documentUrl: (customerId, documentId) => `/api/customers/${customerId}/documents/${documentId}`,
   uploadDocument: async (customerId, file) =>
     request<{ id: number }>(`/api/customers/${customerId}/documents`, { method: "POST", body: JSON.stringify({ name: file.name, data: await toBase64(file) }) }),
+  areaSecret: (areaId, id) => request<{ value: string }>(`/api/areas/${areaId}/${id}/secret`),
   createCustomer: (values) => request<CustomerSaveResponse>("/api/customers", { method: "POST", body: JSON.stringify({ values }) }),
   updateCustomer: (id, values) => request<CustomerSaveResponse>(`/api/customers/${id}`, { method: "PUT", body: JSON.stringify({ values }) }),
   // Leerer JSON-Inhalt, damit die Ursprungsprüfung des Dienstes greift
@@ -248,6 +253,10 @@ const browserTestApi: Api = {
     const id = 900_000 + [...browserDocuments.values()].flat().length + 1;
     browserDocuments.set(customerId, [...(browserDocuments.get(customerId) ?? []), { id, name: file.name }]);
     return { id };
+  },
+  areaSecret: async (_areaId, id) => {
+    requireAdmin();
+    return { value: `Test-${id}-Kennwort` };
   },
   createCustomer: async (values) => {
     requireAdmin();
