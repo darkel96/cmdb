@@ -175,7 +175,8 @@ function ReportCard({ report }: { report: Report }) {
       {error && <p role="alert" className="px-5 py-3 text-sm text-destructive">{error}</p>}
       {!rows && !error && <p className="px-5 py-3 text-sm text-muted-foreground">Wird geladen …</p>}
       {rows && (
-        <ul className="flex max-w-4xl flex-col gap-0.5 px-3 py-3" aria-label={`${report.unit} je ${field?.label ?? report.field}`}>
+        // Lange Listen (z. B. 29 Versionen) scrollen in der Karte, die Karte endet am Fensterrand
+        <ul className="scroll-thin flex max-h-[calc(100svh-17rem)] flex-col gap-0.5 px-3 py-3" aria-label={`${report.unit} je ${field?.label ?? report.field}`}>
           {groups.map((g) => {
             const share = total ? Math.round((g.count / total) * 100) : 0;
             return (
