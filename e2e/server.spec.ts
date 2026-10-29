@@ -40,7 +40,7 @@ test("Übersicht Server: Spalten wie in GAPTEQ, Öffnen der markierten Zeile", a
 test("Übersicht Server: Doppelklick öffnet, Datum sortiert chronologisch", async ({ page }) => {
   await openServers(page);
   const table = page.getByRole("region", { name: "Übersicht Server" });
-  await table.getByRole("button", { name: "Support bis" }).click();
+  await table.getByRole("button", { name: "Support bis", exact: true }).click();
   const dates = await table.locator("tbody tr td:nth-child(11)").allTextContents();
   const iso = dates.map((d) => { const [dd, mm, yy] = d.split("."); return `20${yy}-${mm}-${dd}`; });
   expect(iso).toEqual([...iso].sort());
