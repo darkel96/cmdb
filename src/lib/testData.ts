@@ -63,7 +63,7 @@ const VALUES: Record<string, string[]> = {
   notes: ["ESXi01", "ESXi02", "Backup", "Core Switch", "Access Switch", ""],
   supplier: ["Lieferant A", "Lieferant A", "Lieferant A", "Lieferant A", "Lieferant B"],
   manufacturer: ["Hersteller A", "Hersteller A", "Hersteller A", "Hersteller B"],
-  status: ["Aktiv", "Aktiv", "Aktiv", "Abgeschlossen"],
+  status: ["", "", "In Bearbeitung", "", "Angeboten", "Abgeschlossen"],
   raid: ["5", "5", "5", "1+0"],
   diskType: ["SSD", "SAS HDD", "SSD SAS"],
   diskCount: ["4", "5", "8", "13"],

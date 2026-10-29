@@ -13,6 +13,8 @@ export interface Column<T> {
   /** Feste Breite in Pixeln; Spalten ohne Breite teilen sich den Rest */
   width?: number;
   className?: string;
+  /** Eigene Darstellung der Zelle (z. B. Auswahl direkt in der Zeile); Suche, Filter und Export nutzen weiter value */
+  render?: (row: T) => ReactNode;
 }
 
 const PAGE_SIZES = [10, 20, 30, 100];
@@ -30,7 +32,7 @@ function csvCell(value: string): string {
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters, highlight, selectedActions }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
@@ -47,6 +49,10 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   defaultSort?: { key: string; desc: boolean };
   /** Anfangs-Filter je Spalte (z. B. aus einer Auflistung) */
   initialFilters?: Record<string, string>;
+  /** Zeile rot hervorheben, z. B. EOL = Ja bei den auslaufenden Systemen */
+  highlight?: (row: T) => boolean;
+  /** Bedienelemente für die markierte Zeile in der Werkzeugleiste, z. B. Status setzen */
+  selectedActions?: (row: T) => ReactNode;
 }) {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>(initialFilters ?? {});
@@ -98,6 +104,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           </Button>
         )}
         {actions}
+        {selectedRow && selectedActions?.(selectedRow)}
         <span className="flex-1" />
         <Button variant="outline" size="sm" onClick={exportCsv} title="Als CSV exportieren (Excel)" aria-label="Als CSV exportieren">
           <FileSpreadsheet aria-hidden />
@@ -107,7 +114,9 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Suchen …" aria-label="Suchen" className="h-8 pl-8" />
         </div>
       </div>
-      <div className={cn("scroll-thin", compact ? "max-h-[28rem]" : "min-h-0 flex-1")} data-testid="table-scroll">
+      {/* Kompakt (mehrere Tabellen auf einer Seite): kein eigenes senkrechtes Scrollen, sonst fängt die Tabelle das
+          Mausrad und die Seite scrollt nicht weiter. Blättern über die Seiten. Volle Höhe: nur die Zeilen scrollen. */}
+      <div className={cn(compact ? "scroll-thin-x" : "scroll-thin min-h-0 flex-1")} data-testid="table-scroll">
         {/* border-separate: Bei border-collapse bleiben die Linien im festgehaltenen Kopf nicht stehen, dann scheinen Zeilen durch */}
         <table className="w-full table-fixed border-separate border-spacing-0 text-sm" style={{ minWidth }}>
           <colgroup>
@@ -150,6 +159,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                 <tr
                   key={key}
                   aria-selected={isSelected}
+                  data-highlight={highlight?.(row) || undefined}
                   onClick={() => setSelected(isSelected ? null : key)}
                   onDoubleClick={() => {
                     setSelected(key);
@@ -157,13 +167,19 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                   }}
                   className={cn(
                     "cursor-pointer transition-colors duration-100",
-                    isSelected ? "bg-brand text-brand-foreground" : "odd:bg-muted hover:bg-accent",
+                    isSelected
+                      ? "bg-brand text-brand-foreground"
+                      : highlight?.(row)
+                        ? "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                        : "odd:bg-muted hover:bg-accent",
                   )}
                 >
                   {columns.map((c) => {
                     const text = c.value(row);
                     return (
-                      <td key={c.key} title={text} className={cn("truncate border-b px-3 py-1.5", c.className)}>{text}</td>
+                      <td key={c.key} title={text} className={cn("truncate border-b px-3 py-1.5", c.render && "py-1", c.className)}>
+                        {c.render ? c.render(row) : text}
+                      </td>
                     );
                   })}
                 </tr>

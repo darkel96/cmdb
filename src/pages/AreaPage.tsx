@@ -14,11 +14,11 @@ function errorText(e: unknown): string {
 }
 
 /** Spalten der Übersicht eines Bereichs; in der Kundenansicht ohne Firma (steht schon oben) */
-export function areaColumns(area: Area, options: { withoutCompany?: boolean } = {}): Column<AreaRow>[] {
+export function areaColumns(area: Area, options: { withoutCompany?: boolean; include?: string[] } = {}): Column<AreaRow>[] {
   return [
     { key: "id", label: "ID", value: (r) => String(r.id), width: 80, className: "tabular-nums" },
     ...area.fields
-      .filter((f) => !f.detailOnly && !(options.withoutCompany && f.key === "company"))
+      .filter((f) => (!f.detailOnly || options.include?.includes(f.key)) && !(options.withoutCompany && f.key === "company"))
       .map((f): Column<AreaRow> => ({
         key: f.key,
         label: f.label,

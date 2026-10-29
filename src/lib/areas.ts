@@ -119,6 +119,9 @@ const f = {
   status: { key: "status", column: "Status", label: "Status", detailOnly: true },
 } satisfies Record<string, AreaField>;
 
+/** Status bei auslaufenden Systemen, Auswahl wie in GAPTEQ (Spalte „Status“ der Bereichstabellen) */
+export const SYSTEM_STATUS = ["Angeboten", "In Bearbeitung", "Verlängert", "Abgeschlossen"];
+
 export const AREAS: Record<string, Area> = {
   server: {
     id: "server",
