@@ -12,6 +12,7 @@ test("Stammdaten: Wert hinzufügen, umbenennen, löschen; Formular nutzt die neu
   const value = `Lieferant ${testInfo.project.name}`;
   await login(page, "admin");
   await page.goto("/stammdaten");
+  await page.getByRole("navigation", { name: "Auswahllisten" }).getByRole("button", { name: /^Lieferant/ }).click();
   const card = page.getByRole("region", { name: "Lieferant", exact: true });
   await expect(card.getByRole("list", { name: "Werte Lieferant" })).toContainText("Lieferant A");
 

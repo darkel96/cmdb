@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import type { StammdatenResponse } from "@/lib/stammdaten";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
 
 type List = StammdatenResponse["lists"][number];
 
-/** Eine Auswahlliste als Karte: Suchen, Hinzufügen (+), Bearbeiten (Stift), Löschen (Papierkorb mit Rückfrage) */
-function LookupCard({ list, index, onChange }: { list: List; index: number; onChange: (action: "add" | "rename" | "delete", value: string, old?: string) => Promise<void> }) {
+/** Die gewählte Auswahlliste: Suchen, Hinzufügen, Bearbeiten (Stift), Löschen (Papierkorb mit Rückfrage) */
+function LookupPanel({ list, onChange }: { list: List; onChange: (action: "add" | "rename" | "delete", value: string, old?: string) => Promise<void> }) {
   const { can } = useAuth();
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
@@ -59,25 +60,29 @@ function LookupCard({ list, index, onChange }: { list: List; index: number; onCh
   );
 
   return (
-    <section className="animate-appear flex flex-col overflow-hidden rounded-lg border bg-card shadow-xs" style={{ "--i": index } as React.CSSProperties} aria-label={list.label}>
-      <h2 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">{list.label}</h2>
-      <div className="flex items-center gap-2 border-b px-3 py-2">
-        <div className="relative flex-1">
+    <section className="animate-appear flex min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={list.label}>
+      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+        <div className="mr-auto">
+          <h2 className="font-semibold">{list.label}</h2>
+          <p className="text-xs text-muted-foreground">{list.values.length} Werte</p>
+        </div>
+        <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Suchen …" aria-label={`${list.label} durchsuchen`} className="h-8 pl-8" />
         </div>
         {can("stammdaten", "create") && (
-          <Button type="button" variant="outline" size="sm" aria-label={`${list.label}: Wert hinzufügen`} onClick={() => { setAdding(true); setDraft(""); setEditing(null); }}>
+          <Button type="button" size="sm" aria-label={`${list.label}: Wert hinzufügen`} onClick={() => { setAdding(true); setDraft(""); setEditing(null); }}>
             <Plus aria-hidden />
+            Wert hinzufügen
           </Button>
         )}
       </div>
       {list.error && <p className="px-4 py-3 text-sm text-destructive">{list.error}</p>}
       {error && <p role="alert" className="px-4 pt-2 text-sm text-destructive">{error}</p>}
-      <ul className="scroll-thin max-h-64 py-1 text-sm" aria-label={`Werte ${list.label}`}>
-        {adding && <li className="flex items-center gap-2 px-3 py-1">{editor(() => void run("add", draft), () => setAdding(false))}</li>}
+      <ul className="scroll-thin max-h-[calc(100svh-17rem)] min-h-40 py-1 text-sm" aria-label={`Werte ${list.label}`}>
+        {adding && <li className="flex items-center gap-2 px-4 py-1">{editor(() => void run("add", draft), () => setAdding(false))}</li>}
         {visible.map((v) => (
-          <li key={v} className="group flex min-h-8 items-center gap-2 px-3 py-0.5 odd:bg-muted/40 hover:bg-accent">
+          <li key={v} className="group flex min-h-9 items-center gap-2 border-b border-border/50 px-4 py-0.5 last:border-b-0 hover:bg-accent">
             {editing === v ? (
               editor(() => void run("rename", draft, v), () => setEditing(null))
             ) : confirm === v ? (
@@ -92,12 +97,12 @@ function LookupCard({ list, index, onChange }: { list: List; index: number; onCh
               <>
                 <span className="flex-1 truncate" title={v}>{v}</span>
                 {can("stammdaten", "edit") && (
-                  <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5" aria-label={`${v} bearbeiten`} onClick={() => { setEditing(v); setDraft(v); setAdding(false); }}>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100" aria-label={`${v} bearbeiten`} onClick={() => { setEditing(v); setDraft(v); setAdding(false); }}>
                     <Pencil aria-hidden />
                   </Button>
                 )}
                 {can("stammdaten", "delete") && (
-                  <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 text-destructive hover:text-destructive" aria-label={`${v} löschen`} onClick={() => setConfirm(v)}>
+                  <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 text-destructive opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive" aria-label={`${v} löschen`} onClick={() => setConfirm(v)}>
                     <Trash2 aria-hidden />
                   </Button>
                 )}
@@ -105,31 +110,50 @@ function LookupCard({ list, index, onChange }: { list: List; index: number; onCh
             )}
           </li>
         ))}
-        {visible.length === 0 && !adding && <li className="px-3 py-2 text-muted-foreground">Keine Werte.</li>}
+        {visible.length === 0 && !adding && <li className="px-4 py-3 text-muted-foreground">{search.trim() ? "Nichts gefunden." : "Keine Werte."}</li>}
       </ul>
-      <p className="mt-auto border-t px-3 py-1.5 text-xs text-muted-foreground">{list.values.length} Werte</p>
     </section>
   );
 }
 
-/** Stammdaten: Auswahllisten der Formulare pflegen (wie GAPTEQ › Stammdaten) */
+/** Stammdaten: links die Auswahllisten, rechts die gewählte zum Pflegen (wie GAPTEQ › Stammdaten, aufgeräumter) */
 export function StammdatenPage() {
   const [data, setData] = useState<StammdatenResponse | null>(null);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState("");
   useEffect(() => {
     api.stammdaten().then(setData, (e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
   if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
   if (!data) return <p className="text-sm text-muted-foreground">Wird geladen …</p>;
+  const list = data.lists.find((l) => l.id === selected) ?? data.lists[0];
   return (
     <div className="flex w-full flex-col gap-3">
-      <div>
-        <p className="text-sm text-muted-foreground">Auswahllisten der Formulare. Ändern oder Löschen eines Werts ändert keine bestehenden Einträge, wie in GAPTEQ.</p>
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-        {data.lists.map((list, i) => (
-          <LookupCard key={list.id} list={list} index={i} onChange={async (action, value, old) => setData(await api.changeLookup(list.id, action, value, old))} />
-        ))}
+      <p className="text-sm text-muted-foreground">Auswahllisten der Formulare. Ändern oder Löschen eines Werts ändert keine bestehenden Einträge, wie in GAPTEQ.</p>
+      <div className="grid items-start gap-4 md:grid-cols-[15rem_1fr]">
+        <nav aria-label="Auswahllisten" className="animate-appear overflow-hidden rounded-lg border bg-card p-1 shadow-xs">
+          <ul className="flex flex-col gap-0.5">
+            {data.lists.map((l) => (
+              <li key={l.id}>
+                <button
+                  type="button"
+                  aria-current={l.id === list.id ? "true" : undefined}
+                  onClick={() => setSelected(l.id)}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors duration-100",
+                    l.id === list.id ? "bg-brand text-brand-foreground" : "hover:bg-accent",
+                  )}
+                >
+                  <span className="truncate">{l.label}</span>
+                  <span className={cn("rounded px-1.5 text-xs tabular-nums", l.id === list.id ? "bg-white/20" : "bg-muted text-muted-foreground")}>
+                    {l.error ? "!" : l.values.length}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <LookupPanel key={list.id} list={list} onChange={async (action, value, old) => setData(await api.changeLookup(list.id, action, value, old))} />
       </div>
     </div>
   );
