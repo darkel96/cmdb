@@ -77,8 +77,10 @@ export function AdminPage() {
   const tabs = visibleAdminTabs(user?.role === "admin", can);
   if (!tabs.length) return <Navigate to="/" replace />;
   const tab = tabs.find((t) => t.id === params.get("tab"))?.id ?? tabs[0].id;
+  // Anmeldungen ist eine große Tabelle: wie die Bereiche auf Fensterhöhe, nur die Zeilen scrollen, unten blättern
+  const fill = tab === "anmeldungen";
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className={cn("flex w-full flex-col gap-4", fill && "min-h-0 flex-1")}>
       <h1 className="text-2xl font-semibold">Verwaltung</h1>
       <div role="tablist" aria-label="Verwaltung" className="flex gap-1 border-b">
         {tabs.map((t) => (
