@@ -1,6 +1,6 @@
 /** API des CMDB-Dienstes unter /api */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { AREAS, SYSTEM_STATUS, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
+import { AREAS, SYSTEM_STATUS, firstFreeId, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
 import type { CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
@@ -212,7 +212,7 @@ function testForm(area: Area): AreaFormResponse {
     const list = typeof f.options === "object" ? LOOKUP_LISTS.find((l) => l.table === (f.options as { table: string }).table) : undefined;
     options[f.key] = f.options === "customers" ? testCustomers.map((c) => c.name) : list ? [...(testLookups.get(list.id) ?? [])] : (TEST_OPTIONS[f.key] ?? []);
   }
-  return { nextId: Math.max(...areaRows(area).map((r) => r.id)) + 1, options };
+  return { nextId: firstFreeId(area, areaRows(area).map((r) => r.id)), options };
 }
 
 /**
