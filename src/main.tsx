@@ -11,6 +11,7 @@ import { SectionPage } from "@/pages/SectionPage";
 import { AreaDetailPage } from "@/pages/AreaPage";
 import { AreaCreatePage } from "@/pages/AreaCreatePage";
 import { CustomerPage } from "@/pages/CustomerPage";
+import { CustomerSheetPage } from "@/pages/CustomerSheetPage";
 import { CustomerFormPage } from "@/pages/CustomerFormPage";
 import { ReportPage } from "@/pages/ReportsPage";
 import { ExpiringPage } from "@/pages/ExpiringPage";
@@ -34,6 +35,7 @@ const router = createRouter([
       { path: "/bereich/:id/:itemId/bearbeiten", element: <AreaCreatePage /> },
       { path: "/kunden/neu", element: <CustomerFormPage /> },
       { path: "/kunden/:customerId", element: <CustomerPage /> },
+      { path: "/kunden/:customerId/datenblatt", element: <CustomerSheetPage /> },
       { path: "/kunden/:customerId/bearbeiten", element: <CustomerFormPage /> },
       // Frühere Adressen, jetzt Reiter der Verwaltung
       { path: "/stammdaten", element: <Navigate to="/verwaltung?tab=stammdaten" replace /> },

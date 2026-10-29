@@ -220,6 +220,7 @@ function areaRows(area: Area): AreaRow[] {
   const byId = new Map([...testRows(area), ...(testCreated.get(area.id) ?? [])].map((r) => [r.id, r]));
   return [...byId.values()]
     .filter((r) => !testDeleted.has(`${area.id}:${r.id}`))
+    .map((r) => (area.secret ? { ...r, secretSet: (testSecrets.get(`${area.id}:${r.id}`) ?? "x") ? 1 : 0 } : r))
     .map((r) => testEdits.get(`${area.id}:${r.id}`) ?? r)
     .map((r) => (typeof r.company === "string" ? { ...r, company: renamedCompany(r.company) } : r));
 }

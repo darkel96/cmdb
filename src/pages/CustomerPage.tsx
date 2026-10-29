@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, CheckCircle2, Download, FileText, Pencil, Upload } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, FileDown, FileText, Pencil, Upload } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { useAuth } from "@/state/auth";
 import { DataTable } from "@/components/DataTable";
@@ -66,6 +66,13 @@ export function CustomerPage() {
           <Link to="/" viewTransition>
             <ArrowLeft aria-hidden />
             Zur Kundenübersicht
+          </Link>
+        </Button>
+        <span className="flex-1" />
+        <Button variant="outline" size="sm" asChild>
+          <Link to={`/kunden/${customerId}/datenblatt`} viewTransition>
+            <FileDown aria-hidden />
+            Datenblatt (PDF)
           </Link>
         </Button>
         {(can("kunden", "edit") || can("kunden", "delete")) && (

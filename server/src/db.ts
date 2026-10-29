@@ -96,7 +96,9 @@ function objectOf(area: Area): string {
 }
 
 function areaSelect(area: Area): string {
-  return ["ID", ...area.fields.map((f) => `${quote(f.column)} AS ${quote(f.key)}`)].join(", ");
+  // Passwortspalte: nur ob etwas hinterlegt ist (1/0), nie der Wert
+  const secret = area.secret ? [`CASE WHEN NULLIF(LTRIM(RTRIM(${quote(area.secret.column)})), '') IS NULL THEN 0 ELSE 1 END AS [secretSet]`] : [];
+  return ["ID", ...area.fields.map((f) => `${quote(f.column)} AS ${quote(f.key)}`), ...secret].join(", ");
 }
 
 // Vorab angelegte Leerzeilen gehören nicht zum Bestand. Sie sind nicht ganz leer (z. B. EOL ist vorbelegt),
@@ -118,6 +120,7 @@ function toAreaRow(area: Area, r: Record<string, unknown>): AreaRow {
     // date → Date um Mitternacht UTC → JJJJ-MM-TT
     row[f.key] = v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? "").trim();
   }
+  if (area.secret) row.secretSet = Number(r.secretSet) ? 1 : 0;
   return row;
 }
 
