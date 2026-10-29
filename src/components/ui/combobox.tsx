@@ -17,6 +17,8 @@ export function Combobox({
   invalid = false,
   disabled = false,
   required = false,
+  className,
+  label,
 }: {
   id?: string;
   value: string;
@@ -28,6 +30,10 @@ export function Combobox({
   invalid?: boolean;
   disabled?: boolean;
   required?: boolean;
+  /** Zusätzliche Klassen für das Feld, z. B. niedriger in Tabellenzeilen */
+  className?: string;
+  /** Beschriftung für Screenreader, wenn kein sichtbares Label daneben steht */
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -83,11 +89,13 @@ export function Combobox({
           aria-haspopup="listbox"
           aria-invalid={invalid || undefined}
           aria-required={required || undefined}
+          aria-label={label}
           data-slot="combobox"
           className={cn(
             "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-1 text-left text-base shadow-xs outline-none transition-[color,box-shadow,border-color] hover:border-ring focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50 md:text-sm",
             invalid && "border-destructive",
             open && "border-ring ring-[3px] ring-ring/50",
+            className,
           )}
         >
           <span className={cn("truncate", !value && "text-muted-foreground")}>{value || placeholder}</span>

@@ -13,6 +13,8 @@ export interface Column<T> {
   /** Feste Breite in Pixeln; Spalten ohne Breite teilen sich den Rest */
   width?: number;
   className?: string;
+  /** Eigene Darstellung der Zelle (z. B. Auswahl direkt in der Zeile); Suche, Filter und Export nutzen weiter value */
+  render?: (row: T) => ReactNode;
 }
 
 const PAGE_SIZES = [10, 20, 30, 100];
@@ -112,7 +114,9 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Suchen …" aria-label="Suchen" className="h-8 pl-8" />
         </div>
       </div>
-      <div className={cn("scroll-thin", compact ? "max-h-[28rem]" : "min-h-0 flex-1")} data-testid="table-scroll">
+      {/* Kompakt (mehrere Tabellen auf einer Seite): kein eigenes senkrechtes Scrollen, sonst fängt die Tabelle das
+          Mausrad und die Seite scrollt nicht weiter. Blättern über die Seiten. Volle Höhe: nur die Zeilen scrollen. */}
+      <div className={cn(compact ? "scroll-thin-x" : "scroll-thin min-h-0 flex-1")} data-testid="table-scroll">
         {/* border-separate: Bei border-collapse bleiben die Linien im festgehaltenen Kopf nicht stehen, dann scheinen Zeilen durch */}
         <table className="w-full table-fixed border-separate border-spacing-0 text-sm" style={{ minWidth }}>
           <colgroup>
@@ -173,7 +177,9 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                   {columns.map((c) => {
                     const text = c.value(row);
                     return (
-                      <td key={c.key} title={text} className={cn("truncate border-b px-3 py-1.5", c.className)}>{text}</td>
+                      <td key={c.key} title={text} className={cn("truncate border-b px-3 py-1.5", c.render && "py-1", c.className)}>
+                        {c.render ? c.render(row) : text}
+                      </td>
                     );
                   })}
                 </tr>

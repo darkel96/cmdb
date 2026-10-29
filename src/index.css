@@ -105,6 +105,14 @@
 }
 
 /* Scrollbereiche innerhalb der Seite (Inhalt, Seitenleiste, Tabellen) */
+/* Nur waagrecht scrollen (breite Tabellen); senkrecht scrollt die Seite weiter */
+@utility scroll-thin-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, currentColor 25%, transparent) transparent;
+}
+
 @utility scroll-thin {
   overflow: auto;
   overscroll-behavior: contain;
