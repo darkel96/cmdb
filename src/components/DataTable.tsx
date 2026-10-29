@@ -95,7 +95,7 @@ function csvCell(value: string): string {
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters, highlight, selectedActions, storageKey, viewKey }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters, initialSearch, highlight, selectedActions, storageKey, viewKey }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
@@ -110,6 +110,8 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   compact?: boolean;
   /** Anfangs-Sortierung, sonst erste Spalte aufsteigend */
   defaultSort?: { key: string; desc: boolean };
+  /** Anfangs-Suche (z. B. „alle anzeigen“ aus der globalen Suche) */
+  initialSearch?: string;
   /** Anfangs-Filter je Spalte (z. B. aus einer Auflistung) */
   initialFilters?: Record<string, string>;
   /** Zeile rot hervorheben, z. B. EOL = Ja bei den auslaufenden Systemen */
@@ -123,7 +125,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
 }) {
   // Gemerkte Ansicht nur beim ersten Anzeigen lesen
   const [view] = useState(() => readView<TableView>(viewKey));
-  const [search, setSearch] = useState(view.search ?? "");
+  const [search, setSearch] = useState(view.search ?? initialSearch ?? "");
   const [filters, setFilters] = useState<Record<string, string>>(view.filters ?? initialFilters ?? {});
   const [sort, setSort] = useState<{ key: string; desc: boolean }>(view.sort ?? defaultSort ?? { key: columns[0].key, desc: false });
   const sizes = compact ? COMPACT_PAGE_SIZES : PAGE_SIZES;
