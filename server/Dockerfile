@@ -11,7 +11,7 @@ RUN npm run build && npm run build:server
 FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-# Zur Laufzeit braucht der Dienst nur ldapts und mssql (alles andere ist gebündelt)
+# Zur Laufzeit braucht der Dienst nur ldapts, mssql und nodemailer (alles andere ist gebündelt)
 RUN npm ci --omit=dev --no-audit --no-fund
 
 FROM node:24-alpine
@@ -22,6 +22,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/server/dist ./server/dist
 COPY --from=build /app/dist ./dist
 COPY server/healthcheck.mjs ./server/healthcheck.mjs
+# Daten des Dienstes (Einstellungen aus der Verwaltung) auf eigenem Volume, beschreibbar nur für node
+RUN mkdir -p /app/data && chown node:node /app/data && chmod 700 /app/data
 EXPOSE 8790
 USER node
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD ["node", "server/healthcheck.mjs"]

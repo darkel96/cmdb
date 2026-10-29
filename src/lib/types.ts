@@ -37,6 +37,7 @@ export interface HealthResponse {
   details?: {
     ldap: CheckResult;
     db: CheckResult;
+    smtp: CheckResult;
     uptimeSeconds: number;
   };
 }

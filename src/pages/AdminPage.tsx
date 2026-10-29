@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, RefreshCw, XCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
-import type { CheckResult, HealthResponse } from "@/lib/types";
+import type { HealthResponse } from "@/lib/types";
+import { SETTINGS_SECTIONS, type SettingsResponse } from "@/lib/settings";
 import { Navigate, useSearchParams } from "react-router";
 import { visibleAdminTabs } from "@/lib/adminTabs";
 import { useAuth } from "@/state/auth";
@@ -13,39 +12,21 @@ import { StammdatenPage } from "./StammdatenPage";
 import { cn } from "@/lib/utils";
 import { LoginsTab } from "./admin/LoginsTab";
 import { RolesTab } from "./admin/RolesTab";
+import { SettingsCard } from "./admin/SettingsCard";
 
-function StatusCard({ title, testId, result, index }: { title: string; testId: string; result: CheckResult; index: number }) {
-  return (
-    <Card data-testid={testId} className="animate-appear" style={{ "--i": index } as React.CSSProperties}>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle>{title}</CardTitle>
-          <Badge variant={result.ok ? "success" : "destructive"}>
-            {result.ok ? <CheckCircle2 className="size-3.5" aria-hidden /> : <XCircle className="size-3.5" aria-hidden />}
-            {result.ok ? "Verbunden" : "Fehler"}
-          </Badge>
-        </div>
-        <CardDescription className="break-all font-mono text-xs">{result.target}</CardDescription>
-      </CardHeader>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-        {result.detail && (<><dt className="text-muted-foreground">Details</dt><dd className="break-words">{result.detail}</dd></>)}
-        {result.error && (<><dt className="text-muted-foreground">Fehler</dt><dd className="break-words text-destructive">{result.error}</dd></>)}
-        {result.latencyMs !== undefined && (<><dt className="text-muted-foreground">Dauer</dt><dd className="tabular-nums">{result.latencyMs} ms</dd></>)}
-      </dl>
-    </Card>
-  );
-}
-
-/** Reiter Status: Zustand von LDAP und Datenbank */
+/** Reiter Status: Zustand von LDAP, Datenbank und SMTP; jede Anbindung lässt sich bearbeiten */
 function StatusTab() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
+  const [current, setCurrent] = useState<SettingsResponse | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
     setBusy(true);
     setError("");
-    api.health().then(setHealth, (e: unknown) => setError(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false));
+    const fail = (e: unknown) => setError(e instanceof Error ? e.message : String(e));
+    api.settings().then(setCurrent, fail);
+    api.health().then(setHealth, fail).finally(() => setBusy(false));
   }, []);
 
   useEffect(load, [load]);
@@ -53,20 +34,35 @@ function StatusTab() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <p className="text-sm text-muted-foreground">Status der Anbindungen{health ? ` · Version ${health.version}` : ""}</p>
+        <p className="text-sm text-muted-foreground">
+          Status der Anbindungen{health ? ` · Version ${health.version}` : ""}
+          {current?.changedBy ? ` · zuletzt geändert von ${current.changedBy}${current.changedAt ? ` am ${new Date(current.changedAt).toLocaleString("de-DE")}` : ""}` : ""}
+        </p>
         <Button variant="outline" size="sm" onClick={load} disabled={busy}>
           <RefreshCw className={busy ? "animate-spin" : undefined} aria-hidden />
           Neu prüfen
         </Button>
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-      {health?.details && (
-        <div className="grid gap-4 md:grid-cols-2">
-          <StatusCard title="LDAP (Active Directory)" testId="status-ldap" result={health.details.ldap} index={0} />
-          <StatusCard title="Datenbank (SQL Server)" testId="status-db" result={health.details.db} index={1} />
-        </div>
-      )}
-      {health && !health.details && !busy && <p className="text-sm text-muted-foreground">Keine Details verfügbar.</p>}
+      <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        {SETTINGS_SECTIONS.map((section, i) => (
+          <SettingsCard
+            key={section.id}
+            section={section}
+            view={current?.sections[section.id]}
+            status={health?.details?.[section.id]}
+            index={i}
+            onSaved={(next) => {
+              setCurrent(next);
+              api.health().then(setHealth, () => undefined);
+            }}
+          />
+        ))}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Geänderte Werte liegen in einer eigenen Datei des Dienstes, Passwörter verschlüsselt; ohne Änderung gelten die Werte
+        aus der .env. Zertifikate (CA) bleiben in der .env.
+      </p>
     </div>
   );
 }

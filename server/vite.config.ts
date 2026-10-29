@@ -18,5 +18,5 @@ export default defineConfig({
     rollupOptions: { output: { entryFileNames: "index.mjs", format: "es" } },
   },
   // ldapts und mssql bleiben externe Pakete (im Container unter node_modules), alles andere wird gebündelt
-  ssr: { target: "node", external: ["ldapts", "mssql"] },
+  ssr: { target: "node", external: ["ldapts", "mssql", "nodemailer"] },
 });
