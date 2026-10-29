@@ -64,8 +64,10 @@ test("admin legt über Anlage Vertrag einen Server an", async ({ page }) => {
 
   await expect(page.locator("main").getByRole("status")).toHaveText(`Server ${nextId} wurde angelegt.`);
   await expect(page.getByRole("heading", { name: new RegExp(`^Server ${nextId}`) })).toBeVisible();
-  await expect(page.getByText("Rack Test 1U")).toBeVisible();
-  await expect(page.getByText("31.12.2030")).toBeVisible();
+  // Nur im Datenbereich suchen (der Änderungsverlauf zeigt die Werte noch einmal)
+  const detail = page.getByRole("region", { name: `Server ${nextId}` });
+  await expect(detail.getByText("Rack Test 1U")).toBeVisible();
+  await expect(detail.getByText("31.12.2030")).toBeVisible();
 });
 
 test("API prüft Pflichtfelder und Auswahllisten", async ({ page }) => {
@@ -100,7 +102,7 @@ test("Anlage Switch: Felder wie in GAPTEQ, LWL-Typ als Freitext", async ({ page 
   await page.getByLabel("LWL-Typ").fill("Multimode SR");
   await page.getByRole("button", { name: "Speichern" }).click();
   await expect(page.locator("main").getByRole("status")).toHaveText(/^Switch \d+ wurde angelegt\.$/);
-  await expect(page.getByText("Multimode SR")).toBeVisible();
+  await expect(page.getByRole("region", { name: /^Switch \d+$/ }).getByText("Multimode SR")).toBeVisible();
 });
 
 test("MDE: Übersicht mit Typ, Anlage mit Lieferant und Hersteller als Freitext", async ({ page }) => {
