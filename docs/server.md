@@ -297,7 +297,7 @@ Admins ändern unter **Verwaltung › Status** die Anbindungen, ohne die `.env` 
 
 Für Tests von Rechten mit dem eigenen AD-Konto (oder als Notzugang ohne AD) gibt es ein lokales Admin-Konto. In
 `server/.env` stehen nur `CMDB_LOCAL_ADMIN_USER` und der scrypt-Hash `CMDB_LOCAL_ADMIN_HASH`, nie das Passwort. Setzen
-bzw. ändern (Passwort wird verdeckt abgefragt, mindestens 12 Zeichen):
+bzw. ändern (Passwort wird verdeckt abgefragt, mindestens 10 Zeichen):
 
 ```bash
 docker run --rm -it -v /root/cmdb/server:/s node:24-bookworm-slim node /s/tools/lokaler-admin.mjs admin

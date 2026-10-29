@@ -35,8 +35,8 @@ function ask(prompt) {
 }
 
 const password = await ask(`Neues Passwort für „${user}“: `);
-if (password.length < 12) {
-  console.error("Mindestens 12 Zeichen.");
+if (password.length < 10) {
+  console.error("Mindestens 10 Zeichen.");
   process.exit(1);
 }
 if ((await ask("Noch einmal: ")) !== password) {
