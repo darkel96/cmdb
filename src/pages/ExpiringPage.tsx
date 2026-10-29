@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { AREAS, SYSTEM_STATUS, type Area, type AreaRow } from "@/lib/areas";
 import { cn } from "@/lib/utils";
+import { deDate, EXPIRING_MONTHS, expiringWindow, inExpiringWindow } from "@/lib/expiring";
 import { useAuth } from "@/state/auth";
 
 /** Bereiche in der Reihenfolge wie in GAPTEQ („Auslaufende Kundensysteme“) */
@@ -15,20 +16,6 @@ export const EXPIRING_AREAS = ["server", "switche", "storage", "vmware", "tsplus
 /** Status, mit denen ein System erledigt ist und ins Archiv wandert */
 export const ARCHIVE_STATUS = ["Verlängert", "Abgeschlossen"];
 
-/**
- * Wie GAPTEQ: Support bis ist gesetzt und liegt spätestens im dritten Monat ab jetzt (im Oktober also bis 31. Januar),
- * abgelaufene eingeschlossen. Einträge ohne Datum zählen nicht.
- */
-export function expiringBefore(now = new Date()): string {
-  const d = new Date(now.getFullYear(), now.getMonth() + 4, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-const lastDay = (iso: string) => {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(0);
-  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
-};
 const shortDate = (iso: string) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(2, 4)}` : "");
 
 const areaName = (a: Area) => a.plural ?? a.title.replace(/^Übersicht /, "");
@@ -105,17 +92,18 @@ export function ExpiringPage() {
   const [customer, setCustomer] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const cutoff = expiringBefore();
+  // Regel: 9 Monate vor bis 9 Monate nach dem Support-Ende (src/lib/expiring.ts)
+  const window = useMemo(() => expiringWindow(), []);
   const wide = useWide();
 
   useEffect(() => {
     for (const area of areas) {
       api.area(area.id).then(
-        (d) => setResults((r) => ({ ...r, [area.id]: { rows: d.items.filter((row) => row.supportUntil && String(row.supportUntil) < cutoff) } })),
+        (d) => setResults((r) => ({ ...r, [area.id]: { rows: d.items.filter((row) => inExpiringWindow(String(row.supportUntil ?? ""), window)) } })),
         (e: unknown) => setResults((r) => ({ ...r, [area.id]: { error: e instanceof Error ? e.message : String(e) } })),
       );
     }
-  }, [areas, cutoff]);
+  }, [areas, window]);
 
   const loading = areas.some((a) => !results[a.id]);
   const errors = areas.flatMap((a) => {
@@ -196,7 +184,7 @@ export function ExpiringPage() {
         <div>
           <h1 className="text-2xl font-semibold">Auslaufende Kundensysteme</h1>
           <p className="text-sm text-muted-foreground">
-            Support bis spätestens {lastDay(cutoff)} oder abgelaufen · rot: EOL = Ja · Verlängert und Abgeschlossen stehen im Archiv
+            Support-Ende zwischen {deDate(window.from)} und {deDate(window.to)} ({EXPIRING_MONTHS} Monate vor bis {EXPIRING_MONTHS} Monate nach) · rot: EOL = Ja · Verlängert und Abgeschlossen stehen im Archiv
           </p>
         </div>
         <div role="tablist" aria-label="Ansicht" className="inline-flex rounded-lg bg-muted p-1">

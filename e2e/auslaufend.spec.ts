@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expiringWindow } from "../src/lib/expiring";
 
 async function login(page: Page, username: "admin" | "user" = "admin") {
   await page.goto("/login");
@@ -23,7 +24,7 @@ const rowOf = (page: Page, area: string, id: string) =>
     .filter({ has: page.locator("td:nth-child(1)", { hasText: new RegExp(`^${area}$`) }) })
     .filter({ has: page.locator("td:nth-child(2)", { hasText: new RegExp(`^${id}$`) }) });
 
-test("Auslaufende Kundensysteme: eine Tabelle, nur Support bis Ende des dritten Monats, EOL rot, Kunde filtert", async ({ page }) => {
+test("Auslaufende Kundensysteme: eine Tabelle, nur Support-Ende 9 Monate vor bis 9 Monate nach heute, EOL rot, Kunde filtert", async ({ page }) => {
   await login(page);
   await open(page);
   const t = table(page);
@@ -31,17 +32,16 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support bis Ende des dritten 
   await t.getByRole("button", { name: /^(20|100)$/ }).last().click();
   const header = (await t.locator("thead tr").first().locator("th").allTextContents()).map((h) => h.trim());
   const col = (name: string) => header.findIndex((h) => h.startsWith(name));
-  const cutoff = (() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth() + 4, 1).getTime();
-  })();
+  // Regel: Support-Ende 9 Monate vor bis 9 Monate nach heute (src/lib/expiring.ts)
+  const { from, to } = expiringWindow();
   const rows = t.locator("tbody tr");
   const n = await rows.count();
   expect(n).toBeGreaterThan(5);
   for (let i = 0; i < n; i++) {
     const cells = rows.nth(i).locator("td");
     const [d, m, y] = (await cells.nth(col("Support bis")).textContent())!.split(".").map(Number);
-    expect(new Date(2000 + y, m - 1, d).getTime()).toBeLessThan(cutoff);
+    const iso = `${2000 + y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    expect(iso >= from && iso <= to, `${iso} liegt zwischen ${from} und ${to}`).toBe(true);
     expect(["Verlängert", "Abgeschlossen"]).not.toContain((await cells.nth(col("Status")).textContent())?.trim());
     if ((await cells.nth(col("EOL")).textContent())?.trim() === "Ja") await expect(rows.nth(i)).toHaveAttribute("data-highlight", "true");
     else await expect(rows.nth(i)).not.toHaveAttribute("data-highlight");
