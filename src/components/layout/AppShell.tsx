@@ -6,6 +6,7 @@ import { visibleAdminTabs } from "@/lib/adminTabs";
 import { NAV_GROUPS, NAV_LISTS, type NavGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
+import { BrandLogo } from "@/components/Branding";
 import { TestBanner } from "./TestBanner";
 
 const ROLE_LABEL = { admin: "Admin", user: "Benutzer" } as const;
@@ -140,7 +141,7 @@ export function AppShell() {
           {collapsed ? <PanelLeftOpen className="size-5" aria-hidden /> : <PanelLeftClose className="size-5" aria-hidden />}
         </button>
         <div className="flex items-center gap-2 px-2 text-lg font-semibold">
-          <Database className="size-5" aria-hidden />
+          <BrandLogo variant="weiss" className="h-7 w-auto" fallback={<Database className="size-5" aria-hidden />} />
           CMDB
         </div>
         <div className="ml-auto flex items-center gap-1.5">

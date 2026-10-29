@@ -70,6 +70,9 @@ export const ENV = {
   loginMaxFailures: Number(env.CMDB_LOGIN_MAX_FAILURES) || 5,
   loginLockMinutes: Number(env.CMDB_LOGIN_LOCK_MINUTES) || 15,
 
+  /** Firmenlogo, Anmeldebild, Favicon (lokal, nicht im Repository); leer = neutrale Darstellung */
+  brandingDir: str(env.CMDB_BRANDING_DIR),
+
   /** Verzeichnis für Daten des Dienstes (Einstellungen aus der Verwaltung); im Container ein eigenes Volume */
   dataDir: str(env.CMDB_DATA_DIR, "/app/data"),
 

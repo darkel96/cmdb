@@ -15,7 +15,7 @@ import { log } from "./log";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css",
-  ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
+  ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon", ".jpg": "image/jpeg",
   ".woff2": "font/woff2", ".woff": "font/woff", ".txt": "text/plain; charset=utf-8", ".map": "application/json",
 };
 
@@ -25,6 +25,27 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Referrer-Policy": "same-origin",
   "Content-Security-Policy": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
 };
+
+/**
+ * Firmenlogo, Anmeldebild und Favicon aus CMDB_BRANDING_DIR (lokaler Ordner, nicht im öffentlichen Repository).
+ * Nur diese festen Namen; ohne Anmeldung, weil die Anmeldeseite sie braucht. Fehlt eine Datei: 404, die App zeigt
+ * dann die neutrale Darstellung.
+ */
+const BRANDING_FILES = new Set(["logo.png", "logo-weiss.png", "anmeldung.jpg", "favicon.ico"]);
+
+async function serveBranding(path: string, res: ServerResponse): Promise<boolean> {
+  const name = /^\/branding\/([a-z.-]+)$/.exec(path)?.[1];
+  if (!name) return false;
+  if (!BRANDING_FILES.has(name) || !ENV.brandingDir) return (json(res, 404, { error: "Nicht gefunden." }), true);
+  try {
+    const data = await readFile(join(resolve(ENV.brandingDir), name));
+    res.writeHead(200, { "Content-Type": MIME[extname(name)] ?? "application/octet-stream", "Content-Length": data.length, "Cache-Control": "public, max-age=3600" });
+    res.end(data);
+  } catch {
+    json(res, 404, { error: "Nicht gefunden." });
+  }
+  return true;
+}
 
 /** Gebautes Frontend aus CMDB_STATIC; Pfade ohne Endung liefern index.html (Browser-Router) */
 async function serveStatic(path: string, res: ServerResponse): Promise<boolean> {
@@ -58,6 +79,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   const path = new URL(req.url ?? "/", "http://localhost").pathname;
   try {
     if (await api(req, res, path)) return;
+    if ((req.method === "GET" || req.method === "HEAD") && (await serveBranding(path, res))) return;
     if ((req.method === "GET" || req.method === "HEAD") && (await serveStatic(path, res))) return;
     json(res, 404, { error: "Nicht gefunden." });
   } catch (e) {

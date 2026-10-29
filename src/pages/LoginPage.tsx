@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BRANDING, BrandLogo, brandingUrl } from "@/components/Branding";
 import { useAuth } from "@/state/auth";
 
 export function LoginPage() {
@@ -38,12 +39,17 @@ export function LoginPage() {
   return (
     <div className="flex min-h-svh flex-col">
       {testMode && <TestBanner />}
-      <main className="flex flex-1 items-center justify-center p-4">
-        <Card className="animate-appear w-full max-w-sm">
+      {/* Anmeldebild (falls vorhanden) mit blauem Verlauf, damit das Formular gut lesbar bleibt */}
+      <main
+        className="relative flex flex-1 items-center justify-center bg-muted bg-cover bg-center p-4"
+        style={BRANDING ? { backgroundImage: `url(${brandingUrl("anmeldung.jpg")})` } : undefined}
+      >
+        {BRANDING && <div className="absolute inset-0 bg-gradient-to-br from-brand/75 via-brand/40 to-black/50" aria-hidden />}
+        <Card className="animate-appear relative w-full max-w-sm shadow-xl">
           <CardHeader>
-            <div className="mb-2 flex items-center gap-2 text-muted-foreground">
-              <Database className="size-5" aria-hidden />
-              <span className="text-sm font-medium">CMDB</span>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <BrandLogo variant="dunkel" className="h-12 w-auto" fallback={<Database className="size-6 text-muted-foreground" aria-hidden />} />
+              <span className="text-sm font-semibold tracking-wide text-brand">CMDB</span>
             </div>
             <CardTitle>Anmelden</CardTitle>
             <CardDescription>{testMode ? "Testbenutzer „admin“ oder „user“, Passwort „test“." : "Mit dem Windows-Konto (ohne Domäne)."}</CardDescription>

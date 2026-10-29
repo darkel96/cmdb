@@ -19,11 +19,14 @@ services:
     environment:
       CMDB_PORT: 8790
       CMDB_STATIC: /app/dist
+      CMDB_BRANDING_DIR: /branding
     ports:
       - "${CMDB_HOST_PORT:-8790}:8790"
     volumes:
       # Zertifikate (TLS des Dienstes, CA für LDAPS); nur lesend, nicht im Repository
       - ./server/certs:/certs:ro
+      # Firmenlogo, Anmeldebild, Favicon; lokal, nicht im öffentlichen Repository
+      - ./server/branding:/branding:ro
       # Einstellungen aus der Verwaltung (LDAP, Datenbank, SMTP; Passwörter verschlüsselt)
       - daten:/app/data
     networks:
