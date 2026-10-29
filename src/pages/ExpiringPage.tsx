@@ -201,24 +201,23 @@ export function ExpiringPage() {
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[17rem_1fr]">
         {/* Kunden: wählen filtert die Tabelle rechts */}
         <section aria-label="Kunden" className="animate-appear flex max-h-72 min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs lg:max-h-none">
-          <div className="border-b p-2">
+          {/* Suche und „Alle Kunden“ bleiben stehen, nur die Kunden darunter scrollen */}
+          <div className="flex flex-col gap-1 border-b p-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
               <Input value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} placeholder="Kunde suchen …" aria-label="Kunde suchen" className="h-8 pl-8" />
             </div>
+            <button
+              type="button"
+              aria-pressed={customer === null}
+              onClick={() => setCustomer(null)}
+              className={cn("flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-sm font-medium", customer === null ? "bg-brand text-brand-foreground" : "hover:bg-accent")}
+            >
+              Alle Kunden
+              <span className="text-xs tabular-nums opacity-80">{all.length}</span>
+            </button>
           </div>
           <ul className="scroll-thin min-h-0 flex-1 p-1" aria-label="Kundenliste">
-            <li>
-              <button
-                type="button"
-                aria-pressed={customer === null}
-                onClick={() => setCustomer(null)}
-                className={cn("flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left text-sm font-medium", customer === null ? "bg-brand text-brand-foreground" : "hover:bg-accent")}
-              >
-                Alle Kunden
-                <span className="text-xs tabular-nums opacity-80">{all.length}</span>
-              </button>
-            </li>
             {shownCustomers.map((c) => (
               <li key={c.name}>
                 <button

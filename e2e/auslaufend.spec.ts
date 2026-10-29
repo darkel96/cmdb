@@ -51,11 +51,15 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support bis Ende des dritten 
   expect(areas.size).toBeGreaterThan(2);
 
   // Kunde wählen filtert
-  const first = page.getByRole("list", { name: "Kundenliste" }).getByRole("button").nth(1);
+  const first = page.getByRole("list", { name: "Kundenliste" }).getByRole("button").first();
   const name = (await first.getAttribute("title"))!;
   await first.click();
   await expect(t).toHaveAccessibleName(`Offen · ${name}`);
   for (const c of await t.locator(`tbody td:nth-child(${col("Firma") + 1})`).allTextContents()) expect(c.trim()).toBe(name);
+
+  // „Alle Kunden“ steht über der scrollenden Liste und bleibt beim Scrollen sichtbar
+  await page.getByRole("list", { name: "Kundenliste" }).evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await expect(page.getByRole("button", { name: "Alle Kunden" })).toBeInViewport();
 
   // Bereich ausblenden
   await page.getByRole("button", { name: "Alle Kunden" }).click();
