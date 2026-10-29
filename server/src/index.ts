@@ -10,6 +10,7 @@ import { extname, join, resolve, sep } from "node:path";
 import { initAdminStore } from "./admin";
 import { api, json } from "./api";
 import { ENV, checkEnv } from "./env";
+import { settings } from "./settings";
 import { log } from "./log";
 
 const MIME: Record<string, string> = {
@@ -83,7 +84,7 @@ void initAdminStore();
 
 server.listen(ENV.port, () => {
   log(`CMDB-Dienst ${ENV.version} auf Port ${ENV.port} (${tls ? "HTTPS" : "HTTP"})${ENV.testMode ? " im TESTMODUS (Testbenutzer, erfundene Daten)" : ""}`);
-  if (!ENV.testMode) log(`LDAP: ${ENV.ldapUrl}, Basis ${ENV.ldapBaseDn}; Datenbank: ${ENV.dbServer || "(nicht eingerichtet)"}`);
+  if (!ENV.testMode) log(`LDAP: ${settings("ldap").url}, Basis ${settings("ldap").baseDn}; Datenbank: ${settings("db").server || "(nicht eingerichtet)"}`);
   if (!ENV.testMode && !tls && !ENV.trustProxy && !ENV.allowInsecureHttp) log("Hinweis: Ohne HTTPS (CMDB_TLS_CERT) oder Proxy (CMDB_TRUST_PROXY) ist die Anmeldung gesperrt.");
 });
 

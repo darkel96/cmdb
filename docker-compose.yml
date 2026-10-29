@@ -24,9 +24,14 @@ services:
     volumes:
       # Zertifikate (TLS des Dienstes, CA für LDAPS); nur lesend, nicht im Repository
       - ./server/certs:/certs:ro
+      # Einstellungen aus der Verwaltung (LDAP, Datenbank, SMTP; Passwörter verschlüsselt)
+      - daten:/app/data
     networks:
       - cmdb
     restart: unless-stopped
 
 networks:
   cmdb: {}
+
+volumes:
+  daten: {}

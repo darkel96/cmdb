@@ -3,9 +3,10 @@
  * Dann beantwortet eine Attrappe im Browser alle Anfragen mit den Testbenutzern und erfundenen Daten.
  */
 import { AREAS, firstFreeId, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
+import type { SettingsInput, SettingsResponse, SettingsSectionId } from "./settings";
 import { READ_ALL, allPermissions, PERMISSION_AREAS, type LoginLogEntry, type Role } from "./permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
-import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
+import type { CheckResult, CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
 
 export class ApiError extends Error {
@@ -39,6 +40,12 @@ export interface Api {
   updateCustomer(id: number, values: CustomerValuesRequest["values"]): Promise<CustomerSaveResponse>;
   deleteCustomer(id: number): Promise<void>;
   adminLogins(): Promise<AdminLoginsResponse>;
+  /** Einstellungen LDAP, Datenbank, SMTP (nur Admins) */
+  settings(): Promise<SettingsResponse>;
+  testSettings(section: SettingsSectionId, input: SettingsInput): Promise<CheckResult>;
+  saveSettings(section: SettingsSectionId, input: SettingsInput): Promise<SettingsResponse & { check: CheckResult }>;
+  resetSettings(section: SettingsSectionId): Promise<SettingsResponse>;
+  testMail(to: string): Promise<{ sent: boolean; testMode: boolean }>;
   adminRoles(): Promise<AdminRolesResponse>;
   saveRole(id: number | undefined, role: RoleInput): Promise<{ id: number }>;
   deleteRole(id: number): Promise<void>;
@@ -114,6 +121,11 @@ const serverApi: Api = {
   // Leerer JSON-Inhalt, damit die Ursprungsprüfung des Dienstes greift
   deleteCustomer: (id) => request<void>(`/api/customers/${id}`, { method: "DELETE", body: "{}" }),
   adminLogins: () => request<AdminLoginsResponse>("/api/admin/logins"),
+  settings: () => request<SettingsResponse>("/api/admin/settings"),
+  testSettings: (section, input) => request<CheckResult>(`/api/admin/settings/${section}/test`, { method: "POST", body: JSON.stringify(input) }),
+  saveSettings: (section, input) => request<SettingsResponse & { check: CheckResult }>(`/api/admin/settings/${section}`, { method: "PUT", body: JSON.stringify(input) }),
+  resetSettings: (section) => request<SettingsResponse>(`/api/admin/settings/${section}`, { method: "DELETE", body: "{}" }),
+  testMail: (to) => request<{ sent: boolean; testMode: boolean }>("/api/admin/settings/smtp/testmail", { method: "POST", body: JSON.stringify({ to }) }),
   adminRoles: () => request<AdminRolesResponse>("/api/admin/roles"),
   saveRole: (id, role) =>
     request<{ id: number }>(id === undefined ? "/api/admin/roles" : `/api/admin/roles/${id}`, { method: id === undefined ? "POST" : "PUT", body: JSON.stringify({ role }) }),
@@ -127,6 +139,13 @@ const STORAGE_KEY = "cmdb-test-session";
 
 // Testseite: neu angelegte Einträge nur bis zum Neuladen
 const browserCreated = new Map<string, AreaRow[]>();
+// Testseite: Einstellungen nur im Speicher, erfundene Adressen
+const BROWSER_SETTINGS_DEFAULT: SettingsResponse["sections"] = {
+  ldap: { values: { url: "ldaps://dc.example.loc:636", domain: "example.loc", netbios: "EXAMPLE", baseDn: "OU=Mitarbeiter,DC=example,DC=loc", adminGroup: "" }, changed: [], passwordSet: false },
+  db: { values: { server: "sql.example.loc", port: 1433, database: "CMDB", user: "svc_cmdb" }, changed: [], passwordSet: true },
+  smtp: { values: { host: "", port: 587, security: "starttls", user: "", from: "", fromName: "CMDB" }, changed: [], passwordSet: false },
+};
+const browserSettings: SettingsResponse["sections"] = structuredClone(BROWSER_SETTINGS_DEFAULT);
 const browserDocuments = new Map<number, { id: number; name: string }[]>();
 let browserCustomers = [...TEST_CUSTOMERS];
 const browserRenames = new Map<string, string>();
@@ -185,7 +204,16 @@ const browserTestApi: Api = {
       version: "pages",
       testMode: true,
       ...(admin
-        ? { details: { ldap: { ok: true, target: "Testmodus (kein LDAP)", latencyMs: 0, detail: "Testbenutzer admin und user" }, db: { ok: true, target: "Testmodus (keine Datenbank)", latencyMs: 0, detail: "Erfundene Daten" }, uptimeSeconds: 0 } }
+        ? {
+            details: {
+              ldap: { ok: true, target: "Testmodus (kein LDAP)", latencyMs: 0, detail: "Testbenutzer admin und user" },
+              db: { ok: true, target: "Testmodus (keine Datenbank)", latencyMs: 0, detail: "Erfundene Daten" },
+              smtp: browserSettings.smtp.values.host
+                ? { ok: true, target: `${browserSettings.smtp.values.host}:${browserSettings.smtp.values.port}`, latencyMs: 0, detail: "Testseite: Mails werden nicht gesendet" }
+                : { ok: false, target: "(nicht eingerichtet)", error: "Kein SMTP-Server eingetragen." },
+              uptimeSeconds: 0,
+            },
+          }
         : {}),
     };
   },
@@ -291,6 +319,32 @@ const browserTestApi: Api = {
     if (action !== "delete" && values.includes(value) && value !== old) throw new ApiError(`„${value}“ steht schon in der Liste.`, 409);
     browserLookups.set(listId, action === "add" ? [...values, value] : action === "rename" ? values.map((v) => (v === old ? value : v)) : values.filter((v) => v !== value));
     return browserStammdaten();
+  },
+  settings: async () => {
+    requireAdmin();
+    return { sections: structuredClone(browserSettings) };
+  },
+  testSettings: async () => {
+    requireAdmin();
+    return { ok: true, target: "Testseite (keine Verbindung)", latencyMs: 0, detail: "Auf der Testseite wird nur die Eingabe geprüft." };
+  },
+  saveSettings: async (section, input) => {
+    requireAdmin();
+    const s = browserSettings[section];
+    s.values = { ...input.values };
+    s.changed = Object.keys(input.values);
+    if (input.password !== undefined) s.passwordSet = input.password !== "";
+    return { sections: structuredClone(browserSettings), check: { ok: true, target: "Testseite", latencyMs: 0 } };
+  },
+  resetSettings: async (section) => {
+    requireAdmin();
+    browserSettings[section] = structuredClone(BROWSER_SETTINGS_DEFAULT[section]);
+    return { sections: structuredClone(browserSettings) };
+  },
+  testMail: async () => {
+    requireAdmin();
+    if (!browserSettings.smtp.values.host) throw new ApiError("Kein SMTP-Server eingetragen.", 409);
+    return { sent: true, testMode: true };
   },
   adminLogins: async () => {
     requireAdmin();

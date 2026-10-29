@@ -273,6 +273,26 @@ privaten Schlüssel geben, im Konfigurations-Manager zuweisen und den SQL-Dienst
 - `tls.crt`, `tls.key`: Zertifikat des Dienstes, das gerade verwendet wird. `tls.key` gehört UID 1000 (Benutzer `node` im Container), Rechte `600`.
 - `cmdb.csr`, `cmdb.key`, `cmdb.crt`: Anfrage und Zertifikat der internen CA für `charlestown.aberle-it.loc` und `cmdb.aberle-it.loc` (siehe oben)
 
+## Einstellungen in der Verwaltung (LDAP, Datenbank, SMTP)
+
+Admins ändern unter **Verwaltung › Status** die Anbindungen, ohne die `.env` anzufassen:
+
+| Karte | änderbar | Speichern |
+|---|---|---|
+| LDAP | Server-Adresse, Domäne, NetBIOS, Basis-OU, Admin-Gruppe | nur, wenn der Verbindungstest klappt |
+| Datenbank | Server, Port, Datenbank, Benutzer, Passwort | nur, wenn der Verbindungstest klappt; danach neuer Verbindungspool |
+| E-Mail (SMTP) | Server, Port, Verschlüsselung, Benutzer, Passwort, Absender | immer; „Test-Mail senden“ prüft den Versand |
+
+- Vorgabe sind die Werte aus der `.env`. Geänderte Werte liegen in `/app/data/einstellungen.json` auf dem Volume
+  `cmdb-dev_daten` (bzw. `cmdb_daten`), Datei nur für den Dienst lesbar (0600).
+- Passwörter stehen dort nur verschlüsselt (AES-256-GCM, Schlüssel aus `CMDB_SESSION_SECRET`). Sie gehen nie an den
+  Browser und stehen in keinem Protokoll. Wird `CMDB_SESSION_SECRET` geändert, muss das Passwort neu eingegeben werden.
+- „Auf .env zurücksetzen“ verwirft die Änderungen eines Bereichs.
+- Zertifikate (CA-Dateien) und die Zertifikatsprüfung bleiben in der `.env`. SMTP prüft Zertifikate immer; ohne
+  Verschlüsselung („none“) ist keine Anmeldung erlaubt (Benutzer/Passwort nie im Klartext).
+- Notfall: Ist die Anmeldung nach einer Änderung nicht mehr möglich, Datei löschen und Dienst neu starten:
+  `docker exec -u root cmdb-dev rm /app/data/einstellungen.json && docker restart cmdb-dev`.
+
 ## Start und Stopp
 
 ```bash

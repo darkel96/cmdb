@@ -69,11 +69,27 @@ export const ENV = {
   /** Fehlversuche je Benutzer bzw. Adresse, bevor die Anmeldung gesperrt wird */
   loginMaxFailures: Number(env.CMDB_LOGIN_MAX_FAILURES) || 5,
   loginLockMinutes: Number(env.CMDB_LOGIN_LOCK_MINUTES) || 15,
+
+  /** Verzeichnis für Daten des Dienstes (Einstellungen aus der Verwaltung); im Container ein eigenes Volume */
+  dataDir: str(env.CMDB_DATA_DIR, "/app/data"),
+
+  /** E-Mail-Versand (Vorgaben; in der Verwaltung änderbar). Leer = nicht eingerichtet. */
+  smtpHost: str(env.CMDB_SMTP_HOST),
+  smtpPort: Number(env.CMDB_SMTP_PORT) || 587,
+  /** starttls (Port 587), tls (Port 465) oder none (nur interne Relays ohne Anmeldung) */
+  smtpSecurity: (["starttls", "tls", "none"].includes(str(env.CMDB_SMTP_SECURITY)) ? str(env.CMDB_SMTP_SECURITY) : "starttls") as "starttls" | "tls" | "none",
+  smtpUser: str(env.CMDB_SMTP_USER),
+  smtpPassword: String(env.CMDB_SMTP_PASSWORD ?? ""),
+  smtpFrom: str(env.CMDB_SMTP_FROM),
+  smtpFromName: str(env.CMDB_SMTP_FROM_NAME, "CMDB"),
+  /** CA-Zertifikat (PEM) des Mailservers, falls von der internen CA; leer = Zertifikatsspeicher von Node */
+  smtpCaFile: str(env.CMDB_SMTP_CA),
 };
 
 // Im Testmodus werden LDAP und Datenbank nicht angesprochen, die CA-Dateien also auch nicht gebraucht
 export const LDAP_CA = testMode ? undefined : readOptionalFile("CMDB_LDAP_CA", ENV.ldapCaFile);
 export const DB_CA = testMode ? undefined : readOptionalFile("CMDB_DB_CA", ENV.dbCaFile);
+export const SMTP_CA = testMode ? undefined : readOptionalFile("CMDB_SMTP_CA", ENV.smtpCaFile);
 
 /** Fehlende oder widersprüchliche Einstellungen; der Dienst startet dann nicht */
 export function checkEnv(): string[] {
