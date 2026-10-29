@@ -295,3 +295,22 @@ test("Grundrolle sieht das Oracle-Passwort nur verdeckt und kann es nicht abrufe
   expect((await page.request.get("/api/areas/oracle/100000/secret")).status()).toBe(403);
   expect((await page.request.get("/api/areas/server/10000/secret")).status()).toBe(404);
 });
+
+test("Nummernkreis: Anlegen nimmt immer die kleinste freie Nummer, angezeigte und vergebene ID stimmen", async ({ page }) => {
+  await login(page, "admin");
+  const company = (await (await page.request.get("/api/areas/client/form")).json()).options.company[0];
+  const ids: number[] = [];
+  for (let i = 0; i < 2; i++) {
+    const form = await (await page.request.get("/api/areas/client/form")).json();
+    const res = await page.request.post("/api/areas/client", { data: { values: { company, manufacturer: "Gerät Test" } } });
+    expect(res.status(), await res.text()).toBe(201);
+    const { id } = await res.json();
+    expect(id).toBe(form.nextId);
+    ids.push(id);
+  }
+  // Fortlaufend und innerhalb des Nummernkreises des Bereichs (Client 110000 bis 111000)
+  expect(ids[1]).toBe(ids[0] + 1);
+  for (const id of ids) expect(id).toBeGreaterThanOrEqual(110000);
+  const used = (await (await page.request.get("/api/areas/client")).json()).items.map((r: { id: number }) => r.id);
+  for (let id = 110000; id < ids[0]; id++) expect(used).toContain(id);
+});
