@@ -3,6 +3,7 @@ import { ArrowLeft, Eye, EyeOff, Save, Trash2, Undo2 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
@@ -187,7 +188,11 @@ export function AreaCreatePage() {
                     disabled={!options}
                   />
                 ) : (
-                  <Input {...common} type={f.date ? "date" : "text"} maxLength={255} className={cn(invalid && "border-destructive")} value={values[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />
+                  f.date ? (
+                    <DateInput id={`f-${f.key}`} aria-required={f.required || undefined} invalid={invalid} value={values[f.key] ?? ""} onChange={(v) => set(f.key, v)} />
+                  ) : (
+                    <Input {...common} type="text" maxLength={255} className={cn(invalid && "border-destructive")} value={values[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />
+                  )
                 )}
               </div>
             );

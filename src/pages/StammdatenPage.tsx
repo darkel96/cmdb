@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Check, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import type { OsSupportEntry } from "@/lib/osSupport";
@@ -133,11 +134,11 @@ function LookupPanel({
                   <span className="flex flex-wrap items-center gap-2 text-xs" role="group" aria-label={`Support-Ende ${v}`}>
                     <label className="flex items-center gap-1">
                       allgemein bis
-                      <Input type="date" className="h-7 w-36" value={dates.mainstreamEnd} onChange={(e) => setDates((d) => ({ ...d, mainstreamEnd: e.target.value }))} />
+                      <DateInput className="w-40" value={dates.mainstreamEnd} onChange={(v) => setDates((d) => ({ ...d, mainstreamEnd: v }))} />
                     </label>
                     <label className="flex items-center gap-1">
                       LTS bis
-                      <Input type="date" className="h-7 w-36" value={dates.extendedEnd} onChange={(e) => setDates((d) => ({ ...d, extendedEnd: e.target.value }))} />
+                      <DateInput className="w-40" value={dates.extendedEnd} onChange={(v) => setDates((d) => ({ ...d, extendedEnd: v }))} />
                     </label>
                     <Button
                       type="button"
