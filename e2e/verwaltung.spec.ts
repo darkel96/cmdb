@@ -7,7 +7,7 @@ async function login(page: Page, username: "admin" | "user", password = "test") 
   await page.getByRole("button", { name: "Anmelden" }).click();
 }
 
-test("Verwaltung zeigt das Anmelde-Protokoll mit erfolgreichen und fehlgeschlagenen Anmeldungen", async ({ page }) => {
+test("Verwaltung zeigt das Anmelde-Protokoll mit erfolgreichen und fehlgeschlagenen Anmeldungen", async ({ page }, testInfo) => {
   await login(page, "user", "falsch");
   await expect(page.getByRole("alert")).toBeVisible();
   await login(page, "admin");
@@ -18,6 +18,14 @@ test("Verwaltung zeigt das Anmelde-Protokoll mit erfolgreichen und fehlgeschlage
   await expect(table.locator("tbody tr").first()).toContainText("admin");
   await expect(table.locator("tbody tr").first()).toContainText("Erfolgreich");
   await expect(table.locator("tbody tr", { hasText: "Fehlgeschlagen" }).first()).toContainText("Benutzername oder Passwort falsch");
+
+  // Wie die Bereiche: die Seite scrollt nicht, nur die Zeilen; Blättern bleibt unten sichtbar
+  if (testInfo.project.name === "desktop") {
+    await page.setViewportSize({ width: 1280, height: 420 });
+    await expect(table.getByText(/^Seite 1 von/)).toBeInViewport();
+    const [scroll, client] = (await page.evaluate('[document.querySelector("main").scrollHeight, document.querySelector("main").clientHeight]')) as number[];
+    expect(scroll).toBeLessThanOrEqual(client);
+  }
 });
 
 test("Rolle gibt einer Person Rechte je Bereich, ohne Rolle wieder nur Lesen", async ({ browser }, testInfo) => {
