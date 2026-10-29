@@ -209,10 +209,11 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
           <thead className="sticky top-0 z-[1] bg-card">
             <tr className="text-left text-muted-foreground">
               {columns.map((c) => (
-                <th key={c.key} className={cn("group/th relative truncate border-b bg-card px-3 py-2 font-medium", c.className)} title={c.label} aria-label={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
-                  <button type="button" className="inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : false }))}>
-                    {c.label}
-                    {sort.key === c.key && (sort.desc ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden />)}
+                <th key={c.key} className={cn("group/th relative truncate border-b bg-card py-2 pr-4 pl-3 font-medium", c.className)} title={c.label} aria-label={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
+                  {/* Text wird im Knopf gekürzt („…“), damit er nicht über den Griff in die nächste Spalte läuft */}
+                  <button type="button" className="flex max-w-full items-center gap-1 transition-colors duration-150 hover:text-foreground" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : false }))}>
+                    <span className="min-w-0 truncate">{c.label}</span>
+                    {sort.key === c.key && (sort.desc ? <ArrowDown className="size-3.5 shrink-0" aria-hidden /> : <ArrowUp className="size-3.5 shrink-0" aria-hidden />)}
                   </button>
                   {/* Griff zum Ziehen; Doppelklick passt an den Inhalt an; mit Pfeiltasten in 16-px-Schritten */}
                   <span
