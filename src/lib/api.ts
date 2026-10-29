@@ -16,7 +16,8 @@ export class ApiError extends Error {
 }
 
 export interface Api {
-  login(username: string, password: string): Promise<MeResponse>;
+  /** remember: „Angemeldet bleiben“ (längere Sitzung) */
+  login(username: string, password: string, remember?: boolean): Promise<MeResponse>;
   logout(): Promise<void>;
   /** null = nicht angemeldet */
   me(): Promise<MeResponse | null>;
@@ -98,7 +99,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const serverApi: Api = {
-  login: (username, password) => request<MeResponse>("/api/login", { method: "POST", body: JSON.stringify({ username, password }) }),
+  login: (username, password, remember) => request<MeResponse>("/api/login", { method: "POST", body: JSON.stringify({ username, password, remember }) }),
   logout: () => request<void>("/api/logout", { method: "POST", body: "{}" }),
   me: async () => {
     try {

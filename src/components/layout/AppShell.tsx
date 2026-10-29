@@ -6,6 +6,7 @@ import { visibleAdminTabs } from "@/lib/adminTabs";
 import { NAV_GROUPS, NAV_LISTS, type NavGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
+import { BrandLogo } from "@/components/Branding";
 import { TestBanner } from "./TestBanner";
 
 const ROLE_LABEL = { admin: "Admin", user: "Benutzer" } as const;
@@ -94,6 +95,10 @@ function Sidebar({ onNavigate, collapsed = false, onExpand = () => undefined }: 
           </NavLink>
         </li>
       </ul>
+      {/* Logo unten in der Seitenleiste (nur mit lokalem Branding), eingeklappt kleiner */}
+      <div className="mt-auto flex justify-center pt-6 pb-3 opacity-90">
+        <BrandLogo variant="weiss" className={collapsed ? "h-6 w-auto" : "h-11 w-auto"} fallback={null} />
+      </div>
     </nav>
   );
 }
@@ -140,7 +145,7 @@ export function AppShell() {
           {collapsed ? <PanelLeftOpen className="size-5" aria-hidden /> : <PanelLeftClose className="size-5" aria-hidden />}
         </button>
         <div className="flex items-center gap-2 px-2 text-lg font-semibold">
-          <Database className="size-5" aria-hidden />
+          <BrandLogo variant="weiss" className="h-7 w-auto" fallback={<Database className="size-5" aria-hidden />} />
           CMDB
         </div>
         <div className="ml-auto flex items-center gap-1.5">

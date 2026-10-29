@@ -52,3 +52,7 @@ server/certs/
 test-results/
 playwright-report/
 *.tsbuildinfo
+
+# Firmenlogo und Bilder: nur lokal auf dem Server, nie im öffentlichen Repository
+server/branding/*
+!server/branding/LIESMICH.md

@@ -32,6 +32,8 @@ export const ENV = {
   /** HMAC-Schlüssel für das Session-Cookie (mindestens 32 Zeichen). Im Testmodus ohne Angabe zufällig je Start. */
   sessionSecret: str(env.CMDB_SESSION_SECRET) || (testMode ? randomBytes(32).toString("hex") : ""),
   sessionHours: Number(env.CMDB_SESSION_HOURS) || 8,
+  /** „Angemeldet bleiben“ auf der Anmeldeseite: so viele Tage (Rolle und AD-Gruppen gelten so lange wie bei der Anmeldung) */
+  rememberDays: Math.min(Number(env.CMDB_REMEMBER_DAYS) || 7, 30),
   /** HTTPS direkt im Dienst (PEM-Dateien); sonst nur HTTP, z. B. hinter einem Reverse-Proxy */
   tlsCert: str(env.CMDB_TLS_CERT),
   tlsKey: str(env.CMDB_TLS_KEY),
@@ -69,6 +71,9 @@ export const ENV = {
   /** Fehlversuche je Benutzer bzw. Adresse, bevor die Anmeldung gesperrt wird */
   loginMaxFailures: Number(env.CMDB_LOGIN_MAX_FAILURES) || 5,
   loginLockMinutes: Number(env.CMDB_LOGIN_LOCK_MINUTES) || 15,
+
+  /** Firmenlogo, Anmeldebild, Favicon (lokal, nicht im Repository); leer = neutrale Darstellung */
+  brandingDir: str(env.CMDB_BRANDING_DIR),
 
   /** Verzeichnis für Daten des Dienstes (Einstellungen aus der Verwaltung); im Container ein eigenes Volume */
   dataDir: str(env.CMDB_DATA_DIR, "/app/data"),

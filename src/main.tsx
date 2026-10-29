@@ -16,6 +16,7 @@ import { ReportPage } from "@/pages/ReportsPage";
 import { ExpiringPage } from "@/pages/ExpiringPage";
 import { StartPage } from "@/pages/StartPage";
 import { AuthProvider } from "@/state/auth";
+import { applyFavicon } from "@/components/Branding";
 import "./index.css";
 
 // GitHub Pages kennt keine SPA-Weiterleitung, dort laufen die Adressen über „#/…“
@@ -44,6 +45,8 @@ const router = createRouter([
     ],
   },
 ]);
+
+applyFavicon();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -10,7 +10,7 @@ interface AuthState {
   permissions: Permissions;
   /** Hat die angemeldete Person das Recht für Bereich und Aktion? */
   can(area: string, action: Action): boolean;
-  login(username: string, password: string): Promise<void>;
+  login(username: string, password: string, remember?: boolean): Promise<void>;
   logout(): Promise<void>;
 }
 
@@ -41,8 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (username: string, password: string) => {
-    const me = await api.login(username, password);
+  const login = useCallback(async (username: string, password: string, remember = false) => {
+    const me = await api.login(username, password, remember);
     setUser(me.user);
     setTestMode(me.testMode);
     setPermissions(me.permissions ?? {});
