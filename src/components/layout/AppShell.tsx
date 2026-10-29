@@ -77,7 +77,9 @@ function SidebarGroup({ group, onNavigate, collapsed, onExpand }: { group: NavGr
 function Sidebar({ onNavigate, collapsed = false, onExpand = () => undefined }: { onNavigate: () => void; collapsed?: boolean; onExpand?: () => void }) {
   const ListIcon = NAV_LISTS.icon;
   return (
-    <nav aria-label="Hauptnavigation" className="scroll-thin flex h-full flex-col gap-1 overflow-x-hidden p-2 text-sidebar-foreground">
+    <nav aria-label="Hauptnavigation" className="flex h-full flex-col text-sidebar-foreground">
+      {/* Nur die Einträge scrollen; das Logo darunter bleibt fest */}
+      <div className="scroll-thin min-h-0 flex-1 overflow-x-hidden p-2">
       <ul className="flex flex-col gap-0.5">
         <li>
           <NavLink to="/" end viewTransition className={itemClass} onClick={onNavigate} title={collapsed ? "Startseite" : undefined}>
@@ -95,8 +97,9 @@ function Sidebar({ onNavigate, collapsed = false, onExpand = () => undefined }: 
           </NavLink>
         </li>
       </ul>
+      </div>
       {/* Logo unten in der Seitenleiste (nur mit lokalem Branding), eingeklappt kleiner */}
-      <div className="mt-auto flex justify-center pt-6 pb-3 opacity-90">
+      <div className="flex shrink-0 justify-center pt-3 pb-3 opacity-90">
         <BrandLogo variant="weiss" className={collapsed ? "h-6 w-auto" : "h-11 w-auto"} fallback={null} />
       </div>
     </nav>
