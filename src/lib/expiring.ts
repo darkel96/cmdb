@@ -1,5 +1,6 @@
 /**
- * Regel „auslaufend“: Ein System gilt als auslaufend vom 9. Monat vor bis zum 9. Monat nach seinem Support-Ende.
+ * Regel „auslaufend“: Ein System gilt ab 9 Monate vor seinem Support-Ende als auslaufend und bleibt es danach,
+ * bis es bearbeitet ist (Status Verlängert/Abgeschlossen), damit kein abgelaufenes System verschwindet.
  * Gilt für „Auslaufende Kundensysteme“ und das Kundendatenblatt (eine Stelle, damit beide dasselbe zeigen).
  */
 export const EXPIRING_MONTHS = 9;
@@ -15,14 +16,14 @@ function addMonths(date: Date, months: number): Date {
   return d;
 }
 
-/** Zeitfenster als JJJJ-MM-TT, beide Grenzen eingeschlossen */
-export function expiringWindow(now = new Date()): { from: string; to: string; today: string } {
-  return { from: iso(addMonths(now, -EXPIRING_MONTHS)), to: iso(addMonths(now, EXPIRING_MONTHS)), today: iso(now) };
+/** Stichtag als JJJJ-MM-TT (heute + 9 Monate, eingeschlossen); nach unten offen */
+export function expiringWindow(now = new Date()): { to: string; today: string } {
+  return { to: iso(addMonths(now, EXPIRING_MONTHS)), today: iso(now) };
 }
 
-/** Liegt das Support-Ende im Fenster? Ohne Datum: nein */
+/** Endet der Support bis zum Stichtag (auch längst abgelaufen)? Ohne Datum: nein */
 export function inExpiringWindow(date: string, window = expiringWindow()): boolean {
-  return Boolean(date) && date >= window.from && date <= window.to;
+  return Boolean(date) && date <= window.to;
 }
 
 export const deDate = (value: string) => (/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value.slice(8, 10)}.${value.slice(5, 7)}.${value.slice(0, 4)}` : value);

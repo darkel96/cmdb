@@ -24,7 +24,7 @@ const rowOf = (page: Page, area: string, id: string) =>
     .filter({ has: page.locator("td:nth-child(1)", { hasText: new RegExp(`^${area}$`) }) })
     .filter({ has: page.locator("td:nth-child(2)", { hasText: new RegExp(`^${id}$`) }) });
 
-test("Auslaufende Kundensysteme: eine Tabelle, nur Support-Ende 9 Monate vor bis 9 Monate nach heute, EOL rot, Kunde filtert", async ({ page }) => {
+test("Auslaufende Kundensysteme: eine Tabelle, nur Support-Ende in 9 Monaten oder abgelaufen, EOL rot, Kunde filtert", async ({ page }) => {
   await login(page);
   await open(page);
   const t = table(page);
@@ -32,8 +32,8 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support-Ende 9 Monate vor bis
   await t.getByRole("button", { name: /^(20|100)$/ }).last().click();
   const header = (await t.locator("thead tr").first().locator("th").allTextContents()).map((h) => h.trim());
   const col = (name: string) => header.findIndex((h) => h.startsWith(name));
-  // Regel: Support-Ende 9 Monate vor bis 9 Monate nach heute (src/lib/expiring.ts)
-  const { from, to } = expiringWindow();
+  // Regel: Support-Ende in den nächsten 9 Monaten oder abgelaufen (src/lib/expiring.ts)
+  const { to } = expiringWindow();
   const rows = t.locator("tbody tr");
   const n = await rows.count();
   expect(n).toBeGreaterThan(5);
@@ -41,7 +41,7 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support-Ende 9 Monate vor bis
     const cells = rows.nth(i).locator("td");
     const [d, m, y] = (await cells.nth(col("Support bis")).textContent())!.split(".").map(Number);
     const iso = `${2000 + y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    expect(iso >= from && iso <= to, `${iso} liegt zwischen ${from} und ${to}`).toBe(true);
+    expect(iso <= to, `${iso} liegt bis ${to}`).toBe(true);
     expect(["Verlängert", "Abgeschlossen"]).not.toContain((await cells.nth(col("Status")).textContent())?.trim());
     if ((await cells.nth(col("EOL")).textContent())?.trim() === "Ja") await expect(rows.nth(i)).toHaveAttribute("data-highlight", "true");
     else await expect(rows.nth(i)).not.toHaveAttribute("data-highlight");

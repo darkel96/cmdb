@@ -92,7 +92,7 @@ export function ExpiringPage() {
   const [customer, setCustomer] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [hidden, setHidden] = useState<Set<string>>(new Set());
-  // Regel: 9 Monate vor bis 9 Monate nach dem Support-Ende (src/lib/expiring.ts)
+  // Regel: Support-Ende in den nächsten 9 Monaten oder abgelaufen (src/lib/expiring.ts)
   const window = useMemo(() => expiringWindow(), []);
   const wide = useWide();
 
@@ -184,7 +184,7 @@ export function ExpiringPage() {
         <div>
           <h1 className="text-2xl font-semibold">Auslaufende Kundensysteme</h1>
           <p className="text-sm text-muted-foreground">
-            Support-Ende zwischen {deDate(window.from)} und {deDate(window.to)} ({EXPIRING_MONTHS} Monate vor bis {EXPIRING_MONTHS} Monate nach) · rot: EOL = Ja · Verlängert und Abgeschlossen stehen im Archiv
+            Support-Ende bis {deDate(window.to)} (nächste {EXPIRING_MONTHS} Monate) oder abgelaufen · rot: EOL = Ja · Verlängert und Abgeschlossen stehen im Archiv
           </p>
         </div>
         <div role="tablist" aria-label="Ansicht" className="inline-flex rounded-lg bg-muted p-1">
