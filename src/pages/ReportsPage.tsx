@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, ChevronRight } from "lucide-react";
+import { BarChart3, CalendarClock, ChevronRight } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router";
 import { api } from "@/lib/api";
 import { AREAS, type AreaRow } from "@/lib/areas";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
+import { EXPIRING_AREAS } from "./ExpiringPage";
 import { NotFoundPage } from "./NotFoundPage";
 
 interface Report {
@@ -30,11 +31,17 @@ const EMPTY = "(leer)";
 /** Übersicht der Auflistungen als Kacheln */
 export function ReportsIndex() {
   const { can } = useAuth();
+  const tiles = [
+    ...(EXPIRING_AREAS.some((id) => can(id, "read"))
+      ? [{ id: "auslaufend", title: "Auslaufende Kundensysteme", description: "Support endet bis Ende des dritten Monats oder ist abgelaufen", icon: CalendarClock }]
+      : []),
+    ...REPORTS.filter((r) => can(r.area, "read")).map((r) => ({ ...r, icon: BarChart3 })),
+  ];
   return (
     <section className="flex w-full flex-col gap-4" aria-label="Auflistungen">
       <h1 className="animate-appear rounded-lg bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground shadow-xs">Auflistungen</h1>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-3">
-        {REPORTS.filter((r) => can(r.area, "read")).map((r, i) => (
+        {tiles.map((r, i) => (
           <li key={r.id} className="contents">
             <Link
               to={`/auflistungen/${r.id}`}
@@ -43,7 +50,7 @@ export function ReportsIndex() {
               className="group animate-appear flex min-h-28 flex-col justify-between gap-3 rounded-lg border bg-card p-4 shadow-xs transition-[box-shadow,border-color,transform] duration-200 ease-out hover:-translate-y-0.5 hover:border-brand hover:shadow-md"
             >
               <span className="flex size-10 items-center justify-center rounded-md bg-brand/10 text-brand">
-                <BarChart3 className="size-5" aria-hidden />
+                <r.icon className="size-5" aria-hidden />
               </span>
               <span className="flex flex-col">
                 <span className="flex items-center justify-between gap-2 font-medium">

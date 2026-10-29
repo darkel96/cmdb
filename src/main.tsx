@@ -13,6 +13,7 @@ import { AreaCreatePage } from "@/pages/AreaCreatePage";
 import { CustomerPage } from "@/pages/CustomerPage";
 import { CustomerFormPage } from "@/pages/CustomerFormPage";
 import { ReportPage } from "@/pages/ReportsPage";
+import { ExpiringPage } from "@/pages/ExpiringPage";
 import { StartPage } from "@/pages/StartPage";
 import { AuthProvider } from "@/state/auth";
 import "./index.css";
@@ -35,6 +36,7 @@ const router = createRouter([
       { path: "/kunden/:customerId/bearbeiten", element: <CustomerFormPage /> },
       // Frühere Adressen, jetzt Reiter der Verwaltung
       { path: "/stammdaten", element: <Navigate to="/verwaltung?tab=stammdaten" replace /> },
+      { path: "/auflistungen/auslaufend", element: <ExpiringPage /> },
       { path: "/auflistungen/:reportId", element: <ReportPage /> },
       { path: "/anlage-vertrag", element: <Navigate to="/verwaltung?tab=anlage-vertrag" replace /> },
       { path: "/verwaltung", element: <AdminPage /> },

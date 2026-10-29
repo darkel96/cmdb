@@ -30,7 +30,7 @@ function csvCell(value: string): string {
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters, highlight }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
@@ -47,6 +47,8 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   defaultSort?: { key: string; desc: boolean };
   /** Anfangs-Filter je Spalte (z. B. aus einer Auflistung) */
   initialFilters?: Record<string, string>;
+  /** Zeile rot hervorheben, z. B. EOL = Ja bei den auslaufenden Systemen */
+  highlight?: (row: T) => boolean;
 }) {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>(initialFilters ?? {});
@@ -150,6 +152,7 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                 <tr
                   key={key}
                   aria-selected={isSelected}
+                  data-highlight={highlight?.(row) || undefined}
                   onClick={() => setSelected(isSelected ? null : key)}
                   onDoubleClick={() => {
                     setSelected(key);
@@ -157,7 +160,11 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                   }}
                   className={cn(
                     "cursor-pointer transition-colors duration-100",
-                    isSelected ? "bg-brand text-brand-foreground" : "odd:bg-muted hover:bg-accent",
+                    isSelected
+                      ? "bg-brand text-brand-foreground"
+                      : highlight?.(row)
+                        ? "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                        : "odd:bg-muted hover:bg-accent",
                   )}
                 >
                   {columns.map((c) => {
