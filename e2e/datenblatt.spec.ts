@@ -22,6 +22,9 @@ test("Kundendatenblatt: aus der Kundenansicht, Kundendaten, Kennzahlen, Systeme 
   await expect(sheet.getByTestId("sheet-customer")).toHaveText(name);
   await expect(sheet.getByRole("region", { name: "Kennzahlen" })).toContainText("Systeme");
   await expect(sheet.getByRole("region", { name: "Server" })).toContainText("10000");
+  // Details-Spalte (z. B. Servertyp) und nächstes Support-Ende bzw. Systeme ohne Support
+  await expect(sheet.getByRole("region", { name: "Server" }).getByRole("columnheader", { name: "Details" })).toBeVisible();
+  await expect(sheet.getByTestId("sheet-next")).toBeVisible();
   await expect(page.getByRole("button", { name: "Drucken / als PDF speichern" })).toBeVisible();
 
   // Druckansicht: Kopfleiste, Seitenleiste und Knöpfe weg
