@@ -25,6 +25,8 @@ export interface SearchGroup {
   /** Bereich (z. B. „server“) oder „kunden“ */
   id: string;
   label: string;
+  /** z. B. „Datenbanken“ bei Oracle, „Lizenz- und Supportverträge“ bei Oracle-ESL */
+  hint: string;
   total: number;
   /** Begriff für „alle anzeigen“ (Tabellensuche des Bereichs); leer = ganzer Bereich */
   filter: string;
@@ -37,13 +39,17 @@ export interface SearchResponse {
 }
 
 /** Kurzer Name eines Systems aus dem passenden Feld des Bereichs */
-export function itemTitle(row: AreaRow): string {
-  for (const key of ["model", "licenseType", "product", "hostname", "function", "manufacturer"]) {
-    const v = String(row[key] ?? "").trim();
-    if (v) return v;
-  }
+export function itemTitle(area: Area, row: AreaRow): string {
+  const v = (key: string) => String(row[key] ?? "").trim();
+  // Oracle hat kein Modell: Hostname, sonst DB-Typ mit Version; Oracle-ESL ist ein Vertrag
+  if (area.id === "oracle") return v("hostname") || [v("dbType"), v("dbVersion")].filter(Boolean).join(" ");
+  if (area.id === "oracle-esl") return v("oracleSystem") || (v("csiNumber") && `CSI ${v("csiNumber")}`) || v("oracleFrameworkContract");
+  for (const key of ["model", "licenseType", "product", "hostname", "function", "manufacturer"]) if (v(key)) return v(key);
   return "";
 }
+
+/** Zusatz in der Gruppenüberschrift, wo der Bereichsname allein mehrdeutig ist */
+const GROUP_HINT: Record<string, string> = { oracle: "Datenbanken", "oracle-esl": "Lizenz- und Supportverträge" };
 
 const norm = (s: string) => s.toLocaleLowerCase("de").trim();
 
@@ -72,17 +78,20 @@ function matchRow(area: Area, row: AreaRow, terms: string[], areaWords: string):
   let total = 0;
   let shown: RowMatch | null = null;
   for (const term of terms) {
+    // Meint das Wort den Bereich („oracle“), zählt der Bereich; sonst stünde z. B. „Typ: Oracle“ als Fundstelle da
+    if (areaWords.includes(term)) {
+      total += 1;
+      continue;
+    }
     let best: RowMatch | null = String(row.id) === term ? { rank: 0, field: "ID", value: String(row.id) } : null;
     for (const f of area.fields) {
       const value = String(row[f.key] ?? "");
       const r = rank(value, term);
       if (r >= 0 && (!best || r < best.rank)) best = { rank: r, field: f.label, value };
     }
-    if (best) {
-      total += best.rank;
-      if (!shown || best.rank < shown.rank) shown = best;
-    } else if (areaWords.includes(term)) total += 1;
-    else return null;
+    if (!best) return null;
+    total += best.rank;
+    if (!shown || best.rank < shown.rank) shown = best;
   }
   return { rank: total, field: shown?.field ?? "", value: shown?.value ?? "" };
 }
@@ -109,7 +118,7 @@ export function search(q: string, areas: { area: Area; rows: AreaRow[] }[], cust
       .filter((x) => x.r >= 0)
       .sort((a, b) => a.r - b.r || a.c.name.localeCompare(b.c.name, "de"));
     if (found.length)
-      groups.push({ id: "kunden", label: "Kunden", total: found.length, filter: "", hits: found.slice(0, SEARCH_PER_GROUP).map(({ c }) => ({ id: c.id, title: c.name, subtitle: c.city, field: "", value: "" })) });
+      groups.push({ id: "kunden", label: "Kunden", hint: "", total: found.length, filter: "", hits: found.slice(0, SEARCH_PER_GROUP).map(({ c }) => ({ id: c.id, title: c.name, subtitle: c.city, field: "", value: "" })) });
   }
   for (const { area, rows } of areas) {
     const words = areaText(area);
@@ -123,10 +132,11 @@ export function search(q: string, areas: { area: Area; rows: AreaRow[] }[], cust
     groups.push({
       id: area.id,
       label: area.plural ?? area.title.replace(/^Übersicht /, ""),
+      hint: GROUP_HINT[area.id] ?? "",
       total: found.length,
       filter,
       hits: found.slice(0, SEARCH_PER_GROUP).map(({ row, m }) => {
-        const title = itemTitle(row) || `${area.singular} ${row.id}`;
+        const title = itemTitle(area, row) || `${area.singular} ${row.id}`;
         const subtitle = String(row.company ?? "");
         // Feld nur nennen, wenn der Treffer nicht ohnehin im Titel oder in der Firma steht
         const repeated = !m.field || m.value === title || m.value === subtitle;

@@ -170,7 +170,10 @@ export function GlobalSearch() {
             result?.groups.map((group) => (
               <div key={group.id} role="group" aria-label={group.label} className="py-1">
                 <div className="flex items-center justify-between px-2.5 pb-1 text-xs font-medium text-muted-foreground">
-                  <span>{group.label}</span>
+                  <span>
+                    {group.label}
+                    {group.hint && <span className="font-normal"> · {group.hint}</span>}
+                  </span>
                   <span className="tabular-nums">{group.total}</span>
                 </div>
                 {group.hits.map((hit) => {

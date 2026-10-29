@@ -42,6 +42,8 @@ test("Globale Suche: Kunden, „alle anzeigen“ und nichts gefunden", async ({ 
   const all = results(page).getByRole("option", { name: /^Alle \d+ in MDEs anzeigen$/ });
   await all.click();
   await expect(page).toHaveURL(/\/bereich\/mde\?suche=H%C3%A4ndler$/);
+  // Erst wenn die Kundenseite (mehrere Tabellen) ganz weg ist
+  await expect(page.getByLabel("Suchen", { exact: true })).toHaveCount(1);
   await expect(page.getByLabel("Suchen", { exact: true })).toHaveValue("Händler");
 
   await box(page).fill("gibt-es-sicher-nicht-xyz");
@@ -57,11 +59,14 @@ test("Mehrere Wörter: jedes muss passen, ein Wort darf der Bereich sein", async
   const word = target.company.split(/\s+/)[0];
 
   await box(page).fill(`${word} oracle`);
-  const group = results(page).getByRole("group", { name: "Oracle" });
+  const group = results(page).getByRole("group", { name: "Oracle", exact: true });
   await expect(group.getByRole("option", { name: new RegExp(`^${target.id}\\b`) })).toBeVisible();
   // Andere Bereiche nur, wenn dort auch „oracle“ vorkommt; Server hat kein Feld mit „oracle“
   await expect(results(page).getByRole("group", { name: "Server" })).toHaveCount(0);
   for (const name of await group.getByRole("option").allTextContents()) expect(name.toLowerCase()).toContain(word.toLowerCase());
+  // „oracle“ meint den Bereich: keine Fundstelle „Typ: Oracle“; Gruppen sagen, was Oracle und Oracle-ESL sind
+  await expect(group).not.toContainText("Typ: Oracle");
+  await expect(results(page)).toContainText("Oracle · Datenbanken");
 });
 
 test("Suche ohne Anmeldung abgelehnt, Begriff zu lang abgelehnt", async ({ page }) => {
