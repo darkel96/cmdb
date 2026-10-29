@@ -32,6 +32,8 @@ export const ENV = {
   /** HMAC-Schlüssel für das Session-Cookie (mindestens 32 Zeichen). Im Testmodus ohne Angabe zufällig je Start. */
   sessionSecret: str(env.CMDB_SESSION_SECRET) || (testMode ? randomBytes(32).toString("hex") : ""),
   sessionHours: Number(env.CMDB_SESSION_HOURS) || 8,
+  /** „Angemeldet bleiben“ auf der Anmeldeseite: so viele Tage (Rolle und AD-Gruppen gelten so lange wie bei der Anmeldung) */
+  rememberDays: Math.min(Number(env.CMDB_REMEMBER_DAYS) || 7, 30),
   /** HTTPS direkt im Dienst (PEM-Dateien); sonst nur HTTP, z. B. hinter einem Reverse-Proxy */
   tlsCert: str(env.CMDB_TLS_CERT),
   tlsKey: str(env.CMDB_TLS_KEY),

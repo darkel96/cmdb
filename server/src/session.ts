@@ -18,8 +18,8 @@ function sign(data: string): string {
   return createHmac("sha256", ENV.sessionSecret).update(data).digest("base64url");
 }
 
-export function createSessionValue(user: SessionUser, now = Date.now()): string {
-  const payload: SessionPayload = { ...user, exp: Math.floor(now / 1000) + ENV.sessionHours * 3600 };
+export function createSessionValue(user: SessionUser, now = Date.now(), seconds = ENV.sessionHours * 3600): string {
+  const payload: SessionPayload = { ...user, exp: Math.floor(now / 1000) + seconds };
   const data = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return `${data}.${sign(data)}`;
 }
@@ -59,8 +59,10 @@ function cookie(value: string, maxAge: number, secure: boolean): string {
   return [`${COOKIE_NAME}=${value}`, "Path=/", "HttpOnly", "SameSite=Strict", `Max-Age=${maxAge}`, ...(secure ? ["Secure"] : [])].join("; ");
 }
 
-export function setSessionCookie(res: ServerResponse, user: SessionUser, secure: boolean): void {
-  res.setHeader("Set-Cookie", cookie(createSessionValue(user), ENV.sessionHours * 3600, secure));
+/** remember („Angemeldet bleiben“): CMDB_REMEMBER_DAYS statt CMDB_SESSION_HOURS, auch über einen Browser-Neustart */
+export function setSessionCookie(res: ServerResponse, user: SessionUser, secure: boolean, remember = false): void {
+  const seconds = remember ? ENV.rememberDays * 86400 : ENV.sessionHours * 3600;
+  res.setHeader("Set-Cookie", cookie(createSessionValue(user, Date.now(), seconds), seconds, secure));
 }
 
 export function clearSessionCookie(res: ServerResponse, secure: boolean): void {

@@ -138,8 +138,9 @@ async function login(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (!username || !password) throw new LoginError("Benutzername oder Passwort falsch.", 401);
     const user = await authenticate(username, password);
     recordSuccess([`user:${username}`]);
-    setSessionCookie(res, user, isSecure(req));
-    log(`Anmeldung erfolgreich: ${user.username} (${user.role}) von ${address}`);
+    const remember = body.remember === true;
+    setSessionCookie(res, user, isSecure(req), remember);
+    log(`Anmeldung erfolgreich: ${user.username} (${user.role}) von ${address}${remember ? `, angemeldet bleiben ${ENV.rememberDays} Tage` : ""}`);
     void recordLogin({ username: user.username, displayName: user.displayName, success: true, address });
     json(res, 200, await meResponse(user));
   } catch (e) {

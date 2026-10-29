@@ -95,6 +95,10 @@ function Sidebar({ onNavigate, collapsed = false, onExpand = () => undefined }: 
           </NavLink>
         </li>
       </ul>
+      {/* Logo unten in der Seitenleiste (nur mit lokalem Branding), eingeklappt kleiner */}
+      <div className="mt-auto flex justify-center pt-6 pb-3 opacity-90">
+        <BrandLogo variant="weiss" className={collapsed ? "h-6 w-auto" : "h-11 w-auto"} fallback={null} />
+      </div>
     </nav>
   );
 }

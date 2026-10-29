@@ -76,3 +76,28 @@ test("API: Sperre nach zu vielen Fehlversuchen, fremder Ursprung abgelehnt", asy
   const foreign = await request.post("/api/login", { data: { username: "admin", password: "test" }, headers: { Origin: "https://fremd.example" } });
   expect(foreign.status()).toBe(403);
 });
+
+test("Angemeldet bleiben: längere Sitzung und Benutzername vorbelegt", async ({ page, context }) => {
+  await page.goto("/login");
+  await page.getByLabel("Benutzername").fill("admin");
+  await page.getByLabel("Passwort").fill("test");
+  await page.getByLabel("Angemeldet bleiben").check();
+  await page.getByRole("button", { name: "Anmelden" }).click();
+  await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
+  const long = (await context.cookies()).find((c) => c.name === "cmdb_session")!;
+  expect(long.expires * 1000 - Date.now()).toBeGreaterThan(6 * 24 * 3600 * 1000);
+
+  await page.getByRole("button", { name: "Abmelden" }).click();
+  await expect(page.getByLabel("Benutzername")).toHaveValue("admin");
+  await expect(page.getByLabel("Angemeldet bleiben")).toBeChecked();
+  await expect(page.getByLabel("Passwort")).toHaveValue("");
+
+  // Ohne Häkchen: Sitzung wie bisher (8 Stunden), Name wird nicht mehr gemerkt
+  await page.getByLabel("Angemeldet bleiben").uncheck();
+  await page.getByLabel("Passwort").fill("test");
+  await page.getByRole("button", { name: "Anmelden" }).click();
+  await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
+  const short = (await context.cookies()).find((c) => c.name === "cmdb_session")!;
+  expect(short.expires * 1000 - Date.now()).toBeLessThan(9 * 3600 * 1000);
+  expect(await page.evaluate(() => localStorage.getItem("cmdb-angemeldet-bleiben"))).toBeNull();
+});
