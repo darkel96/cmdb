@@ -119,6 +119,18 @@ const f = {
   status: { key: "status", column: "Status", label: "Status", detailOnly: true },
 } satisfies Record<string, AreaField>;
 
+/**
+ * Nummernkreis wie in GAPTEQ: immer die kleinste freie Nummer ab dem Anfang des Bereichs (testIdBase), auch wenn
+ * dahinter schon Nummern belegt sind. Für Testmodus und Testseite; in der Datenbank entspricht das der ersten
+ * vorab angelegten Leerzeile (server/src/db.ts, createAreaRow).
+ */
+export function firstFreeId(area: Area, used: number[]): number {
+  const taken = new Set(used);
+  let id = area.testIdBase;
+  while (taken.has(id)) id++;
+  return id;
+}
+
 export const AREAS: Record<string, Area> = {
   server: {
     id: "server",

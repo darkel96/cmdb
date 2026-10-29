@@ -2,7 +2,7 @@
  * Zugriff auf den CMDB-Dienst. Im Build-Modus „pages“ (VITE_TESTMODE=1) gibt es keinen Dienst:
  * Dann beantwortet eine Attrappe im Browser alle Anfragen mit den Testbenutzern und erfundenen Daten.
  */
-import { AREAS, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
+import { AREAS, firstFreeId, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
 import { READ_ALL, allPermissions, PERMISSION_AREAS, type LoginLogEntry, type Role } from "./permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
 import type { CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
@@ -195,12 +195,12 @@ const browserTestApi: Api = {
       const list = typeof f.options === "object" ? LOOKUP_LISTS.find((l) => l.table === (f.options as { table: string }).table) : undefined;
       options[f.key] = f.options === "customers" ? browserCustomers.map((c) => c.name) : list ? [...(browserLookups.get(list.id) ?? [])] : (TEST_OPTIONS[f.key] ?? []);
     }
-    return { nextId: Math.max(...browserRows(areaId).map((r) => r.id)) + 1, options };
+    return { nextId: firstFreeId(AREAS[areaId], browserRows(areaId).map((r) => r.id)), options };
   },
   createAreaRow: async (areaId, values) => {
     if (storedUser()?.user.role !== "admin") throw new ApiError("Anlegen dürfen nur Admins.", 403);
     const area = AREAS[areaId];
-    const row: AreaRow = { id: Math.max(...browserRows(areaId).map((r) => r.id)) + 1 };
+    const row: AreaRow = { id: firstFreeId(area, browserRows(areaId).map((r) => r.id)) };
     for (const f of area.fields) row[f.key] = f.key === "type" ? area.typeValue : (values[f.key] ?? "");
     browserCreated.set(areaId, [...(browserCreated.get(areaId) ?? []), row]);
     return { id: row.id };
