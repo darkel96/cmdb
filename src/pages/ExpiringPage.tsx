@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { AREAS, SYSTEM_STATUS, type Area, type AreaRow } from "@/lib/areas";
 import { cn } from "@/lib/utils";
 import { deDate, EXPIRING_MONTHS, expiringWindow, inExpiringWindow } from "@/lib/expiring";
+import { useSessionState } from "@/lib/sessionView";
 import { useAuth } from "@/state/auth";
 
 /** Bereiche in der Reihenfolge wie in GAPTEQ („Auslaufende Kundensysteme“) */
@@ -94,12 +95,14 @@ export function ExpiringPage() {
   const { can } = useAuth();
   const areas = useMemo(() => EXPIRING_AREAS.filter((id) => can(id, "read")).map((id) => AREAS[id]), [can]);
   const [results, setResults] = useState<Record<string, Result>>({});
-  const [archive, setArchive] = useState(false);
-  const [customer, setCustomer] = useState<string | null>(null);
-  const [customerSearch, setCustomerSearch] = useState("");
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // Ansicht für die Sitzung merken: nach Öffnen eines Systems und „Zurück“ bleibt alles wie es war
+  const [archive, setArchive] = useSessionState("auslaufend", "archive", false);
+  const [customer, setCustomer] = useSessionState<string | null>("auslaufend", "customer", null);
+  const [customerSearch, setCustomerSearch] = useSessionState("auslaufend", "customerSearch", "");
+  const [hiddenList, setHiddenList] = useSessionState<string[]>("auslaufend", "hidden", []);
+  const hidden = useMemo(() => new Set(hiddenList), [hiddenList]);
   // null = alle Status
-  const [status, setStatus] = useState<string | null>(null);
+  const [status, setStatus] = useSessionState<string | null>("auslaufend", "status", null);
   // Regel: Support-Ende in den nächsten 9 Monaten oder abgelaufen (src/lib/expiring.ts)
   const window = useMemo(() => expiringWindow(), []);
   const wide = useWide();
@@ -236,7 +239,7 @@ export function ExpiringPage() {
       </div>
       {errors.length > 0 && <p role="alert" className="text-sm text-destructive">Nicht geladen: {errors.join(" · ")}</p>}
 
-      <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[17rem_1fr]">
+      <div className="grid gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[17rem_minmax(0,1fr)]">
         {/* Kunden: wählen filtert die Tabelle rechts */}
         <section aria-label="Kunden" className="animate-appear flex max-h-72 min-h-0 flex-col overflow-hidden rounded-lg border bg-card shadow-xs lg:max-h-none">
           {/* Suche und „Alle Kunden“ bleiben stehen, nur die Kunden darunter scrollen */}
@@ -281,7 +284,7 @@ export function ExpiringPage() {
           </ul>
         </section>
 
-        <div className="flex flex-col gap-2 lg:min-h-0">
+        <div className="flex min-w-0 flex-col gap-2 lg:min-h-0">
           {/* Bereiche ein- und ausblenden, mit Anzahl */}
           <div className="flex flex-wrap gap-1.5" role="group" aria-label="Bereiche ein- und ausblenden">
             {areas.filter((a) => !results[a.id] || perArea(a.id) > 0).map((a) => {
@@ -291,13 +294,7 @@ export function ExpiringPage() {
                   key={a.id}
                   type="button"
                   aria-pressed={shown}
-                  onClick={() =>
-                    setHidden((h) => {
-                      const next = new Set(h);
-                      if (!next.delete(a.id)) next.add(a.id);
-                      return next;
-                    })
-                  }
+                  onClick={() => setHiddenList(shown ? [...hiddenList, a.id] : hiddenList.filter((id) => id !== a.id))}
                   className={cn(
                     "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors duration-150",
                     shown ? "border-brand bg-brand/10 text-brand hover:bg-brand/15" : "bg-card text-muted-foreground line-through hover:border-brand",
@@ -311,6 +308,7 @@ export function ExpiringPage() {
           </div>
           <DataTable
             key={`${archive}:${customer ?? ""}:${status ?? "*"}`}
+            viewKey={`auslaufend:${archive}:${customer ?? ""}:${status ?? "*"}`}
             compact={!wide}
             title={`${archive ? "Archiv" : "Offen"} · ${customer ?? "Alle Kunden"}${status === null ? "" : ` · ${statusLabel(status)}`}`}
             columns={columns}

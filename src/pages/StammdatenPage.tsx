@@ -215,7 +215,7 @@ export function StammdatenPage() {
   return (
     <div className="flex w-full flex-col gap-3">
       <p className="text-sm text-muted-foreground">Auswahllisten der Formulare. Ändern oder Löschen eines Werts ändert keine bestehenden Einträge, wie in GAPTEQ.</p>
-      <div className="grid items-start gap-4 md:grid-cols-[15rem_1fr]">
+      <div className="grid items-start gap-4 md:grid-cols-[15rem_minmax(0,1fr)]">
         <nav aria-label="Auswahllisten" className="animate-appear overflow-hidden rounded-lg border bg-card p-1 shadow-xs">
           <ul className="flex flex-col gap-0.5">
             {data.lists.map((l) => (

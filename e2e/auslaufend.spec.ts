@@ -146,3 +146,52 @@ test("Status: Grundrolle sieht die Liste, kann den Status aber nicht setzen", as
   const areaId = { Server: "server", Switche: "switche", Storage: "storage", VMware: "vmware", TSPLUS: "tsplus", PRTG: "prtg", Veeam: "veeam", KEPware: "kepware", "Windows-Systeme": "windows" }[area];
   expect((await page.request.put(`/api/areas/${areaId}/${id}/status`, { data: { values: { status: "Angeboten" }, original: { status: "" } } })).status()).toBe(403);
 });
+
+test("Zurück aus einem System: Kunde, Status-Filter und Tabellensuche bleiben erhalten", async ({ page }) => {
+  await login(page);
+  await open(page);
+  const t = table(page);
+  const customers = page.getByRole("list", { name: "Kundenliste" }).getByRole("button");
+  const name = (await customers.nth(1).getAttribute("title"))!;
+  await customers.nth(1).click();
+  await page.getByRole("group", { name: "Nach Status filtern" }).getByRole("button", { name: /^Ohne Status/ }).click();
+  await expect(t).toHaveAccessibleName(`Offen · ${name} · Ohne Status`);
+  const first = t.locator("tbody tr").first();
+  const id = (await first.locator("td").nth(1).textContent())!.trim();
+  await t.getByLabel("Suchen", { exact: true }).fill(id);
+
+  // Markieren (erste Zelle, die Mitte kann die Status-Auswahl sein) und „Öffnen“; Doppelklick gibt es auf dem Handy nicht
+  await t.locator("tbody tr").first().locator("td").first().click();
+  await t.getByRole("button", { name: "Öffnen" }).click();
+  await expect(page).toHaveURL(/\/bereich\/[a-z]+\/\d+$/);
+  await page.getByRole("link", { name: "Zurück zu Auslaufende Kundensysteme" }).click();
+  await expect(t).toHaveAccessibleName(`Offen · ${name} · Ohne Status`);
+  await expect(page.getByRole("list", { name: "Kundenliste" }).getByRole("button", { name })).toHaveAttribute("aria-pressed", "true");
+  await expect(t.getByLabel("Suchen", { exact: true })).toHaveValue(id);
+
+  // Die geöffnete Zeile ist noch markiert: direkt wieder „Öffnen“, dann Browser-Zurück
+  await t.getByRole("button", { name: "Öffnen" }).click();
+  await expect(page).toHaveURL(/\/bereich\/[a-z]+\/\d+$/);
+  await page.goBack();
+  await expect(t).toHaveAccessibleName(`Offen · ${name} · Ohne Status`);
+});
+
+test("Breite Spalten machen die Seite nicht breiter: die Tabelle scrollt in sich", async ({ page }) => {
+  await login(page);
+  // Wie bei echten Daten mit langen Firmennamen: gemerkte Spaltenbreiten weit über die Fensterbreite
+  await page.evaluate("localStorage.setItem('cmdb-spalten:Offen · Alle Kunden', JSON.stringify({ company: 700, name: 700 }))");
+  await open(page);
+  await expect(table(page).locator("tbody tr").first()).toBeVisible();
+  const [scroll, client] = (await page.evaluate('[document.querySelector("main").scrollWidth, document.querySelector("main").clientWidth]')) as number[];
+  expect(scroll).toBeLessThanOrEqual(client);
+});
+
+test("Spalten passen sich der Fensterbreite an: kein Scrollen nach rechts", async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await login(page);
+  await open(page);
+  const t = table(page);
+  await expect(t.locator("tbody tr").first()).toBeVisible();
+  const scroller = t.getByTestId("table-scroll");
+  await expect.poll(() => scroller.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+});

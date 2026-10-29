@@ -80,7 +80,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex w-full flex-col gap-3">
       <h1 className="text-2xl font-semibold">Auflistungen</h1>
-      <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
+      <div className="grid gap-4 md:grid-cols-[18rem_minmax(0,1fr)]">
         <ReportsNav />
         {children}
       </div>
