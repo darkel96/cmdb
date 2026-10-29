@@ -6,7 +6,8 @@ import { AREAS, firstFreeId, type AreaCreateResponse, type AreaFormResponse, typ
 import type { SettingsInput, SettingsResponse, SettingsSectionId } from "./settings";
 import { OS_SUPPORT_SEED, withOsSupport, type OsSupportEntry } from "./osSupport";
 import type { HistoryResponse } from "./history";
-import { READ_ALL, allPermissions, PERMISSION_AREAS, type Action, type LoginLogEntry, type Role } from "./permissions";
+import { search, type SearchResponse } from "./search";
+import { READ_ALL, allPermissions, can, PERMISSION_AREAS, type Action, type LoginLogEntry, type Role } from "./permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
 import type { CheckResult, CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
@@ -27,6 +28,8 @@ export interface Api {
   cis(): Promise<CiListResponse>;
   customers(): Promise<CustomerListResponse>;
   area(areaId: string): Promise<AreaListResponse>;
+  /** Globale Suche über alle lesbaren Bereiche und die Kunden */
+  search(q: string): Promise<SearchResponse>;
   areaRow(areaId: string, id: number): Promise<AreaRow>;
   areaForm(areaId: string): Promise<AreaFormResponse>;
   createAreaRow(areaId: string, values: Record<string, string>): Promise<AreaCreateResponse>;
@@ -122,6 +125,7 @@ const serverApi: Api = {
   cis: () => request<CiListResponse>("/api/cis"),
   customers: () => request<CustomerListResponse>("/api/customers"),
   area: (areaId) => request<AreaListResponse>(`/api/areas/${areaId}`),
+  search: (q) => request<SearchResponse>(`/api/search?q=${encodeURIComponent(q)}`),
   osSupport: () => request<{ items: OsSupportEntry[] }>("/api/os-support"),
   history: (area, id) => request<HistoryResponse>(`/api/history/${area}/${id}`),
   saveOsSupport: (entry) => request<{ items: OsSupportEntry[] }>("/api/os-support", { method: "PUT", body: JSON.stringify(entry) }),
@@ -260,6 +264,12 @@ const browserTestApi: Api = {
   area: async (areaId) => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
     return { source: "test", items: browserDecorated(areaId) };
+  },
+  search: async (q) => {
+    const me = storedUser();
+    if (!me) throw new ApiError("Nicht angemeldet.", 401);
+    const areas = Object.values(AREAS).filter((a) => can(me.permissions, a.id, "read"));
+    return { query: q, groups: search(q, areas.map((area) => ({ area, rows: browserDecorated(area.id) })), can(me.permissions, "kunden", "read") ? browserCustomers : null) };
   },
   osSupport: async () => ({ items: browserOsSupport }),
   // Testseite: kein Verlauf (kein Dienst)

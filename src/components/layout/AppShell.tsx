@@ -7,6 +7,7 @@ import { NAV_GROUPS, NAV_LISTS, type NavGroup } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
 import { BrandLogo } from "@/components/Branding";
+import { GlobalSearch } from "@/components/GlobalSearch";
 import { TestBanner } from "./TestBanner";
 
 const ROLE_LABEL = { admin: "Admin", user: "Benutzer" } as const;
@@ -133,7 +134,7 @@ export function AppShell() {
     // Kopf- und Seitenleiste stehen fest, nur der Inhalt scrollt
     <div className="flex h-svh flex-col overflow-hidden print:block print:h-auto print:overflow-visible">
       {testMode && <div className="print:hidden"><TestBanner /></div>}
-      <header className="vt-header flex h-12 print:!hidden shrink-0 items-center gap-2 bg-brand px-2 text-brand-foreground shadow-sm">
+      <header className="vt-header relative z-30 flex h-12 print:!hidden shrink-0 items-center gap-2 bg-brand px-2 text-brand-foreground shadow-sm">
         <button type="button" className={cn(topButton, "px-2.5 lg:hidden")} onClick={() => setMenuOpen((o) => !o)} aria-label="Menü ein- oder ausblenden" aria-expanded={menuOpen}>
           <Menu className="size-5" aria-hidden />
         </button>
@@ -151,7 +152,10 @@ export function AppShell() {
           <BrandLogo variant="weiss" className="h-7 w-auto" fallback={<Database className="size-5" aria-hidden />} />
           CMDB
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 justify-center px-2">
+          <GlobalSearch />
+        </div>
+        <div className="flex items-center gap-1.5">
           {visibleAdminTabs(user.role === "admin", can).length > 0 && (
             <NavLink to="/verwaltung" viewTransition aria-label="Verwaltung" className={({ isActive }) => cn(topButton, isActive && "bg-white/30")}>
               <Settings className="size-4" aria-hidden />

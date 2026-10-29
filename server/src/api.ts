@@ -18,6 +18,7 @@ import { OS_SUPPORT_SEED, withOsSupport, type OsSupportEntry } from "@/lib/osSup
 import { listChanges, recordChange } from "./history";
 import type { HistoryChange, HistoryResponse } from "@/lib/history";
 import { log } from "./log";
+import { SEARCH_MAX, SEARCH_MIN, search, type SearchResponse } from "@/lib/search";
 import { lockedFor, recordFailure, recordSuccess } from "./rateLimit";
 import { clearSessionCookie, sessionFromRequest, setSessionCookie } from "./session";
 
@@ -923,6 +924,34 @@ async function changeStammdaten(req: IncomingMessage, res: ServerResponse, listI
   }
 }
 
+/** Bereichslisten für die globale Suche kurz zwischenspeichern, sonst fragt jede Eingabe alle Tabellen ab */
+const SEARCH_CACHE_MS = 20_000;
+const searchCache = new Map<string, { at: number; rows: AreaRow[] }>();
+
+async function searchRows(area: Area): Promise<AreaRow[]> {
+  if (ENV.testMode) return areaRows(area);
+  const cached = searchCache.get(area.id);
+  if (cached && Date.now() - cached.at < SEARCH_CACHE_MS) return cached.rows;
+  const rows = await listArea(area);
+  searchCache.set(area.id, { at: Date.now(), rows });
+  return rows;
+}
+
+/** Globale Suche: nur Bereiche mit Leserecht, Kunden nur mit Recht Kunden lesen; der Suchbegriff wird nicht geloggt */
+async function globalSearch(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const user = sessionFromRequest(req);
+  if (!user) return fail(res, 401, "Nicht angemeldet.");
+  const q = (new URL(req.url ?? "/", "http://cmdb").searchParams.get("q") ?? "").trim();
+  if (q.length > SEARCH_MAX) return fail(res, 400, `Suchbegriff: höchstens ${SEARCH_MAX} Zeichen.`);
+  const permissions = await permissionsFor(user);
+  await readDb(res, async () => {
+    const areas = Object.values(AREAS).filter((a) => can(permissions, a.id, "read"));
+    const lists = q.length < SEARCH_MIN ? [] : await Promise.all(areas.map(async (area) => ({ area, rows: await searchRows(area) })));
+    const customers = q.length >= SEARCH_MIN && can(permissions, "kunden", "read") ? (ENV.testMode ? testCustomers : await listCustomers()) : null;
+    return { query: q, groups: search(q, lists, customers) } satisfies SearchResponse;
+  });
+}
+
 /** true, wenn die Anfrage zur API gehört und beantwortet wurde */
 export async function api(req: IncomingMessage, res: ServerResponse, path: string): Promise<boolean> {
   if (!path.startsWith("/api/")) return false;
@@ -932,6 +961,8 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       fail(res, 403, "Anfrage abgelehnt.");
       return true;
     }
+    // Jede Änderung kann Suchtreffer ändern
+    if (method !== "GET") searchCache.clear();
     if (path === "/api/login" && method === "POST") await login(req, res);
     else if (path === "/api/logout" && method === "POST") {
       const user = sessionFromRequest(req);
@@ -1073,6 +1104,8 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       await changeStammdaten(req, res, path.split("/")[3], method);
     } else if (path.startsWith("/api/admin/")) {
       await adminApi(req, res, path, method);
+    } else if (path === "/api/search" && method === "GET") {
+      await globalSearch(req, res);
     } else if (path === "/api/cis" && method === "GET") {
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
       else json(res, 200, (ENV.testMode ? { source: "test", items: TEST_CIS } : { source: "none", items: [] }) satisfies CiListResponse);
