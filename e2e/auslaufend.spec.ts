@@ -160,14 +160,18 @@ test("Zurück aus einem System: Kunde, Status-Filter und Tabellensuche bleiben e
   const id = (await first.locator("td").nth(1).textContent())!.trim();
   await t.getByLabel("Suchen", { exact: true }).fill(id);
 
-  await t.locator("tbody tr").first().dblclick();
+  // Markieren (erste Zelle, die Mitte kann die Status-Auswahl sein) und „Öffnen“; Doppelklick gibt es auf dem Handy nicht
+  await t.locator("tbody tr").first().locator("td").first().click();
+  await t.getByRole("button", { name: "Öffnen" }).click();
+  await expect(page).toHaveURL(/\/bereich\/[a-z]+\/\d+$/);
   await page.getByRole("link", { name: "Zurück zu Auslaufende Kundensysteme" }).click();
   await expect(t).toHaveAccessibleName(`Offen · ${name} · Ohne Status`);
   await expect(page.getByRole("list", { name: "Kundenliste" }).getByRole("button", { name })).toHaveAttribute("aria-pressed", "true");
   await expect(t.getByLabel("Suchen", { exact: true })).toHaveValue(id);
 
-  // Browser-Zurück genauso
-  await t.locator("tbody tr").first().dblclick();
+  // Die geöffnete Zeile ist noch markiert: direkt wieder „Öffnen“, dann Browser-Zurück
+  await t.getByRole("button", { name: "Öffnen" }).click();
+  await expect(page).toHaveURL(/\/bereich\/[a-z]+\/\d+$/);
   await page.goBack();
   await expect(t).toHaveAccessibleName(`Offen · ${name} · Ohne Status`);
 });
