@@ -148,9 +148,10 @@ export async function saveRole(id: number | undefined, input: RoleInput, by: str
       if (!r.rowsAffected[0]) throw new DbError("Diese Rolle gibt es nicht.", 404);
       await new sql.Request(tx).input("id", sql.Int, roleId).query("DELETE FROM cmdb.RolePermission WHERE RoleId = @id; DELETE FROM cmdb.RoleMember WHERE RoleId = @id");
     }
+    // Jeder Bereich bekommt eine Zeile, auch ohne Rechte: sonst würde der Start der Grundrolle das entzogene
+    // Leserecht als „neuer Bereich“ wieder eintragen
     for (const area of PERMISSION_AREAS) {
-      const x = input.permissions[area.id];
-      if (!x || !(x.read || x.create || x.edit || x.delete)) continue;
+      const x = input.permissions[area.id] ?? { read: false, create: false, edit: false, delete: false };
       await new sql.Request(tx).input("id", sql.Int, roleId).input("a", sql.NVarChar(50), area.id).input("r", sql.Bit, x.read).input("c", sql.Bit, x.create).input("e", sql.Bit, x.edit).input("d", sql.Bit, x.delete)
         .query("INSERT INTO cmdb.RolePermission (RoleId, Area, CanRead, CanCreate, CanEdit, CanDelete) VALUES (@id, @a, @r, @c, @e, @d)");
     }
