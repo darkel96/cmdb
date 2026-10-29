@@ -48,6 +48,11 @@ test("Globale Suche: Kunden, „alle anzeigen“ und nichts gefunden", async ({ 
 
   await box(page).fill("gibt-es-sicher-nicht-xyz");
   await expect(results(page)).toContainText("Nichts gefunden");
+  // X leert das Feld, der Fokus bleibt
+  await page.getByRole("button", { name: "Globale Suche löschen" }).click();
+  await expect(box(page)).toHaveValue("");
+  await expect(box(page)).toBeFocused();
+  await box(page).fill("gibt-es-sicher-nicht-xyz");
   await page.keyboard.press("Escape");
   await expect(box(page)).toHaveValue("");
 });

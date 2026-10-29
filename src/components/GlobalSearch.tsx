@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { useNavigate } from "react-router";
 import { api } from "@/lib/api";
 import { SEARCH_MAX, SEARCH_MIN, searchTerms, type SearchGroup, type SearchHit, type SearchResponse } from "@/lib/search";
@@ -148,9 +148,28 @@ export function GlobalSearch() {
           open ? "bg-card text-foreground placeholder:text-muted-foreground" : "bg-white/15 text-white placeholder:text-white/75 hover:bg-white/25",
         )}
       />
-      <kbd className={cn("pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border px-1.5 text-[10px] font-medium sm:block", open ? "text-muted-foreground" : "border-white/40 text-white/80")}>
-        Strg K
-      </kbd>
+      {q ? (
+        <button
+          type="button"
+          aria-label="Globale Suche löschen"
+          title="Suche löschen"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            setQ("");
+            inputRef.current?.focus();
+          }}
+          className={cn(
+            "absolute top-1/2 right-1.5 inline-flex size-5 -translate-y-1/2 items-center justify-center rounded-full transition-colors duration-150",
+            open ? "text-muted-foreground hover:bg-muted hover:text-foreground" : "text-white/80 hover:bg-white/20 hover:text-white",
+          )}
+        >
+          <X className="size-3.5" aria-hidden />
+        </button>
+      ) : (
+        <kbd className={cn("pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border px-1.5 text-[10px] font-medium sm:block", open ? "text-muted-foreground" : "border-white/40 text-white/80")}>
+          Strg K
+        </kbd>
+      )}
 
       {shown && (
         <div
