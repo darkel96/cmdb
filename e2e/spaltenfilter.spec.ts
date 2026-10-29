@@ -39,6 +39,7 @@ test("Spaltenfilter: Werte mit Anzahl auswählen (mehrere), folgt anderen Filter
   const other = await page.getByRole("listbox", { name: "Werte Hersteller" }).getByRole("option").evaluateAll((els) => els.map((e) => Number(e.querySelector("span.tabular-nums")?.textContent)));
   expect(other.reduce((a, b) => a + b, 0)).toBe(entries[0].n + entries[1].n);
   await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox", { name: "Werte Hersteller" })).toHaveCount(0);
 
   await table.getByRole("button", { name: "Werte Servertyp auswählen" }).click();
   await page.getByRole("button", { name: "Auswahl aufheben" }).click();
