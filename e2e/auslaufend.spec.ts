@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expiringWindow } from "../src/lib/expiring";
 
 async function login(page: Page, username: "admin" | "user" = "admin") {
   await page.goto("/login");
@@ -23,7 +24,7 @@ const rowOf = (page: Page, area: string, id: string) =>
     .filter({ has: page.locator("td:nth-child(1)", { hasText: new RegExp(`^${area}$`) }) })
     .filter({ has: page.locator("td:nth-child(2)", { hasText: new RegExp(`^${id}$`) }) });
 
-test("Auslaufende Kundensysteme: eine Tabelle, nur Support bis Ende des dritten Monats, EOL rot, Kunde filtert", async ({ page }) => {
+test("Auslaufende Kundensysteme: eine Tabelle, nur Support-Ende in 9 Monaten oder abgelaufen, EOL rot, Kunde filtert", async ({ page }) => {
   await login(page);
   await open(page);
   const t = table(page);
@@ -31,17 +32,16 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support bis Ende des dritten 
   await t.getByRole("button", { name: /^(20|100)$/ }).last().click();
   const header = (await t.locator("thead tr").first().locator("th").allTextContents()).map((h) => h.trim());
   const col = (name: string) => header.findIndex((h) => h.startsWith(name));
-  const cutoff = (() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth() + 4, 1).getTime();
-  })();
+  // Regel: Support-Ende in den nächsten 9 Monaten oder abgelaufen (src/lib/expiring.ts)
+  const { to } = expiringWindow();
   const rows = t.locator("tbody tr");
   const n = await rows.count();
   expect(n).toBeGreaterThan(5);
   for (let i = 0; i < n; i++) {
     const cells = rows.nth(i).locator("td");
     const [d, m, y] = (await cells.nth(col("Support bis")).textContent())!.split(".").map(Number);
-    expect(new Date(2000 + y, m - 1, d).getTime()).toBeLessThan(cutoff);
+    const iso = `${2000 + y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    expect(iso <= to, `${iso} liegt bis ${to}`).toBe(true);
     expect(["Verlängert", "Abgeschlossen"]).not.toContain((await cells.nth(col("Status")).textContent())?.trim());
     if ((await cells.nth(col("EOL")).textContent())?.trim() === "Ja") await expect(rows.nth(i)).toHaveAttribute("data-highlight", "true");
     else await expect(rows.nth(i)).not.toHaveAttribute("data-highlight");
@@ -67,6 +67,41 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support bis Ende des dritten 
   await chip.click();
   await expect(chip).toHaveAttribute("aria-pressed", "false");
   await expect(t.locator(`tbody td:nth-child(${col("Bereich") + 1})`, { hasText: /^Server$/ })).toHaveCount(0);
+});
+
+test("Status-Filter gilt für die ganze Seite: Tabelle, Kundenliste und Zähler", async ({ page }) => {
+  test.slow();
+  await login(page);
+  await open(page);
+  const t = table(page);
+  const filter = page.getByRole("group", { name: "Nach Status filtern" });
+  // Im Reiter „Offen“ nur offene Status, Verlängert/Abgeschlossen gibt es dort nicht
+  await expect(filter.getByRole("button")).toHaveText([/^Alle/, /^Ohne Status/, /^Angeboten/, /^In Bearbeitung/]);
+
+  // Eine Zeile auf „In Bearbeitung“ setzen (dritte Zeile, die erste nutzt der Archiv-Test)
+  const row = t.locator("tbody tr").nth(2);
+  const id = (await row.locator("td").nth(1).textContent())!.trim();
+  const area = (await row.locator("td").nth(0).textContent())!.trim();
+  const company = (await row.locator("td").nth(2).textContent())!.trim();
+  await row.getByRole("combobox").click();
+  await page.getByRole("option", { name: "In Bearbeitung" }).click();
+  await expect(rowOf(page, area, id).getByRole("combobox")).toHaveText("In Bearbeitung");
+
+  await filter.getByRole("button", { name: /^In Bearbeitung/ }).click();
+  await expect(t).toHaveAccessibleName("Offen · Alle Kunden · In Bearbeitung");
+  await expect(rowOf(page, area, id)).toBeVisible();
+  for (const c of await t.locator("tbody tr").getByRole("combobox").allTextContents()) expect(c.trim()).toBe("In Bearbeitung");
+  // Kundenliste zeigt nur Kunden mit diesem Status
+  await expect(page.getByRole("list", { name: "Kundenliste" }).getByRole("button", { name: company })).toBeVisible();
+
+  // Zurück auf offen, dann ist die Zeile unter „In Bearbeitung“ weg
+  await rowOf(page, area, id).getByRole("combobox").click();
+  await page.getByRole("option", { name: "– keine Auswahl –" }).click();
+  await expect(rowOf(page, area, id)).toHaveCount(0);
+
+  // Im Archiv: Verlängert und Abgeschlossen
+  await page.getByRole("tab", { name: /Archiv/ }).click();
+  await expect(filter.getByRole("button")).toHaveText([/^Alle/, /^Verlängert/, /^Abgeschlossen/]);
 });
 
 test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen holt es wieder", async ({ page }) => {

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { AREAS, SYSTEM_STATUS, type Area, type AreaRow } from "@/lib/areas";
 import { cn } from "@/lib/utils";
+import { deDate, EXPIRING_MONTHS, expiringWindow, inExpiringWindow } from "@/lib/expiring";
 import { useAuth } from "@/state/auth";
 
 /** Bereiche in der Reihenfolge wie in GAPTEQ („Auslaufende Kundensysteme“) */
@@ -15,25 +16,17 @@ export const EXPIRING_AREAS = ["server", "switche", "storage", "vmware", "tsplus
 /** Status, mit denen ein System erledigt ist und ins Archiv wandert */
 export const ARCHIVE_STATUS = ["Verlängert", "Abgeschlossen"];
 
-/**
- * Wie GAPTEQ: Support bis ist gesetzt und liegt spätestens im dritten Monat ab jetzt (im Oktober also bis 31. Januar),
- * abgelaufene eingeschlossen. Einträge ohne Datum zählen nicht.
- */
-export function expiringBefore(now = new Date()): string {
-  const d = new Date(now.getFullYear(), now.getMonth() + 4, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
-const lastDay = (iso: string) => {
-  const d = new Date(`${iso}T00:00:00`);
-  d.setDate(0);
-  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
-};
 const shortDate = (iso: string) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(2, 4)}` : "");
 
 const areaName = (a: Area) => a.plural ?? a.title.replace(/^Übersicht /, "");
 const isEol = (row: AreaRow) => String(row.eol ?? "").toLowerCase() === "ja";
 const isArchived = (row: AreaRow) => ARCHIVE_STATUS.includes(String(row.status ?? ""));
+const statusOf = (row: AreaRow) => String(row.status ?? "").trim();
+
+/** Status-Filter für die ganze Seite: im Reiter „Offen“ ohne Status / Angeboten / In Bearbeitung, im Archiv die Abschlüsse */
+const NO_STATUS = "";
+const statusFilters = (archive: boolean) => (archive ? ARCHIVE_STATUS : [NO_STATUS, ...SYSTEM_STATUS.filter((s) => !ARCHIVE_STATUS.includes(s))]);
+const statusLabel = (status: string) => (status === NO_STATUS ? "Ohne Status" : status);
 const text = (row: AreaRow, ...keys: string[]) => keys.map((k) => String(row[k] ?? "").trim()).find(Boolean) ?? "";
 
 /** Ein System aus irgendeinem Bereich, für die gemeinsame Tabelle */
@@ -105,17 +98,20 @@ export function ExpiringPage() {
   const [customer, setCustomer] = useState<string | null>(null);
   const [customerSearch, setCustomerSearch] = useState("");
   const [hidden, setHidden] = useState<Set<string>>(new Set());
-  const cutoff = expiringBefore();
+  // null = alle Status
+  const [status, setStatus] = useState<string | null>(null);
+  // Regel: Support-Ende in den nächsten 9 Monaten oder abgelaufen (src/lib/expiring.ts)
+  const window = useMemo(() => expiringWindow(), []);
   const wide = useWide();
 
   useEffect(() => {
     for (const area of areas) {
       api.area(area.id).then(
-        (d) => setResults((r) => ({ ...r, [area.id]: { rows: d.items.filter((row) => row.supportUntil && String(row.supportUntil) < cutoff) } })),
+        (d) => setResults((r) => ({ ...r, [area.id]: { rows: d.items.filter((row) => inExpiringWindow(String(row.supportUntil ?? ""), window)) } })),
         (e: unknown) => setResults((r) => ({ ...r, [area.id]: { error: e instanceof Error ? e.message : String(e) } })),
       );
     }
-  }, [areas, cutoff]);
+  }, [areas, window]);
 
   const loading = areas.some((a) => !results[a.id]);
   const errors = areas.flatMap((a) => {
@@ -124,7 +120,7 @@ export function ExpiringPage() {
   });
 
   // Alle Systeme des gewählten Reiters (offen oder Archiv)
-  const all = useMemo(
+  const inTab = useMemo(
     () =>
       areas.flatMap((area) => {
         const r = results[area.id];
@@ -132,6 +128,10 @@ export function ExpiringPage() {
       }),
     [areas, results, archive],
   );
+  // Andere Werte (z. B. aus GAPTEQ) zählen unter „Alle“, haben aber keinen eigenen Filter
+  const perStatus = (s: string) => inTab.filter((i) => statusOf(i.row) === s).length;
+  // Der Status-Filter gilt für die ganze Seite: Kundenliste, Bereiche und Tabelle
+  const all = useMemo(() => (status === null ? inTab : inTab.filter((i) => statusOf(i.row) === status)), [inTab, status]);
   const counts = useMemo(() => {
     let open = 0;
     let archived = 0;
@@ -196,21 +196,43 @@ export function ExpiringPage() {
         <div>
           <h1 className="text-2xl font-semibold">Auslaufende Kundensysteme</h1>
           <p className="text-sm text-muted-foreground">
-            Support bis spätestens {lastDay(cutoff)} oder abgelaufen · rot: EOL = Ja · Verlängert und Abgeschlossen stehen im Archiv
+            Support-Ende bis {deDate(window.to)} (nächste {EXPIRING_MONTHS} Monate) oder abgelaufen · rot: EOL = Ja · Verlängert und Abgeschlossen stehen im Archiv
           </p>
         </div>
         <div role="tablist" aria-label="Ansicht" className="inline-flex rounded-lg bg-muted p-1">
-          <button type="button" role="tab" aria-selected={!archive} className={tab(!archive)} onClick={() => { setArchive(false); setCustomer(null); }}>
+          <button type="button" role="tab" aria-selected={!archive} className={tab(!archive)} onClick={() => { setArchive(false); setCustomer(null); setStatus(null); }}>
             <CalendarClock className="size-4" aria-hidden />
             Offen
             <span className="rounded bg-muted px-1.5 text-xs tabular-nums">{loading ? "…" : counts.open}</span>
           </button>
-          <button type="button" role="tab" aria-selected={archive} className={tab(archive)} onClick={() => { setArchive(true); setCustomer(null); }}>
+          <button type="button" role="tab" aria-selected={archive} className={tab(archive)} onClick={() => { setArchive(true); setCustomer(null); setStatus(null); }}>
             <Archive className="size-4" aria-hidden />
             Archiv
             <span className="rounded bg-muted px-1.5 text-xs tabular-nums">{loading ? "…" : counts.archived}</span>
           </button>
         </div>
+      </div>
+      {/* Status-Filter für die ganze Seite */}
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Nach Status filtern">
+        <span className="mr-1 text-xs font-medium text-muted-foreground">Status</span>
+        {[null, ...statusFilters(archive)].map((s) => {
+          const active = status === s;
+          return (
+            <button
+              key={s ?? "alle"}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setStatus(s)}
+              className={cn(
+                "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors duration-150",
+                active ? "border-brand bg-brand text-brand-foreground" : "bg-card text-muted-foreground hover:border-brand hover:text-foreground",
+              )}
+            >
+              {s === null ? "Alle" : statusLabel(s)}
+              <span className="tabular-nums opacity-80">{loading ? "…" : s === null ? inTab.length : perStatus(s)}</span>
+            </button>
+          );
+        })}
       </div>
       {errors.length > 0 && <p role="alert" className="text-sm text-destructive">Nicht geladen: {errors.join(" · ")}</p>}
 
@@ -288,14 +310,14 @@ export function ExpiringPage() {
             })}
           </div>
           <DataTable
-            key={`${archive}:${customer ?? ""}`}
+            key={`${archive}:${customer ?? ""}:${status ?? "*"}`}
             compact={!wide}
-            title={`${archive ? "Archiv" : "Offen"} · ${customer ?? "Alle Kunden"}`}
+            title={`${archive ? "Archiv" : "Offen"} · ${customer ?? "Alle Kunden"}${status === null ? "" : ` · ${statusLabel(status)}`}`}
             columns={columns}
             rows={items}
             rowKey={(i) => i.key}
             exportName={archive ? "auslaufend-archiv" : "auslaufend"}
-            emptyText={loading ? "Wird geladen …" : archive ? "Im Archiv ist nichts." : "Keine auslaufenden Systeme."}
+            emptyText={loading ? "Wird geladen …" : status !== null ? `Keine Systeme mit Status „${statusLabel(status)}“.` : archive ? "Im Archiv ist nichts." : "Keine auslaufenden Systeme."}
             defaultSort={{ key: "supportUntil", desc: false }}
             highlight={(i) => isEol(i.row)}
             onOpen={(i) =>

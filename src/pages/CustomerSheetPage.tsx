@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { AREAS, type Area, type AreaRow, type CustomerDetailResponse } from "@/lib/areas";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
-import { expiringBefore } from "./ExpiringPage";
+import { EXPIRING_MONTHS, expiringWindow } from "@/lib/expiring";
 
 const deDate = (iso: string) => (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : iso);
 const text = (row: AreaRow, ...keys: string[]) => keys.map((k) => String(row[k] ?? "").trim()).find(Boolean) ?? "";
@@ -21,11 +21,11 @@ const ident = (row: AreaRow) => text(row, "serviceTag", "serialNumber", "hostnam
 /** Support-Ende je System: „Support bis“; bei Oracle die Softwarepflege, sonst der IT-Service */
 const supportDate = (row: AreaRow) => text(row, "supportUntil", "softwareContractEnd", "itServiceContractEnd");
 
-/** abgelaufen: EOL oder Support vorbei (rot); bald: endet bis zum Stichtag (gelb) */
-function state(row: AreaRow, cutoff: string): "abgelaufen" | "bald" | "" {
+/** abgelaufen: EOL oder Support vorbei (rot); bald: endet in den nächsten 9 Monaten (gelb, Regel aus src/lib/expiring.ts) */
+function state(row: AreaRow, until: string): "abgelaufen" | "bald" | "" {
   const d = supportDate(row);
   if (isEol(row) || (d && d < todayIso())) return "abgelaufen";
-  return d && d < cutoff ? "bald" : "";
+  return d && d <= until ? "bald" : "";
 }
 
 /** Zusatzangaben je Bereich (OS, Version, Typ, Wartung, Anzahl) */
@@ -72,7 +72,7 @@ export function CustomerSheetPage() {
   if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
   if (!data) return <p className="text-sm text-muted-foreground">Wird geladen …</p>;
 
-  const cutoff = expiringBefore();
+  const cutoff = expiringWindow().to;
   const areas = Object.values(AREAS).filter((a) => data.systems[a.id]?.length);
   // Oracle-ESL (Verträge) als eigener Block, nicht als System
   const contracts = data.systems["oracle-esl"] ?? [];
@@ -170,7 +170,7 @@ export function CustomerSheetPage() {
 
         <footer className="mt-8 flex justify-between border-t border-neutral-300 pt-2 text-[8pt] text-neutral-500">
           <span>Interne Unterlage · erstellt mit der CMDB am {today}{user ? ` von ${user.displayName}` : ""}</span>
-          <span>Rot: EOL oder ohne Support · Gelb: Support endet bis {deDate(new Date(new Date(`${cutoff}T00:00:00`).getTime() - 86400000).toISOString().slice(0, 10))}</span>
+          <span>Rot: EOL oder ohne Support · Gelb: Support endet in den nächsten {EXPIRING_MONTHS} Monaten (bis {deDate(cutoff)})</span>
         </footer>
       </article>
     </div>
