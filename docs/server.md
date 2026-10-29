@@ -300,7 +300,7 @@ Für Tests von Rechten mit dem eigenen AD-Konto (oder als Notzugang ohne AD) gib
 bzw. ändern (Passwort wird verdeckt abgefragt, mindestens 12 Zeichen):
 
 ```bash
-docker run --rm -it -v /root/cmdb/server:/s node:24-alpine node /s/tools/lokaler-admin.mjs admin
+docker run --rm -it -v /root/cmdb/server:/s node:24-bookworm-slim node /s/tools/lokaler-admin.mjs admin
 docker compose -p cmdb-dev up -d
 ```
 

@@ -1,6 +1,6 @@
 // Lokales Admin-Konto der CMDB setzen: fragt das Passwort verdeckt ab und schreibt nur den scrypt-Hash in die .env.
 // Aufruf (im Terminal auf charlestown, Passwort nie in den Chat):
-//   docker run --rm -it -v /root/cmdb/server:/s node:24-alpine node /s/tools/lokaler-admin.mjs admin
+//   docker run --rm -it -v /root/cmdb/server:/s node:24-bookworm-slim node /s/tools/lokaler-admin.mjs admin
 // Danach: docker compose -p cmdb-dev up -d   (Dienst liest die .env beim Start)
 import { randomBytes, scryptSync } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
