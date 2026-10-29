@@ -195,8 +195,10 @@ export function AreaCreatePage() {
         </div>
         <p className="border-t px-4 py-2 text-xs text-muted-foreground">
           {editing
-            ? `Gespeichert wird in dbo.${area.table}, ID ${itemId}. Hat jemand den Eintrag inzwischen geändert (auch in GAPTEQ), speichert die CMDB nicht und meldet das.`
-            : `Gespeichert wird in die nächste freie Zeile von dbo.${area.table}, wie in GAPTEQ. Die ID kann sich ändern, wenn gleichzeitig jemand anderes anlegt.`}
+            ? `Gespeichert wird in ${area.schema ?? "dbo"}.${area.table}, ID ${itemId}. Hat jemand den Eintrag inzwischen geändert${area.schema === "cmdb" ? "" : " (auch in GAPTEQ)"}, speichert die CMDB nicht und meldet das.`
+            : area.identity
+              ? `Gespeichert wird in ${area.schema ?? "dbo"}.${area.table}; die Datenbank vergibt die nächste Nummer. Die ID kann sich ändern, wenn gleichzeitig jemand anderes anlegt.`
+              : `Gespeichert wird in die nächste freie Zeile von dbo.${area.table}, wie in GAPTEQ. Die ID kann sich ändern, wenn gleichzeitig jemand anderes anlegt.`}
         </p>
       </section>
     </form>
