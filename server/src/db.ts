@@ -251,23 +251,24 @@ export async function updateAreaRow(area: Area, id: number, values: Record<strin
     if (changedMeanwhile.length)
       throw new DbError(`Der Eintrag wurde inzwischen geändert (${changedMeanwhile.map((f) => f.label).join(", ")}). Bitte neu laden und erneut bearbeiten.`, 409);
     const changed = area.fields.filter((f) => f.key in values && values[f.key] !== String(row[f.key] ?? ""));
-    // Passwort: nur übergeben, wenn neu eingegeben; der alte Wert wird dafür nicht gelesen
-    const secret = area.secret && values[area.secret.key];
-    if (changed.length || secret) {
+    // Passwort: nur übergeben, wenn neu eingegeben oder entfernt ("" = entfernen); der alte Wert wird nicht gelesen
+    const secretGiven = Boolean(area.secret && area.secret.key in values);
+    const secret = area.secret ? values[area.secret.key] : undefined;
+    if (changed.length || secretGiven) {
       const request = new sql.Request(tx).input("id", sql.Int, id);
       const sets = changed.map((f, i) => {
         const value = values[f.key];
         request.input(`v${i}`, f.date ? sql.Date : sql.NVarChar(255), value === "" ? null : f.date ? new Date(`${value}T00:00:00Z`) : value);
         return `${quote(f.column)} = @v${i}`;
       });
-      if (area.secret && secret) {
-        request.input("secret", sql.NVarChar(255), secret);
+      if (area.secret && secretGiven) {
+        request.input("secret", sql.NVarChar(255), secret || null);
         sets.push(`${quote(area.secret.column)} = @secret`);
       }
       await request.query(`UPDATE ${table} SET ${sets.join(", ")} WHERE ID = @id`);
     }
     await tx.commit();
-    return [...changed.map((f) => f.label), ...(area.secret && secret ? [area.secret.label] : [])];
+    return [...changed.map((f) => f.label), ...(area.secret && secretGiven ? [area.secret.label] : [])];
   } catch (e) {
     await tx.rollback().catch(() => undefined);
     throw translate(e, objectOf(area));

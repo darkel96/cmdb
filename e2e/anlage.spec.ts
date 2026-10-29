@@ -264,6 +264,14 @@ test("Anlage Oracle mit Hostname und RMAN-Passwort, Anlage Windows-System mit fe
   expect((await change.json()).changed).toEqual(["RMAN-Passwort"]);
   expect((await (await page.request.get(`/api/areas/oracle/${id}/secret`)).json()).value).toBe("Neu-456");
 
+  // Entfernen: im Formular per Knopf, gespeichert wird ein leeres Passwort
+  await page.goto(`/bereich/oracle/${id}/bearbeiten`);
+  await page.getByRole("button", { name: "Entfernen" }).click();
+  await expect(page.getByLabel("RMAN-Passwort", { exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Speichern" }).click();
+  await expect(page.locator("main").getByRole("status")).toContainText("RMAN-Passwort");
+  expect((await (await page.request.get(`/api/areas/oracle/${id}/secret`)).json()).value).toBe("");
+
   await page.goto("/bereich/windows/neu");
   await expect(page.getByRole("heading", { name: "Anlage Windows-System" })).toBeVisible();
   const windowsLabels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
