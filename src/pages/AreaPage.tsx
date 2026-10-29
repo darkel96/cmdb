@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from "reac
 import { DataTable, type Column } from "@/components/DataTable";
 import { SecretValue } from "@/components/SecretValue";
 import { SystemDocuments } from "@/components/SystemDocuments";
+import { HistoryPanel } from "@/components/HistoryPanel";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { AREAS, type Area, type AreaListResponse, type AreaRow } from "@/lib/areas";
@@ -222,6 +223,7 @@ export function AreaDetailPage() {
         </section>
       )}
       {row && area.createFields && <SystemDocuments area={area} id={row.id} />}
+      {row && <HistoryPanel area={area.id} id={row.id} />}
     </div>
   );
 }

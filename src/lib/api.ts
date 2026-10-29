@@ -5,6 +5,7 @@
 import { AREAS, firstFreeId, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDocument, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
 import type { SettingsInput, SettingsResponse, SettingsSectionId } from "./settings";
 import { OS_SUPPORT_SEED, withOsSupport, type OsSupportEntry } from "./osSupport";
+import type { HistoryResponse } from "./history";
 import { READ_ALL, allPermissions, PERMISSION_AREAS, type Action, type LoginLogEntry, type Role } from "./permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
 import type { CheckResult, CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
@@ -38,6 +39,8 @@ export interface Api {
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
   documentUrl(customerId: number, documentId: number): string | null;
+  /** Änderungsverlauf eines Systems (Bereich) oder Kunden („kunden“) */
+  history(area: string, id: number): Promise<HistoryResponse>;
   /** Support-Ende je Betriebssystem (Stammdaten › Server-OS) */
   osSupport(): Promise<{ items: OsSupportEntry[] }>;
   saveOsSupport(entry: OsSupportEntry): Promise<{ items: OsSupportEntry[] }>;
@@ -120,6 +123,7 @@ const serverApi: Api = {
   customers: () => request<CustomerListResponse>("/api/customers"),
   area: (areaId) => request<AreaListResponse>(`/api/areas/${areaId}`),
   osSupport: () => request<{ items: OsSupportEntry[] }>("/api/os-support"),
+  history: (area, id) => request<HistoryResponse>(`/api/history/${area}/${id}`),
   saveOsSupport: (entry) => request<{ items: OsSupportEntry[] }>("/api/os-support", { method: "PUT", body: JSON.stringify(entry) }),
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
   areaForm: (areaId) => request<AreaFormResponse>(`/api/areas/${areaId}/form`),
@@ -258,6 +262,8 @@ const browserTestApi: Api = {
     return { source: "test", items: browserDecorated(areaId) };
   },
   osSupport: async () => ({ items: browserOsSupport }),
+  // Testseite: kein Verlauf (kein Dienst)
+  history: async () => ({ items: [], available: false }),
   saveOsSupport: async (entry) => {
     requireAdmin();
     browserOsSupport = [...browserOsSupport.filter((e) => e.name !== entry.name), entry];

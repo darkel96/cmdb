@@ -15,6 +15,8 @@ import { SETTINGS_SECTIONS, type SettingsResponse } from "@/lib/settings";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { isLocalAdmin, localAdminLogin } from "./localAccount";
 import { OS_SUPPORT_SEED, withOsSupport, type OsSupportEntry } from "@/lib/osSupport";
+import { listChanges, recordChange } from "./history";
+import type { HistoryChange, HistoryResponse } from "@/lib/history";
 import { log } from "./log";
 import { lockedFor, recordFailure, recordSuccess } from "./rateLimit";
 import { clearSessionCookie, sessionFromRequest, setSessionCookie } from "./session";
@@ -288,6 +290,24 @@ async function sendSecret(res: ServerResponse, area: Area, id: number, user: Ses
   }
 }
 
+/** Für den Änderungsverlauf: Felder mit Wert (Anlegen: new, Löschen: old); Passwort nur als „gesetzt“ */
+function snapshot(area: Area, values: Record<string, string>, as: "old" | "new"): HistoryChange[] {
+  const list: HistoryChange[] = area.fields
+    .filter((f) => f.key !== "type" && String(values[f.key] ?? "").trim())
+    .map((f) => ({ label: f.label, [as]: String(values[f.key]) }));
+  if (area.secret && values[area.secret.key]) list.push({ label: area.secret.label, secret: true });
+  return list;
+}
+
+/** Für den Änderungsverlauf: geänderte Felder alt → neu */
+function diff(area: Area, before: Record<string, string>, after: Record<string, string>): HistoryChange[] {
+  const list: HistoryChange[] = area.fields
+    .filter((f) => f.key in after && String(before[f.key] ?? "") !== String(after[f.key] ?? ""))
+    .map((f) => ({ label: f.label, old: String(before[f.key] ?? ""), new: String(after[f.key] ?? "") }));
+  if (area.secret && area.secret.key in after) list.push({ label: area.secret.label, secret: true, new: after[area.secret.key] ? "gesetzt" : "entfernt" });
+  return list;
+}
+
 /** Eintrag löschen (Recht Löschen); body.original: Werte beim Öffnen, wie beim Bearbeiten */
 async function deleteInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser, id: number): Promise<void> {
   const body = await readJson(req);
@@ -303,6 +323,7 @@ async function deleteInArea(req: IncomingMessage, res: ServerResponse, area: Are
       testSecrets.delete(`${area.id}:${id}`);
     } else await deleteAreaRow(area, id, original);
     log(`Gelöscht: ${area.singular} ${id} von ${user.username}`);
+    await recordChange(user.username, area.id, id, "gelöscht", snapshot(area, original, "old"));
     res.writeHead(204, { "Cache-Control": "no-store" });
     res.end();
   } catch (e) {
@@ -327,10 +348,12 @@ async function createInArea(req: IncomingMessage, res: ServerResponse, area: Are
       testEdits.delete(key);
       testCreated.set(area.id, [...(testCreated.get(area.id) ?? []).filter((r) => r.id !== row.id), row]);
       log(`Angelegt (Testmodus): ${area.singular} ${row.id} von ${user.username}`);
+      await recordChange(user.username, area.id, row.id, "angelegt", snapshot(area, values, "new"));
       return json(res, 201, { id: row.id } satisfies AreaCreateResponse);
     }
     const id = await createAreaRow(area, values);
     log(`Angelegt: ${area.singular} ${id} von ${user.username}`);
+    await recordChange(user.username, area.id, id, "angelegt", snapshot(area, values, "new"));
     json(res, 201, { id } satisfies AreaCreateResponse);
   } catch (e) {
     if (!(e instanceof DbError)) throw e;
@@ -416,6 +439,7 @@ async function uploadDocument(req: IncomingMessage, res: ServerResponse, custome
       id = await addCustomerDocument(customer, name, data);
     }
     log(`Dokument ${id} (Kunde ${customerId}, ${Math.ceil(data.length / 1024)} KB) hochgeladen von ${user.username}`);
+    await recordChange(user.username, "kunden", customerId, "dokument", [{ label: "Datei", new: name }]);
     json(res, 201, { id });
   } catch (e) {
     if (!(e instanceof DbError)) throw e;
@@ -442,6 +466,7 @@ async function systemDocuments(req: IncomingMessage, res: ServerResponse, area: 
         testSystemDocuments.set(key, [...(testSystemDocuments.get(key) ?? []), { id: docId, name, data }]);
       } else docId = await addSystemDocument(area, row, name, data);
       log(`Dokument ${docId} (${area.singular} ${id}, ${Math.ceil(data.length / 1024)} KB) hochgeladen von ${user.username}`);
+      await recordChange(user.username, area.id, id, "dokument", [{ label: "Datei", new: name }]);
       return json(res, 201, { id: docId });
     }
     if (documentId === undefined) {
@@ -504,6 +529,15 @@ function customerValues(raw: unknown, full: boolean): CustomerValues {
   return values;
 }
 
+const CUSTOMER_LABELS: Record<keyof CustomerValues, string> = { name: "Kunde", country: "Land", city: "Stadt", zip: "PLZ", address: "Adresse", email: "E-Mail" };
+
+/** Änderungsverlauf Kunden: angelegt (nur neue Werte) bzw. alt → neu */
+function customerChanges(before: Partial<CustomerValues> | null, after: CustomerValues): HistoryChange[] {
+  return (Object.keys(CUSTOMER_LABELS) as (keyof CustomerValues)[])
+    .filter((k) => String(before?.[k] ?? "") !== String(after[k] ?? "") && (before || after[k]))
+    .map((k) => (before ? { label: CUSTOMER_LABELS[k], old: String(before[k] ?? ""), new: String(after[k] ?? "") } : { label: CUSTOMER_LABELS[k], new: String(after[k]) }));
+}
+
 async function saveCustomer(req: IncomingMessage, res: ServerResponse, user: SessionUser, id?: number): Promise<void> {
   const values = customerValues((await readJson(req)).values, id !== undefined);
   try {
@@ -515,10 +549,13 @@ async function saveCustomer(req: IncomingMessage, res: ServerResponse, user: Ses
         testCustomers = [...testCustomers, { id: newId, name: values.name, city: values.city }].sort((a, b) => a.name.localeCompare(b.name, "de"));
         testExtra.set(newId, { zip: "", address: "", email: "", country: values.country });
         log(`Kunde angelegt (Testmodus): ${newId} von ${user.username}`);
+        await recordChange(user.username, "kunden", newId, "angelegt", customerChanges(null, values));
         return json(res, 201, { id: newId } satisfies CustomerSaveResponse);
       }
       const current = testCustomers.find((c) => c.id === id);
       if (!current) throw new DbError("Diesen Kunden gibt es nicht.", 404);
+      const extra = testExtra.get(id);
+      const before = { name: current.name, city: current.city, country: extra?.country ?? "", zip: extra?.zip ?? "", address: extra?.address ?? "", email: extra?.email ?? "" };
       const renamed: { label: string; count: number }[] = [];
       if (current.name !== values.name) {
         for (const area of Object.values(AREAS)) {
@@ -530,14 +567,20 @@ async function saveCustomer(req: IncomingMessage, res: ServerResponse, user: Ses
       testCustomers = testCustomers.map((c) => (c.id === id ? { ...c, name: values.name, city: values.city } : c)).sort((a, b) => a.name.localeCompare(b.name, "de"));
       testExtra.set(id, { zip: values.zip, address: values.address, email: values.email, country: values.country });
       log(`Kunde geändert (Testmodus): ${id} von ${user.username}`);
+      const changes = customerChanges(before, values);
+      if (changes.length) await recordChange(user.username, "kunden", id, "geändert", changes);
       return json(res, 200, { id, renamed } satisfies CustomerSaveResponse);
     }
     if (id === undefined) {
       const newId = await createCustomer(values);
       log(`Kunde angelegt: ${newId} von ${user.username}`);
+      await recordChange(user.username, "kunden", newId, "angelegt", customerChanges(null, values));
       return json(res, 201, { id: newId } satisfies CustomerSaveResponse);
     }
+    const old = await getCustomer(id);
     const { renamed } = await updateCustomer(id, values);
+    const changes = customerChanges(old, values);
+    if (changes.length) await recordChange(user.username, "kunden", id, "geändert", changes);
     log(`Kunde geändert: ${id} von ${user.username}${renamed.length ? `, umbenannt in ${renamed.map((r) => `${r.label} (${r.count})`).join(", ")}` : ""}`);
     json(res, 200, { id, renamed } satisfies CustomerSaveResponse);
   } catch (e) {
@@ -557,7 +600,12 @@ async function removeCustomer(res: ServerResponse, user: SessionUser, id: number
         .filter((r) => r.count);
       if (refs.length) throw new DbError(`Löschen nicht möglich, dem Kunden ist noch etwas zugeordnet: ${refs.map((r) => `${r.label} (${r.count})`).join(", ")}.`, 409);
       testCustomers = testCustomers.filter((x) => x.id !== id);
-    } else await deleteCustomer(id);
+      await recordChange(user.username, "kunden", id, "gelöscht", [{ label: "Kunde", old: c.name }]);
+    } else {
+      const old = await getCustomer(id);
+      await deleteCustomer(id);
+      await recordChange(user.username, "kunden", id, "gelöscht", old ? [{ label: "Kunde", old: old.name }] : []);
+    }
     log(`Kunde gelöscht: ${id} von ${user.username}`);
     res.writeHead(204, { "Cache-Control": "no-store" });
     res.end();
@@ -769,6 +817,8 @@ async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area,
       testEdits.set(`${area.id}:${id}`, { ...row, ...plain });
     } else changed = await updateAreaRow(area, id, values, original);
     log(`Geändert: ${area.singular} ${id} von ${user.username}${changed.length ? ` (${changed.join(", ")})` : " (keine Änderung)"}`);
+    const changes = diff(area, original, values);
+    if (changes.length) await recordChange(user.username, area.id, id, status ? "status" : "geändert", changes);
     json(res, 200, { id, changed });
   } catch (e) {
     if (!(e instanceof DbError)) throw e;
@@ -998,6 +1048,17 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
         } catch (e) {
           if (!(e instanceof DbError)) throw e;
           fail(res, e.status, e.message);
+        }
+      }
+    } else if (/^\/api\/history\/[a-z-]+\/\d+$/.test(path) && method === "GET") {
+      const [, , , areaId, rawId] = path.split("/");
+      if (areaId !== "kunden" && !Object.hasOwn(AREAS, areaId)) fail(res, 404, "Unbekannter Bereich.");
+      else if (await allowed(req, res, areaId, "read")) {
+        try {
+          json(res, 200, { items: await listChanges(areaId, Number(rawId)), available: true } satisfies HistoryResponse);
+        } catch {
+          // Schema/Tabelle noch nicht da: leerer Verlauf statt Fehler
+          json(res, 200, { items: [], available: false } satisfies HistoryResponse);
         }
       }
     } else if (path === "/api/os-support" && method === "GET") {

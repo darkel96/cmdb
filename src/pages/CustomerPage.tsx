@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { api, MAX_DOCUMENT_MB } from "@/lib/api";
 import { AREAS, type CustomerDetailResponse } from "@/lib/areas";
 import { areaColumns } from "./AreaPage";
+import { HistoryPanel } from "@/components/HistoryPanel";
 
 function Box({ title, children, className, action }: { title: string; children: React.ReactNode; className?: string; action?: React.ReactNode }) {
   return (
@@ -163,6 +164,7 @@ export function CustomerPage() {
             />
           ))}
           {areas.length === 0 && <p className="text-sm text-muted-foreground">Für diesen Kunden sind keine Systeme angelegt.</p>}
+          <HistoryPanel area="kunden" id={data.customer.id} refresh={data.documents.length} />
           {errors.length > 0 && (
             <p className="text-xs text-muted-foreground">
               Nicht angezeigt: {errors.map(([id, message]) => `${AREAS[id]?.plural ?? AREAS[id]?.singular ?? id} (${message})`).join(" · ")}
