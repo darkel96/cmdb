@@ -28,6 +28,8 @@ Hinweise für Claude Code in diesem Repository.
   Freigegeben (28.10.2026): `INSERT`/`UPDATE`/`DELETE` auf `dbo.DS_Kunden` für die Kundenpflege; Umbenennen ändert den
   Namen in allen Tabellen aus `server/src/customerLinks.ts` mit, Löschen nur ohne Verweise. Neue Tabellen mit
   Kundennamen dort ergänzen.
+  Freigegeben (29.10.2026): `INSERT` auf `dbo.Anhang` für Dokumente direkt am Kunden, genau wie GAPTEQ
+  (Typ „Angebot“, `Vertrag_ID` = `FirmenID` = Kunden-ID). Kein `UPDATE`/`DELETE` auf `dbo.Anhang`.
 - Sprache: Doku und Commit-Messages auf Deutsch, Code-Bezeichner auf Englisch.
 - Änderungen über Branch und Pull Request gegen `main`. Vor dem PR: `npm run typecheck`, `npm run build`, `npm run test:e2e`.
 - Testdaten (`src/lib/testData.ts`) und die Pages-Seite enthalten nur erfundene Werte: keine echten Hostnamen, IP-Adressen,

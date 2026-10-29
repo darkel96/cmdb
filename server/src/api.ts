@@ -7,7 +7,7 @@ import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "@/lib/stammdaten";
-import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getCustomer, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
+import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getCustomer, addCustomerDocument, getDocument, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
@@ -15,6 +15,9 @@ import { lockedFor, recordFailure, recordSuccess } from "./rateLimit";
 import { clearSessionCookie, sessionFromRequest, setSessionCookie } from "./session";
 
 const MAX_BODY = 16 * 1024;
+/** Kunden-Dokumente: höchstens 15 MB je Datei (als Base64 im JSON etwa ein Drittel grösser) */
+const MAX_DOCUMENT = 15 * 1024 * 1024;
+const MAX_DOCUMENT_BODY = Math.ceil((MAX_DOCUMENT * 4) / 3) + 16 * 1024;
 const startedAt = Date.now();
 
 export function isSecure(req: IncomingMessage): boolean {
@@ -39,12 +42,12 @@ function fail(res: ServerResponse, status: number, message: string): void {
   json(res, status, { error: message });
 }
 
-async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+async function readJson(req: IncomingMessage, max = MAX_BODY): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let length = 0;
   for await (const chunk of req) {
     length += (chunk as Buffer).length;
-    if (length > MAX_BODY) throw new LoginError("Die Anfrage ist zu gross.", 413);
+    if (length > max) throw new LoginError("Die Anfrage ist zu gross.", 413);
     chunks.push(chunk as Buffer);
   }
   try {
@@ -265,7 +268,10 @@ async function customerDetail(id: number): Promise<CustomerDetailResponse> {
       const rows = areaRows(area).filter((r) => r.company === c.name);
       if (rows.length) systems[area.id] = rows;
     }
-    const documents = id % 3 === 0 ? [{ id: id * 10 + 1, name: `Angebot-${c.name.replace(/\W+/g, "-")}.txt`, type: "Angebot" }] : [];
+    const documents = [
+      ...(id % 3 === 0 ? [{ id: id * 10 + 1, name: `Angebot-${c.name.replace(/\W+/g, "-")}.txt`, type: "Angebot" }] : []),
+      ...(testDocuments.get(id) ?? []).map(({ id: docId, name }) => ({ id: docId, name, type: "Angebot" })),
+    ];
     const extra = testExtra.get(id);
     const customer = { ...c, country: extra?.country ?? TEST_COUNTRIES[id % TEST_COUNTRIES.length], zip: extra?.zip ?? "", address: extra?.address ?? "", email: extra?.email ?? "" };
     return { customer, documents, systems, errors: {}, source: "test" };
@@ -296,12 +302,49 @@ async function customerDetail(id: number): Promise<CustomerDetailResponse> {
   return { customer, documents, documentsError, systems, errors, source: "db" };
 }
 
+// Testmodus: hochgeladene Kunden-Dokumente im Speicher
+const testDocuments = new Map<number, { id: number; name: string; data: Buffer }[]>();
+let testDocumentId = 900_000;
+
+/** Dokument direkt am Kunden hochladen ({name, data: Base64}); gespeichert wie in GAPTEQ (dbo.Anhang, Typ „Angebot“) */
+async function uploadDocument(req: IncomingMessage, res: ServerResponse, customerId: number, user: SessionUser): Promise<void> {
+  const body = await readJson(req, MAX_DOCUMENT_BODY);
+  // Nur der Dateiname, ohne Pfad; Steuerzeichen raus
+  const name = (typeof body.name === "string" ? body.name : "").split(/[\\/]/).pop()!.replace(/[\u0000-\u001f]/g, "").trim();
+  if (!name) return fail(res, 400, "Dateiname fehlt.");
+  if (name.length > 255) return fail(res, 400, "Der Dateiname ist zu lang (höchstens 255 Zeichen).");
+  if (typeof body.data !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(body.data)) return fail(res, 400, "Ungültiger Dateiinhalt.");
+  const data = Buffer.from(body.data, "base64");
+  if (data.length === 0) return fail(res, 400, "Die Datei ist leer.");
+  if (data.length > MAX_DOCUMENT) return fail(res, 413, "Die Datei ist zu gross (höchstens 15 MB).");
+  try {
+    let id: number;
+    if (ENV.testMode) {
+      if (!testCustomers.some((c) => c.id === customerId)) throw new DbError("Diesen Kunden gibt es nicht.", 404);
+      id = ++testDocumentId;
+      testDocuments.set(customerId, [...(testDocuments.get(customerId) ?? []), { id, name, data }]);
+    } else {
+      const customer = await getCustomer(customerId);
+      if (!customer) throw new DbError("Diesen Kunden gibt es nicht.", 404);
+      id = await addCustomerDocument(customer, name, data);
+    }
+    log(`Dokument ${id} (Kunde ${customerId}, ${Math.ceil(data.length / 1024)} KB) hochgeladen von ${user.username}`);
+    json(res, 201, { id });
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    fail(res, e.status, e.message);
+  }
+}
+
 /** Download eines Anhangs; Dateiname für den Browser bereinigt */
 async function sendDocument(res: ServerResponse, customerId: number, documentId: number): Promise<void> {
   let doc: { name: string; data: Buffer } | null;
   if (ENV.testMode) {
     const c = testCustomers.find((x) => x.id === customerId);
-    doc = c && documentId === customerId * 10 + 1 ? { name: `Angebot-${c.name.replace(/\W+/g, "-")}.txt`, data: Buffer.from(`Erfundenes Testdokument für ${c.name}.\n`) } : null;
+    doc =
+      c && documentId === customerId * 10 + 1
+        ? { name: `Angebot-${c.name.replace(/\W+/g, "-")}.txt`, data: Buffer.from(`Erfundenes Testdokument für ${c.name}.\n`) }
+        : (testDocuments.get(customerId)?.find((d) => d.id === documentId) ?? null);
   } else {
     const customer = await getCustomer(customerId);
     doc = customer ? await getDocument(customer, documentId) : null;
@@ -626,6 +669,9 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
         const permissions = await permissionsFor(user);
         await readDb(res, async () => withoutHiddenAreas(await customerDetail(Number(path.split("/")[3])), permissions));
       }
+    } else if (/^\/api\/customers\/\d+\/documents$/.test(path) && method === "POST") {
+      const user = await allowed(req, res, "kunden", "edit");
+      if (user) await uploadDocument(req, res, Number(path.split("/")[3]), user);
     } else if (/^\/api\/customers\/\d+\/documents\/\d+$/.test(path) && method === "GET") {
       const parts = path.split("/");
       const user = await allowed(req, res, "kunden", "read");
