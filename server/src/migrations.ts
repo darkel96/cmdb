@@ -6,11 +6,13 @@
 import sql from "mssql";
 import m001 from "../migrations/001_anmeldungen_und_rollen.sql?raw";
 import m002 from "../migrations/002_kepware.sql?raw";
+import m003 from "../migrations/003_os_support.sql?raw";
 import { log } from "./log";
 
 const MIGRATIONS: { version: number; name: string; script: string }[] = [
   { version: 1, name: "001_anmeldungen_und_rollen", script: m001 },
   { version: 2, name: "002_kepware", script: m002 },
+  { version: 3, name: "003_os_support", script: m003 },
 ];
 
 export async function migrate(pool: sql.ConnectionPool): Promise<void> {

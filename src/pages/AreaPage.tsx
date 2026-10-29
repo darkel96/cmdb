@@ -195,7 +195,15 @@ export function AreaDetailPage() {
               return (
                 <div key={f.key} className="contents">
                   <dt className="text-muted-foreground">{f.label}</dt>
-                  <dd className="min-h-5 break-words">{(f.date ? longDate(value) : value) || "–"}</dd>
+                  <dd className="min-h-5 break-words">
+                    {(f.date ? longDate(value) : value) || "–"}
+                    {/* Abgeleitet aus dem Betriebssystem (Windows), nicht am System gespeichert */}
+                    {((f.key === "supportUntil" && row.supportSource) || (f.key === "eol" && row.eolSource)) && (
+                      <span className="ml-2 text-xs text-muted-foreground" title="Aus Stammdaten › Server-OS (LTS-Ende), nicht am System gespeichert">
+                        aus Server-OS
+                      </span>
+                    )}
+                  </dd>
                 </div>
               );
             })}

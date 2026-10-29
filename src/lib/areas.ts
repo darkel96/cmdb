@@ -338,8 +338,9 @@ export const AREAS: Record<string, Area> = {
       { key: "hardware", column: "Hardware", label: "Hardware", width: 100, options: "distinct" },
       { key: "providedBy", column: "Bereitgestellt", label: "Bereitgestellt", width: 100, options: "distinct" },
       { key: "eol", column: "EOL", label: "EOL", width: 60 },
+      // Ohne eigenes Datum: LTS-Ende des Betriebssystems (Stammdaten › Server-OS)
+      { ...f.supportUntil },
       f.notes,
-      { ...f.supportUntil, detailOnly: true },
       f.status,
     ],
   },
