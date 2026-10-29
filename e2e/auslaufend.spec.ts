@@ -69,6 +69,41 @@ test("Auslaufende Kundensysteme: eine Tabelle, nur Support-Ende in 9 Monaten ode
   await expect(t.locator(`tbody td:nth-child(${col("Bereich") + 1})`, { hasText: /^Server$/ })).toHaveCount(0);
 });
 
+test("Status-Filter gilt für die ganze Seite: Tabelle, Kundenliste und Zähler", async ({ page }) => {
+  test.slow();
+  await login(page);
+  await open(page);
+  const t = table(page);
+  const filter = page.getByRole("group", { name: "Nach Status filtern" });
+  // Im Reiter „Offen“ nur offene Status, Verlängert/Abgeschlossen gibt es dort nicht
+  await expect(filter.getByRole("button")).toHaveText([/^Alle/, /^Ohne Status/, /^Angeboten/, /^In Bearbeitung/]);
+
+  // Eine Zeile auf „In Bearbeitung“ setzen (dritte Zeile, die erste nutzt der Archiv-Test)
+  const row = t.locator("tbody tr").nth(2);
+  const id = (await row.locator("td").nth(1).textContent())!.trim();
+  const area = (await row.locator("td").nth(0).textContent())!.trim();
+  const company = (await row.locator("td").nth(2).textContent())!.trim();
+  await row.getByRole("combobox").click();
+  await page.getByRole("option", { name: "In Bearbeitung" }).click();
+  await expect(rowOf(page, area, id).getByRole("combobox")).toHaveText("In Bearbeitung");
+
+  await filter.getByRole("button", { name: /^In Bearbeitung/ }).click();
+  await expect(t).toHaveAccessibleName("Offen · Alle Kunden · In Bearbeitung");
+  await expect(rowOf(page, area, id)).toBeVisible();
+  for (const c of await t.locator("tbody tr").getByRole("combobox").allTextContents()) expect(c.trim()).toBe("In Bearbeitung");
+  // Kundenliste zeigt nur Kunden mit diesem Status
+  await expect(page.getByRole("list", { name: "Kundenliste" }).getByRole("button", { name: company })).toBeVisible();
+
+  // Zurück auf offen, dann ist die Zeile unter „In Bearbeitung“ weg
+  await rowOf(page, area, id).getByRole("combobox").click();
+  await page.getByRole("option", { name: "– keine Auswahl –" }).click();
+  await expect(rowOf(page, area, id)).toHaveCount(0);
+
+  // Im Archiv: Verlängert und Abgeschlossen
+  await page.getByRole("tab", { name: /Archiv/ }).click();
+  await expect(filter.getByRole("button")).toHaveText([/^Alle/, /^Verlängert/, /^Abgeschlossen/]);
+});
+
 test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen holt es wieder", async ({ page }) => {
   // Viele Schritte über zwei Reiter; auf langsamen Prüf-Rechnern (GitHub) mehr Zeit als die üblichen 30 s
   test.slow();
