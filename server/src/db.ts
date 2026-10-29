@@ -7,6 +7,7 @@ import type { LookupList } from "@/lib/stammdaten";
 import type { CheckResult, Customer } from "@/lib/types";
 import { CUSTOMER_LINKS } from "./customerLinks";
 import { DB_CA, ENV } from "./env";
+import { settings, type DbSettings } from "./settings";
 
 export class DbError extends Error {
   constructor(message: string, readonly status: number) {
@@ -14,17 +15,18 @@ export class DbError extends Error {
   }
 }
 
-function target(): string {
-  return ENV.dbServer ? `${ENV.dbServer}:${ENV.dbPort}/${ENV.dbName}` : "(nicht eingerichtet)";
+function target(db: DbSettings = settings("db")): string {
+  return db.server ? `${db.server}:${db.port}/${db.database}` : "(nicht eingerichtet)";
 }
 
-function config(max: number): sql.config {
+/** Verbindung aus den Einstellungen (.env bzw. Verwaltung); CA und Zertifikatsprüfung bleiben aus der .env */
+function config(max: number, db: DbSettings = settings("db")): sql.config {
   return {
-    server: ENV.dbServer,
-    port: ENV.dbPort,
-    database: ENV.dbName,
-    user: ENV.dbUser,
-    password: ENV.dbPassword,
+    server: db.server,
+    port: db.port,
+    database: db.database,
+    user: db.user,
+    password: db.password,
     connectionTimeout: 8000,
     requestTimeout: 15000,
     pool: { max, min: 0, idleTimeoutMillis: 60_000 },
@@ -38,9 +40,17 @@ function config(max: number): sql.config {
 
 let shared: Promise<sql.ConnectionPool> | undefined;
 
+/** Nach geänderten Verbindungsdaten: alten Pool schließen, die nächste Abfrage verbindet neu */
+export async function resetPool(): Promise<void> {
+  const old = shared;
+  shared = undefined;
+  await old?.then((p) => p.close()).catch(() => undefined);
+}
+
 /** Gemeinsamer Pool für Abfragen; nach einem Verbindungsfehler wird beim nächsten Aufruf neu verbunden */
 export function pool(): Promise<sql.ConnectionPool> {
-  if (!ENV.dbServer || !ENV.dbUser) return Promise.reject(new DbError("Die Datenbank ist nicht eingerichtet.", 503));
+  const db = settings("db");
+  if (!db.server || !db.user) return Promise.reject(new DbError("Die Datenbank ist nicht eingerichtet.", 503));
   shared ??= new sql.ConnectionPool(config(5)).connect().catch((e) => {
     shared = undefined;
     throw e;
@@ -281,6 +291,46 @@ export async function getAreaRow(area: Area, id: number): Promise<AreaRow | null
     return result.recordset[0] ? toAreaRow(area, result.recordset[0]) : null;
   } catch (e) {
     throw translate(e, objectOf(area));
+  }
+}
+
+/**
+ * Eintrag löschen. GAPTEQ-Tabellen (dbo, vorab angelegte Zeilen): die Zeile wird geleert und ist damit wieder frei,
+ * ihre Nummer kommt beim nächsten Anlegen wieder dran (kleinste freie Nummer); Vorbelegungen wie EOL „Nein“ wie bei
+ * den übrigen Leerzeilen. Bereiche mit IDENTITY (cmdb): echtes DELETE. Hat sich der Eintrag seit dem Öffnen geändert
+ * oder hängen noch Dokumente daran (dbo.Anhang, Vertrag_ID = ID), wird nicht gelöscht.
+ */
+export async function deleteAreaRow(area: Area, id: number, original: Record<string, string>): Promise<void> {
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
+  let object = objectOf(area);
+  try {
+    const current = await new sql.Request(tx).input("id", sql.Int, id)
+      .query(`SELECT ${areaSelect(area)} FROM ${tableOf(area)} WITH (UPDLOCK, ROWLOCK) WHERE ID = @id AND ${areaNotEmpty(area)}`);
+    if (!current.recordset[0]) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
+    const row = toAreaRow(area, current.recordset[0]);
+    const changedMeanwhile = area.fields.filter((f) => f.key in original && String(row[f.key] ?? "") !== String(original[f.key] ?? ""));
+    if (changedMeanwhile.length)
+      throw new DbError(`Der Eintrag wurde inzwischen geändert (${changedMeanwhile.map((f) => f.label).join(", ")}). Bitte neu laden.`, 409);
+    object = "dbo.Anhang";
+    const docs = await new sql.Request(tx).input("id", sql.Int, id).query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.Anhang WHERE Vertrag_ID = @id");
+    if (docs.recordset[0].n)
+      throw new DbError(`An ${area.singular} ${id} hängen noch ${docs.recordset[0].n} Dokument(e). Die CMDB löscht keine Dokumente; bitte zuerst in GAPTEQ entfernen.`, 409);
+    object = objectOf(area);
+    if (area.identity) await new sql.Request(tx).input("id", sql.Int, id).query(`DELETE FROM ${tableOf(area)} WHERE ID = @id`);
+    else {
+      const request = new sql.Request(tx).input("id", sql.Int, id);
+      const sets = area.fields.map((f, i) => {
+        request.input(`v${i}`, sql.NVarChar(255), f.defaultValue ?? null);
+        return `${quote(f.column)} = @v${i}`;
+      });
+      if (area.secret) sets.push(`${quote(area.secret.column)} = NULL`);
+      await request.query(`UPDATE ${tableOf(area)} SET ${sets.join(", ")} WHERE ID = @id`);
+    }
+    await tx.commit();
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, object);
   }
 }
 
@@ -593,19 +643,20 @@ export async function changeLookup(list: LookupList, action: "add" | "rename" | 
 }
 
 /** Verbindungstest mit eigener Verbindung: nur Version, Datenbank und Login */
-export async function dbCheck(): Promise<CheckResult> {
-  if (!ENV.dbServer || !ENV.dbUser) return { ok: false, target: target(), error: "CMDB_DB_SERVER und CMDB_DB_USER sind nicht gesetzt." };
+/** Verbindungstest; mit db neue Werte aus der Verwaltung vor dem Speichern prüfen */
+export async function dbCheck(db: DbSettings = settings("db")): Promise<CheckResult> {
+  if (!db.server || !db.user) return { ok: false, target: target(db), error: "Server und Benutzer der Datenbank fehlen." };
   const started = Date.now();
-  const check = new sql.ConnectionPool(config(1));
+  const check = new sql.ConnectionPool(config(1, db));
   try {
     await check.connect();
     const result = await check.request().query<{ version: string; db: string; login: string }>(
       "SELECT CAST(SERVERPROPERTY('ProductVersion') AS nvarchar(32)) AS version, DB_NAME() AS db, SUSER_SNAME() AS login",
     );
     const row = result.recordset[0];
-    return { ok: true, target: target(), latencyMs: Date.now() - started, detail: `SQL Server ${row.version} · Datenbank ${row.db} · Login ${row.login}` };
+    return { ok: true, target: target(db), latencyMs: Date.now() - started, detail: `SQL Server ${row.version} · Datenbank ${row.db} · Login ${row.login}` };
   } catch (e) {
-    return { ok: false, target: target(), latencyMs: Date.now() - started, error: e instanceof Error ? e.message : String(e) };
+    return { ok: false, target: target(db), latencyMs: Date.now() - started, error: e instanceof Error ? e.message : String(e) };
   } finally {
     await check.close().catch(() => undefined);
   }

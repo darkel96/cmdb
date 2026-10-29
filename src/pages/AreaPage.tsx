@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Pencil, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { DataTable, type Column } from "@/components/DataTable";
 import { SecretValue } from "@/components/SecretValue";
@@ -43,6 +43,8 @@ export function AreaPage({ area }: { area: Area }) {
   const { can } = useAuth();
   const [data, setData] = useState<AreaListResponse | null>(null);
   const [error, setError] = useState("");
+  // Nach dem Löschen aus der Detailansicht
+  const deleted = (useLocation().state as { deleted?: string } | null)?.deleted;
 
   useEffect(() => {
     setData(null);
@@ -54,6 +56,12 @@ export function AreaPage({ area }: { area: Area }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
+      {deleted && (
+        <p role="status" className="flex shrink-0 items-center gap-2 rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          <CheckCircle2 className="size-4" aria-hidden />
+          {deleted} wurde gelöscht.
+        </p>
+      )}
       {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p>}
       {!data && !error && <p className="text-sm text-muted-foreground">Wird geladen …</p>}
       {data && (
@@ -94,6 +102,25 @@ export function AreaDetailPage() {
   const area = Object.hasOwn(AREAS, id) ? AREAS[id] : undefined;
   const [row, setRow] = useState<AreaRow | null>(null);
   const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function remove() {
+    if (!area || !row) return;
+    setDeleting(true);
+    setError("");
+    try {
+      // Werte beim Öffnen: hat sich inzwischen etwas geändert, löscht der Dienst nicht
+      await api.deleteAreaRow(area.id, row.id, Object.fromEntries(area.fields.map((f) => [f.key, String(row[f.key] ?? "")])));
+      navigate(state?.back?.to ?? `/bereich/${area.id}`, { viewTransition: true, state: { deleted: `${area.singular} ${row.id}` } });
+    } catch (e) {
+      setError(errorText(e));
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     if (area) api.areaRow(area.id, Number(itemId)).then(setRow, (e: unknown) => setError(errorText(e)));
@@ -111,14 +138,33 @@ export function AreaDetailPage() {
           {state?.back?.label ?? `Zurück zur ${area.title}`}
         </Link>
       </Button>
-      {row && area.createFields && can(area.id, "edit") && (
-        <Button size="sm" asChild>
-          <Link to={`/bereich/${area.id}/${row.id}/bearbeiten`} viewTransition state={{ back: state?.back }}>
-            <Pencil aria-hidden />
-            Bearbeiten
-          </Link>
-        </Button>
-      )}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {row && area.createFields && can(area.id, "delete") && !confirmDelete && (
+          <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setConfirmDelete(true)}>
+            <Trash2 aria-hidden />
+            Löschen
+          </Button>
+        )}
+        {confirmDelete && (
+          <span role="alertdialog" aria-label="Löschen bestätigen" className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-1 text-sm text-destructive">
+            {area.singular} {row?.id} wirklich löschen?
+            <Button size="sm" className="bg-destructive text-white hover:bg-destructive/90" onClick={() => void remove()} disabled={deleting}>
+              {deleting ? "Wird gelöscht …" : "Ja, löschen"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+              Abbrechen
+            </Button>
+          </span>
+        )}
+        {row && area.createFields && can(area.id, "edit") && (
+          <Button size="sm" asChild>
+            <Link to={`/bereich/${area.id}/${row.id}/bearbeiten`} viewTransition state={{ back: state?.back }}>
+              <Pencil aria-hidden />
+              Bearbeiten
+            </Link>
+          </Button>
+        )}
+      </div>
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {row && state?.saved && (

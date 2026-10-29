@@ -1,14 +1,17 @@
 /** API des CMDB-Dienstes unter /api */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { AREAS, SYSTEM_STATUS, firstFreeId, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
-import type { CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
+import type { CheckResult, CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "@/lib/stammdaten";
-import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, getAreaRow, getAreaSecret, getCustomer, addCustomerDocument, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
+import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
+import { sendMail, smtpCheck } from "./mail";
+import { candidate, resetSettings, saveSettings, settings, settingsMeta, settingsView, type AllSettings, type DbSettings, type LdapSettings, type Section, type SmtpSettings } from "./settings";
+import { SETTINGS_SECTIONS, type SettingsResponse } from "@/lib/settings";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { log } from "./log";
 import { lockedFor, recordFailure, recordSuccess } from "./rateLimit";
@@ -160,11 +163,14 @@ async function health(req: IncomingMessage, res: ServerResponse): Promise<void> 
       body.details = {
         ldap: { ok: true, target: "Testmodus (kein LDAP)", latencyMs: 0, detail: "Testbenutzer admin und user" },
         db: { ok: true, target: "Testmodus (keine Datenbank)", latencyMs: 0, detail: "Erfundene Daten" },
+        smtp: settings("smtp").host
+          ? { ok: true, target: `${settings("smtp").host}:${settings("smtp").port}`, latencyMs: 0, detail: "Testmodus: Mails werden nicht gesendet" }
+          : { ok: false, target: "(nicht eingerichtet)", error: "Kein SMTP-Server eingetragen." },
         uptimeSeconds,
       };
     } else {
-      const [ldap, db] = await Promise.all([ldapCheck(), dbCheck()]);
-      body.details = { ldap, db, uptimeSeconds };
+      const [ldap, db, smtp] = await Promise.all([ldapCheck(), dbCheck(), smtpCheck()]);
+      body.details = { ldap, db, smtp, uptimeSeconds };
     }
   }
   json(res, 200, body);
@@ -184,6 +190,8 @@ async function readDb(res: ServerResponse, read: () => Promise<unknown>): Promis
 // Testmodus: neu angelegte und geänderte Einträge, Kunden und Umbenennungen nur im Speicher (bis zum Neustart)
 const testCreated = new Map<string, AreaRow[]>();
 const testEdits = new Map<string, AreaRow>();
+// Testmodus: gelöschte Einträge, Schlüssel „bereich:id“
+const testDeleted = new Set<string>();
 // Testmodus: Passwörter (erfunden), Schlüssel „bereich:id“
 const testSecrets = new Map<string, string>();
 let testCustomers: Customer[] = [...TEST_CUSTOMERS];
@@ -197,7 +205,10 @@ function renamedCompany(name: string): string {
 }
 
 function areaRows(area: Area): AreaRow[] {
-  return [...testRows(area), ...(testCreated.get(area.id) ?? [])]
+  // Neu angelegte ersetzen erfundene Einträge mit derselben Nummer (nach Löschen wieder vergeben)
+  const byId = new Map([...testRows(area), ...(testCreated.get(area.id) ?? [])].map((r) => [r.id, r]));
+  return [...byId.values()]
+    .filter((r) => !testDeleted.has(`${area.id}:${r.id}`))
     .map((r) => testEdits.get(`${area.id}:${r.id}`) ?? r)
     .map((r) => (typeof r.company === "string" ? { ...r, company: renamedCompany(r.company) } : r));
 }
@@ -268,6 +279,30 @@ async function sendSecret(res: ServerResponse, area: Area, id: number, user: Ses
   }
 }
 
+/** Eintrag löschen (Recht Löschen); body.original: Werte beim Öffnen, wie beim Bearbeiten */
+async function deleteInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser, id: number): Promise<void> {
+  const body = await readJson(req);
+  try {
+    const original = originalValues(body.original);
+    if (ENV.testMode) {
+      const row = areaRows(area).find((r) => r.id === id);
+      if (!row) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
+      const meanwhile = area.fields.filter((f) => f.key in original && String(row[f.key] ?? "") !== original[f.key]);
+      if (meanwhile.length) throw new DbError(`Der Eintrag wurde inzwischen geändert (${meanwhile.map((f) => f.label).join(", ")}). Bitte neu laden.`, 409);
+      testDeleted.add(`${area.id}:${id}`);
+      testEdits.delete(`${area.id}:${id}`);
+      testSecrets.delete(`${area.id}:${id}`);
+    } else await deleteAreaRow(area, id, original);
+    log(`Gelöscht: ${area.singular} ${id} von ${user.username}`);
+    res.writeHead(204, { "Cache-Control": "no-store" });
+    res.end();
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    log(`Löschen nicht möglich (${area.singular} ${id}, ${user.username}): ${e.message}`);
+    fail(res, e.status, e.message);
+  }
+}
+
 async function createInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser): Promise<void> {
   const body = await readJson(req);
   try {
@@ -277,7 +312,11 @@ async function createInArea(req: IncomingMessage, res: ServerResponse, area: Are
       const row: AreaRow = { id: testForm(area).nextId ?? area.testIdBase };
       for (const f of area.fields) row[f.key] = f.key === "type" ? area.typeValue : (values[f.key] ?? "");
       if (area.secret) testSecrets.set(`${area.id}:${row.id}`, values[area.secret.key] ?? "");
-      testCreated.set(area.id, [...(testCreated.get(area.id) ?? []), row]);
+      // Wieder vergebene Nummer (nach Löschen): alter Stand dieser Nummer gilt nicht mehr
+      const key = `${area.id}:${row.id}`;
+      testDeleted.delete(key);
+      testEdits.delete(key);
+      testCreated.set(area.id, [...(testCreated.get(area.id) ?? []).filter((r) => r.id !== row.id), row]);
       log(`Angelegt (Testmodus): ${area.singular} ${row.id} von ${user.username}`);
       return json(res, 201, { id: row.id } satisfies AreaCreateResponse);
     }
@@ -569,6 +608,12 @@ async function adminApi(req: IncomingMessage, res: ServerResponse, path: string,
       await saveRole(Number(roleId), roleInput((await readJson(req)).role), user.username);
       log(`Rolle ${roleId} geändert von ${user.username}`);
       json(res, 200, { id: Number(roleId) });
+    } else if (path === "/api/admin/settings" && method === "GET") {
+      json(res, 200, settingsResponse());
+    } else if (/^\/api\/admin\/settings\/(ldap|db|smtp)(\/test)?$/.test(path) && (method === "PUT" || method === "POST" || method === "DELETE")) {
+      await changeSettings(req, res, path, method, user);
+    } else if (path === "/api/admin/settings/smtp/testmail" && method === "POST") {
+      await testMail(req, res, user);
     } else if (roleId && method === "DELETE") {
       await deleteRole(Number(roleId));
       log(`Rolle ${roleId} gelöscht von ${user.username}`);
@@ -578,6 +623,96 @@ async function adminApi(req: IncomingMessage, res: ServerResponse, path: string,
   } catch (e) {
     if (!(e instanceof DbError)) throw e;
     fail(res, e.status, e.message);
+  }
+}
+
+// ---------- Einstellungen (LDAP, Datenbank, SMTP), nur Admins ----------
+
+function settingsResponse(): SettingsResponse {
+  return { sections: { ldap: settingsView("ldap"), db: settingsView("db"), smtp: settingsView("smtp") }, ...settingsMeta() };
+}
+
+/** Werte aus dem Formular prüfen und in die richtigen Typen bringen; Passwort getrennt */
+function settingsInput(section: Section, body: Record<string, unknown>): { values: Record<string, string | number>; password?: string } {
+  const def = SETTINGS_SECTIONS.find((s) => s.id === section)!;
+  const raw = body.values && typeof body.values === "object" ? (body.values as Record<string, unknown>) : {};
+  const values: Record<string, string | number> = {};
+  for (const f of def.fields) {
+    const v = raw[f.key];
+    const text = typeof v === "number" ? String(v) : typeof v === "string" ? v.trim() : "";
+    if (f.required && !text) throw new LoginError(`${f.label} ist ein Pflichtfeld.`, 400);
+    if (text.length > 255) throw new LoginError(`${f.label}: höchstens 255 Zeichen.`, 400);
+    if (f.type === "number") {
+      const n = Number(text);
+      if (!Number.isInteger(n) || n < 1 || n > 65535) throw new LoginError(`${f.label}: ungültige Zahl.`, 400);
+      values[f.key] = n;
+    } else if (f.type === "select") {
+      if (!f.options?.some((o) => o.value === text)) throw new LoginError(`${f.label}: ungültige Auswahl.`, 400);
+      values[f.key] = text;
+    } else values[f.key] = text;
+  }
+  if (section === "ldap" && !/^ldaps?:\/\/[^\s/]+(:\d+)?\/?$/i.test(String(values.url))) throw new LoginError("Server-Adresse: ldaps://server:636 oder ldap://server:389.", 400);
+  if (section === "smtp" && values.host && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(values.from))) throw new LoginError("Absenderadresse: gültige E-Mail-Adresse angeben.", 400);
+  const password = body.password;
+  if (password !== undefined && (typeof password !== "string" || password.length > 255)) throw new LoginError("Passwort: ungültiger Wert.", 400);
+  return { values, password: def.password ? (password as string | undefined) : undefined };
+}
+
+/** Verbindungstest mit den angegebenen (noch nicht gespeicherten) Werten */
+async function checkSettings(section: Section, next: AllSettings[Section]): Promise<CheckResult> {
+  if (ENV.testMode) {
+    if (section === "smtp" && !(next as SmtpSettings).host) return { ok: false, target: "(nicht eingerichtet)", error: "Kein SMTP-Server eingetragen." };
+    return { ok: true, target: "Testmodus (keine Verbindung)", latencyMs: 0, detail: "Im Testmodus wird nur die Eingabe geprüft." };
+  }
+  if (section === "ldap") return ldapCheck(next as LdapSettings);
+  if (section === "db") return dbCheck(next as DbSettings);
+  return smtpCheck(next as SmtpSettings);
+}
+
+/**
+ * POST …/<bereich>/test: nur prüfen. PUT …/<bereich>: prüfen und speichern (LDAP und Datenbank nur, wenn die
+ * Verbindung klappt, sonst wären Anmeldung bzw. Daten weg). DELETE …/<bereich>: zurück auf die .env.
+ */
+async function changeSettings(req: IncomingMessage, res: ServerResponse, path: string, method: string, user: SessionUser): Promise<void> {
+  const section = path.split("/")[4] as Section;
+  const def = SETTINGS_SECTIONS.find((s) => s.id === section)!;
+  if (method === "DELETE") {
+    resetSettings(section, user.username);
+    if (section === "db") await resetPool();
+    log(`Einstellungen ${def.title}: auf .env zurückgesetzt von ${user.username}`);
+    return json(res, 200, settingsResponse());
+  }
+  const input = settingsInput(section, await readJson(req));
+  const next = candidate(section, input.values as never, input.password);
+  const check = await checkSettings(section, next);
+  if (path.endsWith("/test")) return json(res, 200, check);
+  if (method !== "PUT") return fail(res, 404, "Unbekannte Adresse.");
+  if (def.testRequired && !check.ok) return json(res, 409, { error: `Nicht gespeichert, die Verbindung klappt nicht: ${check.error ?? "unbekannter Fehler"}`, check });
+  saveSettings(section, next, user.username);
+  if (section === "db") {
+    await resetPool();
+    void initAdminStore();
+  }
+  log(`Einstellungen ${def.title}: geändert von ${user.username}${input.password !== undefined ? " (Passwort neu gesetzt)" : ""}`);
+  json(res, 200, { ...settingsResponse(), check });
+}
+
+// Testmodus: „gesendete“ Test-Mails nur im Speicher
+const testOutbox: { to: string; at: string }[] = [];
+
+async function testMail(req: IncomingMessage, res: ServerResponse, user: SessionUser): Promise<void> {
+  const body = await readJson(req);
+  const to = typeof body.to === "string" ? body.to.trim() : "";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to) || to.length > 255) return fail(res, 400, "Empfänger: gültige E-Mail-Adresse angeben.");
+  const smtp = settings("smtp");
+  if (!smtp.host) return fail(res, 409, "Kein SMTP-Server eingetragen.");
+  try {
+    if (ENV.testMode) testOutbox.push({ to, at: new Date().toISOString() });
+    else await sendMail(to, "CMDB: Test-Mail", `Diese Test-Mail hat ${user.displayName} (${user.username}) in der CMDB-Verwaltung ausgelöst.\n\nDer Mailversand der CMDB funktioniert.`);
+    log(`Test-Mail an ${to} von ${user.username}${ENV.testMode ? " (Testmodus, nicht gesendet)" : ""}`);
+    json(res, 200, { sent: true, testMode: ENV.testMode });
+  } catch (e) {
+    fail(res, 502, `Senden fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -735,6 +870,14 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
       if (!area?.createFields || (method === "POST" && rawDoc)) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Unbekannte Adresse." : "Nicht angemeldet.");
       else await systemDocuments(req, res, area, Number(rawId), rawDoc ? Number(rawDoc) : undefined, method);
+    } else if (/^\/api\/areas\/[a-z-]+\/\d+$/.test(path) && method === "DELETE") {
+      const [, , , areaId, rawId] = path.split("/");
+      const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
+      if (!area?.createFields) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Dieser Bereich kann nicht gelöscht werden." : "Nicht angemeldet.");
+      else {
+        const user = await allowed(req, res, area.id, "delete");
+        if (user) await deleteInArea(req, res, area, user, Number(rawId));
+      }
     } else if (/^\/api\/areas\/[a-z-]+\/\d+\/secret$/.test(path) && method === "GET") {
       const [, , , areaId, rawId] = path.split("/");
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;

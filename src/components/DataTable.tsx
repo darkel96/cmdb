@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, MoveHorizontal, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -27,12 +27,33 @@ function includes(haystack: string, needle: string): boolean {
   return haystack.toLocaleLowerCase("de").includes(needle.trim().toLocaleLowerCase("de"));
 }
 
+const clampWidth = (w: number) => Math.round(Math.min(800, Math.max(48, w)));
+
+function readWidths(key: string): Record<string, number> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) ?? "{}") as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(Object.entries(parsed).filter(([, v]) => typeof v === "number" && v > 0)) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+let measureContext: CanvasRenderingContext2D | null = null;
+/** Textbreite in Pixeln in der Schrift der Tabelle */
+function measure(text: string, font: string): number {
+  measureContext ??= document.createElement("canvas").getContext("2d");
+  if (!measureContext) return text.length * 8;
+  measureContext.font = font;
+  return measureContext.measureText(text).width;
+}
+
 function csvCell(value: string): string {
   return /[";\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 /** Tabelle wie in der bisherigen Anwendung: Suche, Filter je Spalte, Sortierung, Seitengrösse, Blättern und Export */
-export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters, highlight, selectedActions }: {
+export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyText = "Keine Einträge.", onOpen, actions, compact = false, defaultSort, initialFilters, highlight, selectedActions, storageKey }: {
   title: string;
   columns: Column<T>[];
   rows: T[];
@@ -53,6 +74,8 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   highlight?: (row: T) => boolean;
   /** Bedienelemente für die markierte Zeile in der Werkzeugleiste, z. B. Status setzen */
   selectedActions?: (row: T) => ReactNode;
+  /** Unter welchem Namen die Spaltenbreiten im Browser gemerkt werden; Standard ist der Titel */
+  storageKey?: string;
 }) {
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<Record<string, string>>(initialFilters ?? {});
@@ -62,6 +85,19 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   const [page, setPage] = useState(0);
   // Ausgewählte Zeile (Klick), blau hervorgehoben wie in GAPTEQ
   const [selected, setSelected] = useState<string | number | null>(null);
+  // Spaltenbreiten, die die Person gezogen oder per Doppelklick angepasst hat; je Tabelle im Browser gemerkt
+  const widthsKey = `cmdb-spalten:${storageKey ?? title}`;
+  const [widths, setWidths] = useState<Record<string, number>>(() => readWidths(widthsKey));
+  const widthOf = (c: Column<T>) => widths[c.key] ?? c.width;
+  const saveWidths = (next: Record<string, number>) => {
+    setWidths(next);
+    try {
+      if (Object.keys(next).length) localStorage.setItem(widthsKey, JSON.stringify(next));
+      else localStorage.removeItem(widthsKey);
+    } catch {
+      /* ohne Speicher gelten die Breiten nur bis zum Neuladen */
+    }
+  };
 
   const filtered = useMemo(() => {
     const active = columns.filter((c) => filters[c.key]?.trim());
@@ -79,7 +115,48 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
   const visible = filtered.slice(current * pageSize, (current + 1) * pageSize);
   const selectedRow = selected === null ? undefined : rows.find((r) => rowKey(r) === selected);
   // Bei festen Spaltenbreiten scrollt die Tabelle seitlich, statt die Spalten zu quetschen
-  const minWidth = columns.reduce((sum, c) => sum + (c.width ?? 140), 0);
+  const minWidth = columns.reduce((sum, c) => sum + (widthOf(c) ?? 140), 0);
+
+  /** Breite ziehen: am rechten Rand der Überschrift, mit Maus oder Finger */
+  function startResize(e: React.PointerEvent<HTMLSpanElement>, c: Column<T>) {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = e.currentTarget.closest("th")!;
+    const startX = e.clientX;
+    const startWidth = th.getBoundingClientRect().width;
+    let next = widths;
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    document.body.style.userSelect = "none";
+    const move = (ev: PointerEvent) => {
+      next = { ...widths, [c.key]: clampWidth(startWidth + ev.clientX - startX) };
+      setWidths(next);
+    };
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      document.body.style.userSelect = "";
+      saveWidths(next);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  }
+
+  /** Doppelklick: so breit wie der längste Inhalt (alle gefilterten Zeilen, nicht nur die sichtbare Seite) */
+  function autoFit(e: React.MouseEvent<HTMLSpanElement>, c: Column<T>) {
+    e.preventDefault();
+    e.stopPropagation();
+    const th = e.currentTarget.closest("th")!;
+    const td = th.closest("table")?.querySelector("tbody td");
+    const header = measure(c.label, getComputedStyle(th).font) + 24 + 18;
+    const cellFont = getComputedStyle(td ?? th).font;
+    let content = 0;
+    for (const row of filtered.slice(0, 2000)) content = Math.max(content, measure(c.value(row), cellFont));
+    // Eigene Darstellung (z. B. Auswahlliste in der Zeile) braucht Platz für Rahmen und Pfeil
+    saveWidths({ ...widths, [c.key]: clampWidth(Math.max(header, content + 24 + (c.render ? 48 : 0))) });
+  }
 
   function exportCsv() {
     const lines = [columns.map((c) => csvCell(c.label)).join(";"), ...filtered.map((row) => columns.map((c) => csvCell(c.value(row))).join(";"))];
@@ -106,6 +183,11 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
         {actions}
         {selectedRow && selectedActions?.(selectedRow)}
         <span className="flex-1" />
+        {Object.keys(widths).length > 0 && (
+          <Button variant="outline" size="sm" onClick={() => saveWidths({})} title="Spaltenbreiten zurücksetzen" aria-label="Spaltenbreiten zurücksetzen">
+            <MoveHorizontal aria-hidden />
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={exportCsv} title="Als CSV exportieren (Excel)" aria-label="Als CSV exportieren">
           <FileSpreadsheet aria-hidden />
         </Button>
@@ -121,17 +203,40 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
         <table className="w-full table-fixed border-separate border-spacing-0 text-sm" style={{ minWidth }}>
           <colgroup>
             {columns.map((c) => (
-              <col key={c.key} style={c.width ? { width: c.width } : undefined} />
+              <col key={c.key} style={widthOf(c) ? { width: widthOf(c) } : undefined} />
             ))}
           </colgroup>
           <thead className="sticky top-0 z-[1] bg-card">
             <tr className="text-left text-muted-foreground">
-              {columns.map((c) => (
-                <th key={c.key} className={cn("truncate border-b bg-card px-3 py-2 font-medium", c.className)} title={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
-                  <button type="button" className="inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : false }))}>
-                    {c.label}
-                    {sort.key === c.key && (sort.desc ? <ArrowDown className="size-3.5" aria-hidden /> : <ArrowUp className="size-3.5" aria-hidden />)}
+              {columns.map((c, i) => (
+                <th key={c.key} className={cn("group/th relative border-b bg-card py-2 pr-4 pl-3 font-medium", c.className)} title={c.label} aria-label={c.label} aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}>
+                  {/* Text wird im Knopf gekürzt („…“), damit er nicht über den Griff in die nächste Spalte läuft */}
+                  <button type="button" className="flex max-w-full items-center gap-1 transition-colors duration-150 hover:text-foreground" onClick={() => setSort((s) => ({ key: c.key, desc: s.key === c.key ? !s.desc : false }))}>
+                    <span className="min-w-0 truncate">{c.label}</span>
+                    {sort.key === c.key && (sort.desc ? <ArrowDown className="size-3.5 shrink-0" aria-hidden /> : <ArrowUp className="size-3.5 shrink-0" aria-hidden />)}
                   </button>
+                  {/* Griff zum Ziehen; Doppelklick passt an den Inhalt an; mit Pfeiltasten in 16-px-Schritten */}
+                  <span
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label={`Breite der Spalte ${c.label}`}
+                    title="Ziehen ändert die Breite, Doppelklick passt sie an den Inhalt an"
+                    tabIndex={0}
+                    onPointerDown={(e) => startResize(e, c)}
+                    onDoubleClick={(e) => autoFit(e, c)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                      e.preventDefault();
+                      const current = e.currentTarget.closest("th")!.getBoundingClientRect().width;
+                      saveWidths({ ...widths, [c.key]: clampWidth(current + (e.key === "ArrowRight" ? 16 : -16)) });
+                    }}
+                    className={cn(
+                      // Mittig auf der Spaltengrenze: die Linie ist genau die Grenze, greifbar 6 px links und rechts davon
+                      "absolute top-0 z-[2] flex h-full w-3 cursor-col-resize touch-none justify-center outline-none after:h-full after:w-px after:bg-border after:transition-colors hover:after:w-0.5 hover:after:bg-brand focus-visible:after:w-0.5 focus-visible:after:bg-brand",
+                      i === columns.length - 1 ? "right-0 justify-end" : "-right-1.5",
+                    )}
+                  />
                 </th>
               ))}
             </tr>
