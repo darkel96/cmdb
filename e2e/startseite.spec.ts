@@ -30,12 +30,20 @@ test("Kundenübersicht: Suche, Spaltenfilter, Seitengrösse und Blättern", asyn
 
   await page.getByLabel("Suchen").fill("muster");
   await expect(status).toHaveText("Seite 1 von 1 (6 Elemente)");
-  await page.getByLabel("Suchen").fill("");
+  // X im Feld leert die Suche, der Fokus bleibt im Feld; ohne Inhalt kein X
+  await page.getByRole("button", { name: "Suche löschen" }).click();
+  await expect(page.getByLabel("Suchen")).toHaveValue("");
+  await expect(page.getByLabel("Suchen")).toBeFocused();
+  await expect(status).toHaveText("Seite 1 von 1 (42 Elemente)");
+  await expect(page.getByRole("button", { name: "Suche löschen" })).toHaveCount(0);
 
   await page.getByLabel("Filter Stadt").fill("Seeburg");
   await expect(rows.first()).toContainText("Seeburg");
   const count = await rows.count();
   for (let i = 0; i < count; i++) await expect(rows.nth(i)).toContainText("Seeburg");
+  await page.getByRole("button", { name: "Stadt: Filter löschen" }).click();
+  await expect(page.getByLabel("Filter Stadt")).toHaveValue("");
+  await expect(status).toHaveText("Seite 1 von 1 (42 Elemente)");
 
   await page.getByLabel("Filter Kunde").fill("gibt es nicht");
   await expect(rows).toHaveText(["Keine Kunden gefunden."]);
