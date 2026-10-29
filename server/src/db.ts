@@ -3,6 +3,7 @@
  */
 import sql from "mssql";
 import type { Area, AreaFormResponse, AreaRow, CustomerDocument } from "@/lib/areas";
+import type { OsSupportEntry } from "@/lib/osSupport";
 import type { LookupList } from "@/lib/stammdaten";
 import type { CheckResult, Customer } from "@/lib/types";
 import { CUSTOMER_LINKS } from "./customerLinks";
@@ -597,6 +598,50 @@ export async function addSystemDocument(area: Area, row: AreaRow, name: string, 
     return result.recordset[0].ID;
   } catch (e) {
     throw translate(e, object);
+  }
+}
+
+// ---------- Support-Ende je Betriebssystem (cmdb.OsSupport) ----------
+
+const isoDate = (v: unknown) => (v instanceof Date ? v.toISOString().slice(0, 10) : "");
+
+export async function listOsSupport(): Promise<OsSupportEntry[]> {
+  try {
+    const r = await (await pool()).request().query<{ Name: string; MainstreamEnde: Date | null; ExtendedEnde: Date | null; ChangedBy: string | null }>(
+      "SELECT Name, MainstreamEnde, ExtendedEnde, ChangedBy FROM cmdb.OsSupport ORDER BY Name",
+    );
+    return r.recordset.map((x) => ({ name: x.Name, mainstreamEnd: isoDate(x.MainstreamEnde), extendedEnd: isoDate(x.ExtendedEnde), changedBy: x.ChangedBy ?? undefined }));
+  } catch (e) {
+    throw translate(e, "cmdb.OsSupport");
+  }
+}
+
+/** Daten eines Betriebssystems setzen (leer = kein Datum) */
+export async function saveOsSupport(name: string, mainstreamEnd: string, extendedEnd: string, user: string): Promise<void> {
+  const d = (v: string) => (v ? new Date(`${v}T00:00:00Z`) : null);
+  try {
+    await (await pool())
+      .request()
+      .input("n", sql.NVarChar(255), name)
+      .input("m", sql.Date, d(mainstreamEnd))
+      .input("e", sql.Date, d(extendedEnd))
+      .input("u", sql.NVarChar(64), user)
+      .query(`MERGE cmdb.OsSupport AS t USING (SELECT @n AS Name) AS s ON t.Name = s.Name
+        WHEN MATCHED THEN UPDATE SET MainstreamEnde = @m, ExtendedEnde = @e, ChangedBy = @u, ChangedAt = SYSUTCDATETIME()
+        WHEN NOT MATCHED THEN INSERT (Name, MainstreamEnde, ExtendedEnde, ChangedBy) VALUES (@n, @m, @e, @u);`);
+  } catch (e) {
+    throw translate(e, "cmdb.OsSupport");
+  }
+}
+
+/** Server-OS in den Stammdaten umbenannt oder gelöscht: Support-Daten mitnehmen bzw. entfernen */
+export async function followOsRename(old: string, value: string | null): Promise<void> {
+  try {
+    const r = (await pool()).request().input("o", sql.NVarChar(255), old);
+    if (value === null) await r.query("DELETE FROM cmdb.OsSupport WHERE Name = @o");
+    else await r.input("n", sql.NVarChar(255), value).query("IF NOT EXISTS (SELECT 1 FROM cmdb.OsSupport WHERE Name = @n) UPDATE cmdb.OsSupport SET Name = @n WHERE Name = @o");
+  } catch (e) {
+    throw translate(e, "cmdb.OsSupport");
   }
 }
 

@@ -7,13 +7,14 @@ import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "@/lib/stammdaten";
-import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
+import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, followOsRename, listOsSupport, saveOsSupport, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { sendMail, smtpCheck } from "./mail";
 import { candidate, resetSettings, saveSettings, settings, settingsMeta, settingsView, type AllSettings, type DbSettings, type LdapSettings, type Section, type SmtpSettings } from "./settings";
 import { SETTINGS_SECTIONS, type SettingsResponse } from "@/lib/settings";
 import { LoginError, ldapCheck, ldapLogin, normalizeUsername } from "./ldap";
 import { isLocalAdmin, localAdminLogin } from "./localAccount";
+import { OS_SUPPORT_SEED, withOsSupport, type OsSupportEntry } from "@/lib/osSupport";
 import { log } from "./log";
 import { lockedFor, recordFailure, recordSuccess } from "./rateLimit";
 import { clearSessionCookie, sessionFromRequest, setSessionCookie } from "./session";
@@ -346,7 +347,7 @@ async function customerDetail(id: number): Promise<CustomerDetailResponse> {
     const systems: Record<string, AreaRow[]> = {};
     for (const area of Object.values(AREAS)) {
       const rows = areaRows(area).filter((r) => r.company === c.name);
-      if (rows.length) systems[area.id] = rows;
+      if (rows.length) systems[area.id] = await decorate(area, rows);
     }
     const documents = [
       ...(id % 3 === 0 ? [{ id: id * 10 + 1, name: `Angebot-${c.name.replace(/\W+/g, "-")}.txt`, type: "Angebot" }] : []),
@@ -364,7 +365,7 @@ async function customerDetail(id: number): Promise<CustomerDetailResponse> {
     Object.values(AREAS).map(async (area) => {
       try {
         const rows = await listAreaForCompany(area, customer.name);
-        if (rows.length) systems[area.id] = rows;
+        if (rows.length) systems[area.id] = await decorate(area, rows);
       } catch (e) {
         if (!(e instanceof DbError)) throw e;
         errors[area.id] = e.message;
@@ -776,6 +777,48 @@ async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area,
   }
 }
 
+// ---------- Support-Ende je Betriebssystem ----------
+
+// Testmodus: im Speicher, vorbelegt wie die Migration
+let testOsSupport: OsSupportEntry[] = OS_SUPPORT_SEED.map((e) => ({ ...e }));
+
+/** Support-Daten; fehlt das Schema oder die Tabelle noch, ohne Ableitung weiter */
+async function osSupport(): Promise<OsSupportEntry[]> {
+  if (ENV.testMode) return testOsSupport;
+  try {
+    return await listOsSupport();
+  } catch {
+    return [];
+  }
+}
+
+/** Windows-Systeme: Support bis und EOL aus dem Betriebssystem, wenn am System nichts steht */
+async function decorate(area: Area, rows: AreaRow[]): Promise<AreaRow[]> {
+  return area.id === "windows" ? withOsSupport(rows, await osSupport()) : rows;
+}
+
+async function changeOsSupport(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const user = await allowed(req, res, "stammdaten", "edit");
+  if (!user) return;
+  const body = await readJson(req);
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const date = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const mainstreamEnd = date(body.mainstreamEnd);
+  const extendedEnd = date(body.extendedEnd);
+  if (!name || name.length > 255) return fail(res, 400, "Betriebssystem fehlt.");
+  for (const v of [mainstreamEnd, extendedEnd]) if (v && (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(Date.parse(v)))) return fail(res, 400, "Ungültiges Datum.");
+  if (mainstreamEnd && extendedEnd && mainstreamEnd > extendedEnd) return fail(res, 400, "Das LTS-Ende liegt vor dem Ende des allgemeinen Supports.");
+  try {
+    if (ENV.testMode) testOsSupport = [...testOsSupport.filter((e) => e.name !== name), { name, mainstreamEnd, extendedEnd, changedBy: user.username }];
+    else await saveOsSupport(name, mainstreamEnd, extendedEnd, user.username);
+    log(`Support-Ende ${name}: ${mainstreamEnd || "–"} / LTS ${extendedEnd || "–"} von ${user.username}`);
+    json(res, 200, { items: await osSupport() });
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    fail(res, e.status, e.message);
+  }
+}
+
 // Testmodus: Stammdaten im Speicher
 const testLookups = new Map<string, string[]>(LOOKUP_LISTS.map((l) => [l.id, [...(TEST_OPTIONS[l.testKey] ?? [])]]));
 
@@ -815,6 +858,12 @@ async function changeStammdaten(req: IncomingMessage, res: ServerResponse, listI
       if (action === "delete" && !has(value)) throw new DbError(`„${value}“ steht nicht in der Liste ${list.label}.`, 404);
       testLookups.set(list.id, action === "add" ? [...values, value] : action === "rename" ? values.map((v) => (v === old ? value : v)) : values.filter((v) => v !== value));
     } else await changeLookup(list, action, value, old);
+    if (list.id === "server-os" && action !== "add") {
+      const from = action === "rename" ? old! : value;
+      const to = action === "rename" ? value : null;
+      if (ENV.testMode) testOsSupport = to === null ? testOsSupport.filter((e) => e.name !== from) : testOsSupport.map((e) => (e.name === from && !testOsSupport.some((x) => x.name === to) ? { ...e, name: to } : e));
+      else await followOsRename(from, to);
+    }
     log(`Stammdaten ${list.label}: ${action === "add" ? `„${value}“ hinzugefügt` : action === "rename" ? `„${old}“ → „${value}“` : `„${value}“ gelöscht`} von ${user.username}`);
     json(res, 200, await stammdaten());
   } catch (e) {
@@ -914,13 +963,13 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       if (!area) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Unbekannter Bereich." : "Nicht angemeldet.");
       else if (!(await allowed(req, res, area.id, "read"))) return true;
       else if (rawId === undefined)
-        await readDb(res, async () => ({ source: ENV.testMode ? "test" : "db", items: ENV.testMode ? areaRows(area) : await listArea(area) }) satisfies AreaListResponse);
+        await readDb(res, async () => ({ source: ENV.testMode ? "test" : "db", items: await decorate(area, ENV.testMode ? areaRows(area) : await listArea(area)) }) satisfies AreaListResponse);
       else
         await readDb(res, async () => {
           const id = Number(rawId);
           const row: AreaRow | null | undefined = ENV.testMode ? areaRows(area).find((r) => r.id === id) : await getAreaRow(area, id);
           if (!row) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
-          return row;
+          return (await decorate(area, [row]))[0];
         });
     } else if (path === "/api/customers" && method === "POST") {
       const user = await allowed(req, res, "kunden", "create");
@@ -951,6 +1000,11 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
           fail(res, e.status, e.message);
         }
       }
+    } else if (path === "/api/os-support" && method === "GET") {
+      if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
+      else json(res, 200, { items: await osSupport() });
+    } else if (path === "/api/os-support" && method === "PUT") {
+      await changeOsSupport(req, res);
     } else if (path === "/api/stammdaten" && method === "GET") {
       if (await allowed(req, res, "stammdaten", "read")) json(res, 200, await stammdaten());
     } else if (/^\/api\/stammdaten\/[a-z-]+$/.test(path) && ["POST", "PUT", "DELETE"].includes(method)) {

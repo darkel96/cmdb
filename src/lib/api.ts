@@ -4,6 +4,7 @@
  */
 import { AREAS, firstFreeId, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDocument, type CustomerDetailResponse, type CustomerSaveResponse, type CustomerValuesRequest } from "./areas";
 import type { SettingsInput, SettingsResponse, SettingsSectionId } from "./settings";
+import { OS_SUPPORT_SEED, withOsSupport, type OsSupportEntry } from "./osSupport";
 import { READ_ALL, allPermissions, PERMISSION_AREAS, type Action, type LoginLogEntry, type Role } from "./permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
 import type { CheckResult, CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
@@ -37,6 +38,9 @@ export interface Api {
   customer(id: number): Promise<CustomerDetailResponse>;
   /** Adresse zum Herunterladen eines Anhangs; null = auf der Testseite nicht verfügbar */
   documentUrl(customerId: number, documentId: number): string | null;
+  /** Support-Ende je Betriebssystem (Stammdaten › Server-OS) */
+  osSupport(): Promise<{ items: OsSupportEntry[] }>;
+  saveOsSupport(entry: OsSupportEntry): Promise<{ items: OsSupportEntry[] }>;
   /** Dokumente eines Systems (wie GAPTEQ: dbo.Anhang, Vertrag_ID = ID) */
   systemDocuments(areaId: string, id: number): Promise<{ documents: CustomerDocument[] }>;
   systemDocumentUrl(areaId: string, id: number, documentId: number): string | null;
@@ -115,6 +119,8 @@ const serverApi: Api = {
   cis: () => request<CiListResponse>("/api/cis"),
   customers: () => request<CustomerListResponse>("/api/customers"),
   area: (areaId) => request<AreaListResponse>(`/api/areas/${areaId}`),
+  osSupport: () => request<{ items: OsSupportEntry[] }>("/api/os-support"),
+  saveOsSupport: (entry) => request<{ items: OsSupportEntry[] }>("/api/os-support", { method: "PUT", body: JSON.stringify(entry) }),
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
   areaForm: (areaId) => request<AreaFormResponse>(`/api/areas/${areaId}/form`),
   createAreaRow: (areaId, values) => request<AreaCreateResponse>(`/api/areas/${areaId}`, { method: "POST", body: JSON.stringify({ values }) }),
@@ -155,6 +161,9 @@ const STORAGE_KEY = "cmdb-test-session";
 
 // Testseite: neu angelegte Einträge nur bis zum Neuladen
 const browserCreated = new Map<string, AreaRow[]>();
+let browserOsSupport: OsSupportEntry[] = OS_SUPPORT_SEED.map((e) => ({ ...e }));
+// Windows-Systeme: Support bis/EOL aus dem Betriebssystem wie im Dienst
+const browserDecorated = (areaId: string) => (areaId === "windows" ? withOsSupport(browserRows(areaId), browserOsSupport) : browserRows(areaId));
 // Testseite: Einstellungen nur im Speicher, erfundene Adressen
 const BROWSER_SETTINGS_DEFAULT: SettingsResponse["sections"] = {
   ldap: { values: { url: "ldaps://dc.example.loc:636", domain: "example.loc", netbios: "EXAMPLE", baseDn: "OU=Mitarbeiter,DC=example,DC=loc", adminGroup: "" }, changed: [], passwordSet: false },
@@ -246,11 +255,17 @@ const browserTestApi: Api = {
   },
   area: async (areaId) => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
-    return { source: "test", items: browserRows(areaId) };
+    return { source: "test", items: browserDecorated(areaId) };
+  },
+  osSupport: async () => ({ items: browserOsSupport }),
+  saveOsSupport: async (entry) => {
+    requireAdmin();
+    browserOsSupport = [...browserOsSupport.filter((e) => e.name !== entry.name), entry];
+    return { items: browserOsSupport };
   },
   areaRow: async (areaId, id) => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
-    const row = browserRows(areaId).find((r) => r.id === id);
+    const row = browserDecorated(areaId).find((r) => r.id === id);
     if (!row) throw new ApiError("Diesen Eintrag gibt es nicht.", 404);
     return row;
   },

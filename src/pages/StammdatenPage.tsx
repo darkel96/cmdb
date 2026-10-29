@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { CalendarClock, Check, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import type { OsSupportEntry } from "@/lib/osSupport";
 import type { StammdatenResponse } from "@/lib/stammdaten";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
@@ -10,7 +11,36 @@ import { useAuth } from "@/state/auth";
 type List = StammdatenResponse["lists"][number];
 
 /** Die gewählte Auswahlliste: Suchen, Hinzufügen, Bearbeiten (Stift), Löschen (Papierkorb mit Rückfrage) */
-function LookupPanel({ list, onChange }: { list: List; onChange: (action: "add" | "rename" | "delete", value: string, old?: string) => Promise<void> }) {
+const deDate = (iso: string) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "–");
+
+/** Support-Ende eines Betriebssystems (nur Server-OS): Anzeige, abgelaufen rot, weniger als 6 Monate gelb */
+function SupportInfo({ entry }: { entry?: OsSupportEntry }) {
+  if (!entry?.extendedEnd) return <span className="text-xs text-muted-foreground">kein Support-Ende hinterlegt</span>;
+  const today = new Date().toISOString().slice(0, 10);
+  const soon = new Date(Date.now() + 182 * 86400_000).toISOString().slice(0, 10);
+  const tone = entry.extendedEnd < today ? "text-destructive" : entry.extendedEnd < soon ? "text-warning-fg" : "text-muted-foreground";
+  return (
+    <span className="flex gap-3 text-xs tabular-nums">
+      <span className="text-muted-foreground">allgemein bis {deDate(entry.mainstreamEnd)}</span>
+      <span className={tone}>LTS bis {deDate(entry.extendedEnd)}{entry.extendedEnd < today ? " · abgelaufen" : ""}</span>
+    </span>
+  );
+}
+
+function LookupPanel({
+  list,
+  onChange,
+  support,
+  onSupport,
+}: {
+  list: List;
+  onChange: (action: "add" | "rename" | "delete", value: string, old?: string) => Promise<void>;
+  /** Nur Server-OS: Support-Ende je Wert */
+  support?: Map<string, OsSupportEntry>;
+  onSupport?: (entry: OsSupportEntry) => Promise<void>;
+}) {
+  const [dating, setDating] = useState<string | null>(null);
+  const [dates, setDates] = useState({ mainstreamEnd: "", extendedEnd: "" });
   const { can } = useAuth();
   const [search, setSearch] = useState("");
   const [adding, setAdding] = useState(false);
@@ -95,7 +125,59 @@ function LookupPanel({ list, onChange }: { list: List; onChange: (action: "add" 
               </span>
             ) : (
               <>
-                <span className="flex-1 truncate" title={v}>{v}</span>
+                <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-4">
+                  <span className="truncate" title={v}>{v}</span>
+                  {support && dating !== v && <SupportInfo entry={support.get(v)} />}
+                </span>
+                {support && dating === v && (
+                  <span className="flex flex-wrap items-center gap-2 text-xs" role="group" aria-label={`Support-Ende ${v}`}>
+                    <label className="flex items-center gap-1">
+                      allgemein bis
+                      <Input type="date" className="h-7 w-36" value={dates.mainstreamEnd} onChange={(e) => setDates((d) => ({ ...d, mainstreamEnd: e.target.value }))} />
+                    </label>
+                    <label className="flex items-center gap-1">
+                      LTS bis
+                      <Input type="date" className="h-7 w-36" value={dates.extendedEnd} onChange={(e) => setDates((d) => ({ ...d, extendedEnd: e.target.value }))} />
+                    </label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 px-2"
+                      aria-label="Übernehmen"
+                      onClick={async () => {
+                        setError("");
+                        try {
+                          await onSupport?.({ name: v, ...dates });
+                          setDating(null);
+                        } catch (e) {
+                          setError(e instanceof Error ? e.message : String(e));
+                        }
+                      }}
+                    >
+                      <Check aria-hidden />
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2" aria-label="Abbrechen" onClick={() => setDating(null)}>
+                      <X aria-hidden />
+                    </Button>
+                  </span>
+                )}
+                {support && dating !== v && can("stammdaten", "edit") && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                    aria-label={`Support-Ende ${v} bearbeiten`}
+                    title="Support-Ende bearbeiten"
+                    onClick={() => {
+                      const e = support.get(v);
+                      setDates({ mainstreamEnd: e?.mainstreamEnd ?? "", extendedEnd: e?.extendedEnd ?? "" });
+                      setDating(v);
+                    }}
+                  >
+                    <CalendarClock aria-hidden />
+                  </Button>
+                )}
                 {can("stammdaten", "edit") && (
                   <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100" aria-label={`${v} bearbeiten`} onClick={() => { setEditing(v); setDraft(v); setAdding(false); }}>
                     <Pencil aria-hidden />
@@ -121,8 +203,10 @@ export function StammdatenPage() {
   const [data, setData] = useState<StammdatenResponse | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState("");
+  const [support, setSupport] = useState<OsSupportEntry[]>([]);
   useEffect(() => {
     api.stammdaten().then(setData, (e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+    api.osSupport().then((r) => setSupport(r.items), () => undefined);
   }, []);
   if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
   if (!data) return <p className="text-sm text-muted-foreground">Wird geladen …</p>;
@@ -153,7 +237,18 @@ export function StammdatenPage() {
             ))}
           </ul>
         </nav>
-        <LookupPanel key={list.id} list={list} onChange={async (action, value, old) => setData(await api.changeLookup(list.id, action, value, old))} />
+        <LookupPanel
+          key={list.id}
+          list={list}
+          onChange={async (action, value, old) => {
+            setData(await api.changeLookup(list.id, action, value, old));
+            // Server-OS umbenannt/gelöscht: Support-Daten folgen im Dienst, hier neu laden
+            if (list.id === "server-os") setSupport((await api.osSupport()).items);
+          }}
+          {...(list.id === "server-os"
+            ? { support: new Map(support.map((e) => [e.name, e])), onSupport: async (entry: OsSupportEntry) => setSupport((await api.saveOsSupport(entry)).items) }
+            : {})}
+        />
       </div>
     </div>
   );
