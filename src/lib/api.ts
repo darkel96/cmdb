@@ -10,7 +10,7 @@ import { READ_ALL, allPermissions, PERMISSION_AREAS, type Action, type LoginLogE
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
 import type { CheckResult, CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_PMS_PRICES, TEST_USERS, testPmsModules, testRows } from "./testData";
-import type { PmsResponse } from "./pms";
+import type { PmsModule, PmsPrices, PmsResponse } from "./pms";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -46,6 +46,11 @@ export interface Api {
   osSupport(): Promise<{ items: OsSupportEntry[] }>;
   /** PMS-Module aller Oracle-ESL-Verträge und Preisliste (Leserecht Oracle-ESL) */
   pms(): Promise<PmsResponse>;
+  /** Modul aus der Preisliste an den Vertrag hängen (Recht PMS-Module › Anlegen) */
+  addPmsModule(contractId: number, module: string): Promise<{ id: number }>;
+  /** Preise ändern; original: Modul und Preise beim Öffnen */
+  updatePmsModule(id: number, prices: PmsPrices, original: PmsModule): Promise<void>;
+  deletePmsModule(id: number, original: PmsModule): Promise<void>;
   saveOsSupport(entry: OsSupportEntry): Promise<{ items: OsSupportEntry[] }>;
   /** Dokumente eines Systems (wie GAPTEQ: dbo.Anhang, Vertrag_ID = ID) */
   systemDocuments(areaId: string, id: number): Promise<{ documents: CustomerDocument[] }>;
@@ -127,6 +132,9 @@ const serverApi: Api = {
   area: (areaId) => request<AreaListResponse>(`/api/areas/${areaId}`),
   osSupport: () => request<{ items: OsSupportEntry[] }>("/api/os-support"),
   pms: () => request<PmsResponse>("/api/pms-module"),
+  addPmsModule: (contractId, module) => request<{ id: number }>("/api/pms-module", { method: "POST", body: JSON.stringify({ contractId, module }) }),
+  updatePmsModule: (id, prices, original) => request<void>(`/api/pms-module/${id}`, { method: "PUT", body: JSON.stringify({ prices, original }) }),
+  deletePmsModule: (id, original) => request<void>(`/api/pms-module/${id}`, { method: "DELETE", body: JSON.stringify({ original }) }),
   history: (area, id) => request<HistoryResponse>(`/api/history/${area}/${id}`),
   saveOsSupport: (entry) => request<{ items: OsSupportEntry[] }>("/api/os-support", { method: "PUT", body: JSON.stringify(entry) }),
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
@@ -191,6 +199,10 @@ const renamed = (name: string) => {
   return current;
 };
 const browserEdits = new Map<string, AreaRow>();
+// Testseite: PMS-Module im Speicher (bis zum Neuladen)
+let browserPmsItems: PmsModule[] | undefined;
+const browserPms = () => (browserPmsItems ??= testPmsModules(browserRows("oracle-esl").map((r) => r.id)));
+
 const browserRows = (areaId: string) =>
   [...new Map([...testRows(AREAS[areaId]), ...(browserCreated.get(areaId) ?? [])].map((r) => [r.id, r])).values()]
     .filter((r) => !browserDeleted.has(`${areaId}:${r.id}`))
@@ -268,7 +280,24 @@ const browserTestApi: Api = {
   osSupport: async () => ({ items: browserOsSupport }),
   pms: async () => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
-    return { source: "test", items: testPmsModules(browserRows("oracle-esl").map((r) => r.id)), prices: TEST_PMS_PRICES };
+    return { source: "test", items: browserPms(), prices: TEST_PMS_PRICES };
+  },
+  addPmsModule: async (contractId, module) => {
+    requireAdmin();
+    const price = TEST_PMS_PRICES.find((p) => p.module === module);
+    if (!price) throw new ApiError(`„${module}“ steht nicht in der Preisliste.`, 400);
+    if (browserPms().some((m) => m.contractId === contractId && m.module === module)) throw new ApiError(`${module} ist an Oracle-ESL ${contractId} schon vorhanden.`, 409);
+    const id = Math.max(0, ...browserPms().map((m) => m.id)) + 1;
+    browserPmsItems = [...browserPms(), { ...price, id, contractId }];
+    return { id };
+  },
+  updatePmsModule: async (id, prices) => {
+    requireAdmin();
+    browserPmsItems = browserPms().map((m) => (m.id === id ? { ...m, ...prices } : m));
+  },
+  deletePmsModule: async (id) => {
+    requireAdmin();
+    browserPmsItems = browserPms().filter((m) => m.id !== id);
   },
   // Testseite: kein Verlauf (kein Dienst)
   history: async () => ({ items: [], available: false }),

@@ -1,5 +1,6 @@
 /** Rollen und Rechte je Bereich (gemeinsam für Dienst und Frontend) */
-import { AREAS } from "./areas";
+import { AREAS, groupPermission } from "./areas";
+import { PMS_WRITE } from "./pms";
 
 export type Action = "read" | "create" | "edit" | "delete";
 
@@ -23,7 +24,13 @@ export const ACTIONS: { id: Action; label: string }[] = [
 /** Bereiche in der Rechte-Tabelle; actions: nur diese Rechte sind dort sinnvoll (sonst alle vier) */
 export const PERMISSION_AREAS: { id: string; label: string; actions?: Action[] }[] = [
   { id: "kunden", label: "Kunden" },
-  ...Object.values(AREAS).map((a) => ({ id: a.id, label: a.plural ?? a.singular })),
+  ...Object.values(AREAS).flatMap((a) => [
+    { id: a.id, label: a.plural ?? a.singular },
+    // Feldgruppen (z. B. Oracle-ESL › Einkauf): nur Bearbeiten, Lesen hängt am Bereich
+    ...(a.fieldGroups ?? []).map((g) => ({ id: groupPermission(a, g.id), label: `${a.plural ?? a.singular} › ${g.label}`, actions: ["edit"] as Action[] })),
+  ]),
+  // Lesen hängt an Oracle-ESL (siehe lib/pms.ts)
+  { id: PMS_WRITE, label: "PMS-Module am Oracle-ESL-Vertrag", actions: ["create", "edit", "delete"] },
   { id: "stammdaten", label: "Stammdaten (Auswahllisten)" },
   // Lesen: Seite sehen (welche Systeme, hängt am Leserecht der Bereiche); Bearbeiten: Status setzen
   { id: "auslaufend", label: "Auslaufende Kundensysteme", actions: ["read", "edit"] },

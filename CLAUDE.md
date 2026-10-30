@@ -33,6 +33,9 @@ Hinweise für Claude Code in diesem Repository.
   Kundennamen dort ergänzen.
   Freigegeben (29.10.2026): `INSERT` auf `dbo.Anhang` für Dokumente direkt am Kunden, genau wie GAPTEQ
   (Typ „Angebot“, `Vertrag_ID` = `FirmenID` = Kunden-ID). Kein `UPDATE`/`DELETE` auf `dbo.Anhang`.
+  Freigegeben (30.10.2026): `INSERT`/`UPDATE` auf `dbo.Vertragsdaten` (Oracle-ESL anlegen und bearbeiten, auch durch
+  Nicht-Admins mit Feldgruppen-Recht wie „Oracle-ESL › Einkauf“; Kunde nur beim Anlegen), kein `DELETE`.
+  `INSERT`/`UPDATE`/`DELETE` auf `dbo.PMS_Module` (Module am Vertrag, Preise aus `dbo.PMS_Module_Stammdaten`).
 - Sprache: Doku und Commit-Messages auf Deutsch, Code-Bezeichner auf Englisch.
 - Änderungen über Branch und Pull Request gegen `main`. Vor dem PR: `npm run typecheck`, `npm run build`, `npm run test:e2e`.
 - Testdaten (`src/lib/testData.ts`) und die Pages-Seite enthalten nur erfundene Werte: keine echten Hostnamen, IP-Adressen,

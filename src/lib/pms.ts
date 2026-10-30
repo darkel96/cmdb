@@ -5,6 +5,11 @@
 
 /** Rechte: PMS-Module hängen an Oracle-ESL und folgen dessen Leserecht */
 export const PMS_AREA = "oracle-esl";
+/** Recht zum Hinzufügen, Ändern und Entfernen von Modulen (Rechte-Tabelle) */
+export const PMS_WRITE = "pms-module";
+
+/** Preise: Euro mit höchstens zwei Nachkommastellen, wie decimal(10,2) */
+export const PMS_PRICE_MAX = 99_999_999.99;
 
 export interface PmsPrices {
   listPrice: number | null;
@@ -46,3 +51,22 @@ export function pmsSum(items: PmsPrices[]): PmsPrices {
 const EURO = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" });
 
 export const euro = (value: number | null) => (value === null ? "" : EURO.format(value));
+
+/** Eingabe „25.000,00 €“, „25000,5“ oder „25000.50“ → Zahl; leer → null; ungültig → undefined */
+export function parseEuro(text: string): number | null | undefined {
+  let t = text.replace(/[€\s]/g, "");
+  if (!t) return null;
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return undefined;
+  const value = Number(t);
+  return value <= PMS_PRICE_MAX ? value : undefined;
+}
+
+/** Für Eingabefelder: 25000.5 → „25000,50“ */
+export const euroInput = (value: number | null) => (value === null ? "" : value.toFixed(2).replace(".", ","));
+
+/** Gleiche Preise (auf Cent), z. B. Stand beim Öffnen gegen Stand in der Datenbank */
+export function samePrices(a: PmsPrices, b: PmsPrices): boolean {
+  const cent = (v: number | null) => (v === null ? null : Math.round(v * 100));
+  return PMS_PRICE_COLUMNS.every((c) => cent(a[c.key]) === cent(b[c.key]));
+}

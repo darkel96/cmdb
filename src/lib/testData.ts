@@ -39,6 +39,7 @@ export const TEST_CUSTOMERS: Customer[] = Array.from({ length: 42 }, (_, i) => (
 
 /** Auswahllisten im Testmodus (Dienst und Testseite) */
 export const TEST_OPTIONS: Record<string, string[]> = {
+  contractStatus: ["Aktiv", "Gekündigt", "In Klärung"],
   supplier: ["Lieferant A", "Lieferant B"],
   manufacturer: ["Hersteller A", "Hersteller B", "Hersteller C"],
   serverType: ["Multi Site Cluster", "Single Server", "Single Site Cluster", "Windows Cluster"],

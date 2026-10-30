@@ -1,4 +1,4 @@
-import { Activity, Boxes, Cable, ChevronRight, Database, DatabaseBackup, HardDrive, KeyRound, Laptop, Monitor, MonitorSmartphone, Network, ScanBarcode, Server, type LucideIcon } from "lucide-react";
+import { Activity, Boxes, Cable, ChevronRight, Database, DatabaseBackup, HardDrive, KeyRound, Laptop, Monitor, MonitorSmartphone, Network, ScanBarcode, ScrollText, Server, type LucideIcon } from "lucide-react";
 import { Link } from "react-router";
 import { AREAS } from "@/lib/areas";
 import { useAuth } from "@/state/auth";
@@ -17,7 +17,8 @@ const TYPES: { label: string; icon: LucideIcon; areaId?: string }[] = [
   { label: "Storage", icon: HardDrive, areaId: "storage" },
   { label: "Oracle", icon: Database, areaId: "oracle" },
   { label: "Client", icon: Laptop, areaId: "client" },
-  { label: "Windows-Systeme", icon: Monitor, areaId: "windows" }
+  { label: "Windows-Systeme", icon: Monitor, areaId: "windows" },
+  { label: "Oracle-ESL", icon: ScrollText, areaId: "oracle-esl" },
 ];
 
 const tile =

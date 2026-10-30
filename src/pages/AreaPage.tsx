@@ -8,7 +8,7 @@ import { HistoryPanel } from "@/components/HistoryPanel";
 import { EslPanels } from "@/components/EslPanels";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { AREAS, type Area, type AreaListResponse, type AreaRow } from "@/lib/areas";
+import { AREAS, editableFields, type Area, type AreaListResponse, type AreaRow } from "@/lib/areas";
 import { longDate, shortDate } from "@/lib/format";
 import { PMS_AREA } from "@/lib/pms";
 import { useAuth } from "@/state/auth";
@@ -131,6 +131,8 @@ export function AreaDetailPage() {
 
   if (!area) return <NotFoundPage />;
   const tag = row && (row.serviceTag || row.serialNumber);
+  // Bearbeiten mit dem Recht des Bereichs oder einer Feldgruppe (z. B. Oracle-ESL › Service)
+  const canEdit = Boolean(area.createFields) && editableFields(area, can).length > 0;
 
   return (
     <div className="flex w-full flex-col gap-3">
@@ -142,7 +144,7 @@ export function AreaDetailPage() {
         </Link>
       </Button>
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {row && area.createFields && can(area.id, "delete") && !confirmDelete && (
+        {row && area.createFields && !area.noDelete && can(area.id, "delete") && !confirmDelete && (
           <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setConfirmDelete(true)}>
             <Trash2 aria-hidden />
             Löschen
@@ -159,7 +161,7 @@ export function AreaDetailPage() {
             </Button>
           </span>
         )}
-        {row && area.createFields && can(area.id, "edit") && (
+        {row && canEdit && (
           <Button size="sm" asChild>
             <Link to={`/bereich/${area.id}/${row.id}/bearbeiten`} viewTransition state={{ back: state?.back }}>
               <Pencil aria-hidden />
@@ -223,7 +225,7 @@ export function AreaDetailPage() {
             )}
           </dl>
           <p className="border-t px-4 py-2 text-xs text-muted-foreground">
-            {area.createFields && can(area.id, "edit") ? "Ändern über „Bearbeiten“ oder weiterhin in GAPTEQ." : "Nur lesend."}
+            {canEdit ? "Ändern über „Bearbeiten“ oder weiterhin in GAPTEQ." : "Nur lesend."}
           </p>
         </section>
         {area.id === PMS_AREA && <EslPanels row={row} />}
@@ -231,7 +233,7 @@ export function AreaDetailPage() {
       )}
       {row && (
         <div className="flex min-w-0 flex-col gap-3">
-          {area.createFields && <SystemDocuments area={area} id={row.id} />}
+          {area.createFields && !area.noDocuments && <SystemDocuments area={area} id={row.id} />}
           <HistoryPanel area={area.id} id={row.id} compact />
         </div>
       )}

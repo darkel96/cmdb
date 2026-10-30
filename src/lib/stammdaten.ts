@@ -20,6 +20,7 @@ export const LOOKUP_LISTS: LookupList[] = [
   { id: "servertyp", label: "Servertyp", table: "DD_Servertyp", column: "Servertyp", maxLength: 50, testKey: "serverType" },
   { id: "vertragstyp", label: "Vertragstyp (Wartungstyp)", table: "DD_Vertragstyp", column: "Vertragstyp", maxLength: 100, testKey: "maintenanceType" },
   { id: "zeichensatz", label: "Zeichensatz", table: "DD_Zeichensatz", column: "Zeichensatz", maxLength: 50, testKey: "charset" },
+  { id: "oracle-vertragsstatus", label: "Oracle-Vertragsstatus", table: "DD_OracleVertragsdaten", column: "Status", maxLength: 50, testKey: "contractStatus" },
   { id: "server-os", label: "Server-OS", table: "DD_FW_Server_OS", column: "Server_OS", maxLength: 255, testKey: "os" },
 ];
 

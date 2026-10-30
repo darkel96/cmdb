@@ -66,6 +66,33 @@ export interface Area {
    * GAPTEQ: Anlegen ist ein normales INSERT.
    */
   identity?: boolean;
+  /** Felder nur beim Anlegen; beim Bearbeiten nur angezeigt (z. B. Kunde bei Oracle-ESL, wie GAPTEQ) */
+  createOnly?: string[];
+  /**
+   * Feldgruppen mit eigenem Recht „Bearbeiten“ (wie die Rollen-Knöpfe in GAPTEQ, z. B. Einkauf, Service). In der
+   * Rechte-Tabelle als „<Bereich> › <Gruppe>“; das Recht Bearbeiten des Bereichs selbst erlaubt alle Felder.
+   */
+  fieldGroups?: { id: string; label: string; fields: string[] }[];
+  /** Abschnitte im Formular (wie GAPTEQ); fehlt es, stehen alle Felder in einem Block */
+  formSections?: { label: string; fields: string[] }[];
+  /** Kein Löschen (z. B. Oracle-ESL: kein DELETE auf dbo.Vertragsdaten freigegeben) */
+  noDelete?: boolean;
+  /** Keine Dokumente am Eintrag */
+  noDocuments?: boolean;
+}
+
+/** Recht einer Feldgruppe, z. B. „oracle-esl.einkauf“ */
+export const groupPermission = (area: Area, groupId: string) => `${area.id}.${groupId}`;
+
+/**
+ * Felder, die jemand beim Bearbeiten ändern darf: mit dem Recht Bearbeiten des Bereichs alle aus dem Formular
+ * (ohne createOnly), sonst die der Feldgruppen, für die das Recht Bearbeiten besteht. Leer: kein Bearbeiten.
+ */
+export function editableFields(area: Area, can: (area: string, action: "edit") => boolean): string[] {
+  const all = (area.createFields ?? []).filter((k) => !area.createOnly?.includes(k));
+  if (can(area.id, "edit")) return all;
+  const allowed = new Set((area.fieldGroups ?? []).filter((g) => can(groupPermission(area, g.id), "edit")).flatMap((g) => g.fields));
+  return all.filter((k) => allowed.has(k));
 }
 
 /** Ein Eintrag: ID plus Werte je Feld (Datum als JJJJ-MM-TT, leer als "") */
@@ -479,6 +506,34 @@ export const AREAS: Record<string, Area> = {
     typeValue: "Oracle-ESL",
     testCount: 7,
     testIdBase: 1000000,
+    // dbo.Vertragsdaten hat IDENTITY: Anlegen ist ein INSERT (freigegeben 30.10.2026), Löschen nicht
+    identity: true,
+    noDelete: true,
+    noDocuments: true,
+    createOnly: ["company"],
+    createFields: [
+      "company", "sapProject", "goLive",
+      "oracleFrameworkContract", "oracleProjectSupportEnd", "oracleLicenseReport", "oracleLicenseReportDate", "csiNumber", "costsBooked",
+      "hotlineSapOrder", "hotlineStatus", "hotlineUntil",
+      "oracleSupportContract", "oracleSupportStatus", "oracleSupportUntil",
+    ],
+    formSections: [
+      { label: "Grunddaten", fields: ["company", "sapProject", "goLive"] },
+      { label: "Oracle-Lizenzdaten", fields: ["oracleFrameworkContract", "oracleProjectSupportEnd", "oracleLicenseReport", "oracleLicenseReportDate", "csiNumber", "costsBooked"] },
+      { label: "Kunden-Hotlinevertrag", fields: ["hotlineSapOrder", "hotlineStatus", "hotlineUntil"] },
+      { label: "Oracle-Supportvertrag", fields: ["oracleSupportContract", "oracleSupportStatus", "oracleSupportUntil"] },
+    ],
+    // Wie die Rollen-Knöpfe in GAPTEQ; „Administrator“ ist das Recht Bearbeiten von Oracle-ESL selbst
+    fieldGroups: [
+      { id: "projektleitung", label: "Projektleitung", fields: ["sapProject", "goLive"] },
+      {
+        id: "einkauf",
+        label: "Einkauf",
+        fields: ["oracleFrameworkContract", "oracleProjectSupportEnd", "oracleLicenseReport", "oracleLicenseReportDate", "csiNumber", "oracleSupportContract", "oracleSupportStatus", "oracleSupportUntil"],
+      },
+      { id: "service", label: "Service", fields: ["hotlineSapOrder", "hotlineStatus", "hotlineUntil"] },
+      { id: "buchhaltung", label: "Buchhaltung", fields: ["costsBooked"] },
+    ],
     fields: [
       { ...f.company, column: "Kunde", label: "Kunde", width: 190 },
       { key: "sapProject", column: "SAP Projektnummer", label: "SAP-Projektnummer", width: 140 },
@@ -488,9 +543,9 @@ export const AREAS: Record<string, Area> = {
       { key: "oracleLicenseReportDate", column: "Oracle Lizenzmeldung Datum", label: "Lizenzmeldung Datum", date: true, width: 120 },
       { key: "csiNumber", column: "CSI-Nummer", label: "CSI-Nummer", width: 110 },
       { key: "oracleSupportContract", column: "Oracle Supportvertrag", label: "Oracle-Supportvertrag", width: 150 },
-      { key: "oracleSupportStatus", column: "Oracle Supportvertrag Status", label: "Oracle-Support Status", width: 140 },
+      { key: "oracleSupportStatus", column: "Oracle Supportvertrag Status", label: "Oracle-Support Status", width: 140, options: { table: "DD_OracleVertragsdaten", column: "Status" } },
       { key: "oracleSupportUntil", column: "Oracle Supportvertrag Laufzeit", label: "Oracle-Support Laufzeit", date: true, width: 120 },
-      { key: "hotlineStatus", column: "Kunde Hotlinevertrag Status", label: "Kunde Hotline Status", width: 140 },
+      { key: "hotlineStatus", column: "Kunde Hotlinevertrag Status", label: "Kunde Hotline Status", width: 140, options: { table: "DD_OracleVertragsdaten", column: "Status" } },
       { key: "hotlineUntil", column: "Kunde Hotlinevertrag Laufzeit", label: "Kunde Hotline Laufzeit", date: true, width: 120 },
       { key: "hotlineSapOrder", column: "Kunde Hotlinevertrag SAP Auftragsnummer", label: "Kunde Hotline SAP-Auftrag", width: 150 },
       { key: "goLive", column: "GoLive Datum", label: "GoLive", date: true, width: 100 },
