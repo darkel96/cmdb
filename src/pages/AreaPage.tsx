@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { DataTable, type Column } from "@/components/DataTable";
 import { SecretValue } from "@/components/SecretValue";
@@ -192,6 +192,14 @@ export function AreaDetailPage() {
               Abbrechen
             </Button>
           </span>
+        )}
+        {row && area.id === PMS_AREA && (
+          <Button size="sm" variant="outline" asChild>
+            <Link to={`/bereich/${area.id}/${row.id}/datenblatt`} viewTransition>
+              <FileDown aria-hidden />
+              Datenblatt (PDF)
+            </Link>
+          </Button>
         )}
         {row && canEdit && (
           <Button size="sm" asChild>

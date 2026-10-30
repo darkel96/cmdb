@@ -8,6 +8,7 @@ import { AdminPage } from "@/pages/AdminPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
 import { SectionPage } from "@/pages/SectionPage";
+import { EslSheetPage } from "@/pages/EslSheetPage";
 import { AreaDetailPage } from "@/pages/AreaPage";
 import { AreaCreatePage } from "@/pages/AreaCreatePage";
 import { CustomerPage } from "@/pages/CustomerPage";
@@ -33,6 +34,7 @@ const router = createRouter([
       { path: "/bereich/:id/neu", element: <AreaCreatePage /> },
       { path: "/bereich/:id/:itemId", element: <AreaDetailPage /> },
       { path: "/bereich/:id/:itemId/bearbeiten", element: <AreaCreatePage /> },
+      { path: "/bereich/:id/:itemId/datenblatt", element: <EslSheetPage /> },
       { path: "/kunden/neu", element: <CustomerFormPage /> },
       { path: "/kunden/:customerId", element: <CustomerPage /> },
       { path: "/kunden/:customerId/datenblatt", element: <CustomerSheetPage /> },

@@ -205,3 +205,26 @@ test("Verwaltung › Stammdaten › PMS-Modularten: Preisliste pflegen, Umbenenn
   await panel.getByRole("button", { name: "Ja, löschen" }).click();
   await expect(row).toHaveCount(0);
 });
+
+test("Datenblatt Oracle-ESL: Vertragsdaten, PMS-Module mit Summe, Oracle-Systeme", async ({ page }) => {
+  await login(page, "user");
+  const pms = (await (await page.request.get("/api/pms-module")).json()) as { items: { contractId: number; module: string; listPrice: number }[] };
+  const id = 1000000;
+  const modules = pms.items.filter((m) => m.contractId === id);
+  await page.goto(`/bereich/oracle-esl/${id}`);
+  await page.getByRole("link", { name: "Datenblatt (PDF)" }).click();
+  await expect(page).toHaveURL(new RegExp(`/bereich/oracle-esl/${id}/datenblatt$`));
+  const sheet = page.getByRole("article", { name: "Datenblatt Oracle-ESL" });
+  await expect(sheet.getByRole("heading", { name: "Datenblatt Oracle-ESL" })).toBeVisible();
+  await expect(sheet).toContainText(`Oracle-ESL-Vertrag ${id}`);
+  for (const name of ["Grunddaten", "Oracle-Lizenzdaten", "Oracle-Supportvertrag", "Kunden-Hotlinevertrag", "Buchhaltung"]) await expect(sheet.getByRole("heading", { name })).toBeVisible();
+  const table = sheet.getByRole("region", { name: "PMS-Module" });
+  for (const m of modules) await expect(table).toContainText(m.module);
+  const euro = new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(modules.reduce((s, m) => s + m.listPrice, 0));
+  await expect(table.locator("tfoot")).toContainText(euro);
+  await expect(sheet.getByRole("region", { name: "Oracle-Systeme" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Drucken / als PDF speichern" })).toBeVisible();
+  // Andere Bereiche haben kein Datenblatt
+  await page.goto("/bereich/server/10001/datenblatt");
+  await expect(page.getByRole("article", { name: "Datenblatt Oracle-ESL" })).toHaveCount(0);
+});
