@@ -517,11 +517,14 @@ export const AREAS: Record<string, Area> = {
       "hotlineSapOrder", "hotlineStatus", "hotlineUntil",
       "oracleSupportContract", "oracleSupportStatus", "oracleSupportUntil",
     ],
+    // Nach Zuständigkeit (Feldgruppen): Projektleitung, Einkauf (Lizenz und Support), Service, Buchhaltung;
+    // je Zeile zusammengehörige Felder (Lizenzmeldung neben ihrem Datum)
     formSections: [
       { label: "Grunddaten", fields: ["company", "sapProject", "goLive"] },
-      { label: "Oracle-Lizenzdaten", fields: ["oracleFrameworkContract", "oracleProjectSupportEnd", "oracleLicenseReport", "oracleLicenseReportDate", "csiNumber", "costsBooked"] },
-      { label: "Kunden-Hotlinevertrag", fields: ["hotlineSapOrder", "hotlineStatus", "hotlineUntil"] },
+      { label: "Oracle-Lizenzdaten", fields: ["oracleFrameworkContract", "csiNumber", "oracleProjectSupportEnd", "oracleLicenseReport", "oracleLicenseReportDate"] },
       { label: "Oracle-Supportvertrag", fields: ["oracleSupportContract", "oracleSupportStatus", "oracleSupportUntil"] },
+      { label: "Kunden-Hotlinevertrag", fields: ["hotlineSapOrder", "hotlineStatus", "hotlineUntil"] },
+      { label: "Buchhaltung", fields: ["costsBooked"] },
     ],
     // Wie die Rollen-Knöpfe in GAPTEQ; „Administrator“ ist das Recht Bearbeiten von Oracle-ESL selbst
     fieldGroups: [
@@ -542,14 +545,14 @@ export const AREAS: Record<string, Area> = {
       { key: "oracleLicenseReport", column: "Oracle Lizenzmeldung", label: "Oracle-Lizenzmeldung", width: 150 },
       { key: "oracleLicenseReportDate", column: "Oracle Lizenzmeldung Datum", label: "Lizenzmeldung Datum", date: true, width: 120 },
       { key: "csiNumber", column: "CSI-Nummer", label: "CSI-Nummer", width: 110 },
-      { key: "oracleSupportContract", column: "Oracle Supportvertrag", label: "Oracle-Supportvertrag", width: 150 },
-      { key: "oracleSupportStatus", column: "Oracle Supportvertrag Status", label: "Oracle-Support Status", width: 140, options: { table: "DD_OracleVertragsdaten", column: "Status" } },
-      { key: "oracleSupportUntil", column: "Oracle Supportvertrag Laufzeit", label: "Oracle-Support Laufzeit", date: true, width: 120 },
-      { key: "hotlineStatus", column: "Kunde Hotlinevertrag Status", label: "Kunde Hotline Status", width: 140, options: { table: "DD_OracleVertragsdaten", column: "Status" } },
-      { key: "hotlineUntil", column: "Kunde Hotlinevertrag Laufzeit", label: "Kunde Hotline Laufzeit", date: true, width: 120 },
-      { key: "hotlineSapOrder", column: "Kunde Hotlinevertrag SAP Auftragsnummer", label: "Kunde Hotline SAP-Auftrag", width: 150 },
+      { key: "oracleSupportContract", column: "Oracle Supportvertrag", label: "Oracle-Supportvertrag", formLabel: "Supportvertrag", width: 150 },
+      { key: "oracleSupportStatus", column: "Oracle Supportvertrag Status", label: "Oracle-Support Status", formLabel: "Status", width: 140, options: { table: "DD_OracleVertragsdaten", column: "Status" } },
+      { key: "oracleSupportUntil", column: "Oracle Supportvertrag Laufzeit", label: "Oracle-Support Laufzeit", formLabel: "Laufzeit", date: true, width: 120 },
+      { key: "hotlineStatus", column: "Kunde Hotlinevertrag Status", label: "Kunde Hotline Status", formLabel: "Status", width: 140, options: { table: "DD_OracleVertragsdaten", column: "Status" } },
+      { key: "hotlineUntil", column: "Kunde Hotlinevertrag Laufzeit", label: "Kunde Hotline Laufzeit", formLabel: "Laufzeit", date: true, width: 120 },
+      { key: "hotlineSapOrder", column: "Kunde Hotlinevertrag SAP Auftragsnummer", label: "Kunde Hotline SAP-Auftrag", formLabel: "SAP-Auftragsnummer", width: 150 },
       { key: "goLive", column: "GoLive Datum", label: "GoLive", date: true, width: 100 },
-      { key: "costsBooked", column: "Kosten gebucht Datum", label: "Kosten gebucht", date: true, width: 110 },
+      { key: "costsBooked", column: "Kosten gebucht Datum", label: "Kosten gebucht", formLabel: "Kosten gebucht am", date: true, width: 110 },
       { key: "oracleSystem", column: "Oracle System", label: "Oracle-System", width: 150 },
     ],
   },

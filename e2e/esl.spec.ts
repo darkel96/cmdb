@@ -8,13 +8,6 @@ async function login(page: Page, username: "admin" | "user") {
   await expect(page.getByRole("heading", { name: "Kundenübersicht" })).toBeVisible();
 }
 
-/** Eigene Auswahlliste: aufklappen und Eintrag wählen */
-async function choose(page: Page, label: string, option: string) {
-  await page.getByLabel(new RegExp(`^${label}( \\*)?$`)).click();
-  await page.getByRole("listbox").getByRole("option", { name: option, exact: true }).click();
-  await expect(page.getByRole("listbox")).toBeHidden();
-}
-
 // Jedes Projekt (desktop/mobil) nutzt eigene Verträge, die Daten im Testmodus sind gemeinsam
 const contract = (project: string, offset: number) => 1000000 + offset + (project === "desktop" ? 0 : 3);
 
@@ -26,12 +19,15 @@ test("Oracle-ESL bearbeiten: Abschnitte wie GAPTEQ, Kunde fest, Status aus der L
   await expect(page.getByRole("region", { name: "Dokumente" })).toHaveCount(0);
   await page.getByRole("link", { name: "Bearbeiten" }).click();
   await expect(page.getByRole("heading", { name: `Bearbeitung Oracle-ESL ${id}` })).toBeVisible();
-  for (const name of ["Grunddaten", "Oracle-Lizenzdaten", "Kunden-Hotlinevertrag", "Oracle-Supportvertrag"]) await expect(page.getByRole("group", { name })).toBeVisible();
+  // Abschnitte nach Zuständigkeit
+  const sections = page.locator("fieldset legend");
+  await expect(sections).toHaveText(["Grunddaten", "Oracle-Lizenzdaten", "Oracle-Supportvertrag", "Kunden-Hotlinevertrag", "Buchhaltung"]);
   // Kunde nur beim Anlegen
   await expect(page.getByRole("group", { name: "Grunddaten" }).getByLabel("Kunde", { exact: true })).not.toHaveRole("combobox");
 
   await page.getByLabel("SAP-Projektnummer").fill(`SAP-${testInfo.project.name}`);
-  await choose(page, "Oracle-Support Status", "In Klärung");
+  await page.getByRole("group", { name: "Oracle-Supportvertrag" }).getByLabel("Status").click();
+  await page.getByRole("listbox").getByRole("option", { name: "In Klärung", exact: true }).click();
   await page.getByRole("button", { name: "Speichern" }).click();
   await expect(page.locator("main").getByRole("status")).toHaveText(`Oracle-ESL ${id} wurde gespeichert (geändert: SAP-Projektnummer, Oracle-Support Status).`);
   await expect(page.locator("dd", { hasText: `SAP-${testInfo.project.name}` })).toBeVisible();
@@ -66,9 +62,10 @@ test("Feldgruppen-Recht: Service ändert nur den Hotlinevertrag", async ({ brows
     // Nur die Felder der Gruppe sind Eingabefelder
     await expect(user.getByRole("textbox", { name: "SAP-Projektnummer" })).toHaveCount(0);
     // Änderbare Felder sind hervorgehoben
-    await expect(user.getByLabel("Kunde Hotline SAP-Auftrag")).toHaveClass(/bg-brand\/5/);
+    const hotline = user.getByRole("group", { name: "Kunden-Hotlinevertrag" });
+    await expect(hotline.getByLabel("SAP-Auftragsnummer")).toHaveClass(/bg-brand\/5/);
     await expect(user.getByText("Felder, die du ändern darfst")).toBeVisible();
-    await user.getByLabel("Kunde Hotline SAP-Auftrag").fill(`HL-${testInfo.project.name}`);
+    await hotline.getByLabel("SAP-Auftragsnummer").fill(`HL-${testInfo.project.name}`);
     await user.getByRole("button", { name: "Speichern" }).click();
     await expect(user.locator("main").getByRole("status")).toHaveText(`Oracle-ESL ${id} wurde gespeichert (geändert: Kunde Hotline SAP-Auftrag).`);
 
