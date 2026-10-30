@@ -57,6 +57,7 @@ test("Stammdaten-Recht je Liste: Rolle darf nur bei Hersteller anlegen", async (
   await admin.goto("/verwaltung?tab=rollen");
   await admin.getByRole("button", { name: "Neue Rolle" }).click();
   await admin.getByLabel("Name", { exact: true }).fill(roleName);
+  await admin.getByRole("button", { name: "Stammdaten (alle Listen): Listen aufklappen" }).click();
   await admin.getByLabel("Stammdaten › Hersteller: Anlegen").check();
   await expect(admin.getByLabel("Stammdaten › PMS-Modularten: Bearbeiten")).toBeVisible();
   await admin.getByLabel("Anmeldename").fill("user");

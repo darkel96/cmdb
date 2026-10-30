@@ -44,6 +44,7 @@ test("Feldgruppen-Recht: Service ändert nur den Hotlinevertrag", async ({ brows
   await admin.goto("/verwaltung?tab=rollen");
   await admin.getByRole("button", { name: "Neue Rolle" }).click();
   await admin.getByLabel("Name", { exact: true }).fill(roleName);
+  await admin.getByRole("button", { name: "Oracle-ESL: Feldgruppen aufklappen" }).click();
   await admin.getByLabel("Oracle-ESL › Service: Bearbeiten").check();
   await expect(admin.getByLabel("Oracle-ESL › Service: Lesen")).toHaveCount(0);
   await admin.getByLabel("Anmeldename").fill("user");
