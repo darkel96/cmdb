@@ -1,14 +1,14 @@
 /** API des CMDB-Dienstes unter /api */
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { AREAS, SYSTEM_STATUS, firstFreeId, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
+import { AREAS, SYSTEM_STATUS, editableFields, firstFreeId, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
 import type { CheckResult, CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_PMS_PRICES, TEST_USERS, testPmsModules, testRows } from "@/lib/testData";
-import { PMS_AREA, type PmsResponse } from "@/lib/pms";
+import { PMS_AREA, PMS_PRICE_COLUMNS, pmsBlocksDelete, PMS_PRICE_MAX, PMS_WRITE, euro, samePrices, type PmsModule, type PmsPrice, type PmsPrices, type PmsResponse } from "@/lib/pms";
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
-import { LOOKUP_LISTS, type StammdatenResponse } from "@/lib/stammdaten";
-import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, followOsRename, listOsSupport, saveOsSupport, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listPms, listDocuments, updateCustomer, type CustomerValues } from "./db";
+import { LOOKUP_LISTS, PMS_PRICE_LIST, canChangeList, type StammdatenResponse } from "@/lib/stammdaten";
+import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, followOsRename, listOsSupport, saveOsSupport, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listPms, addPmsModule, changePmsModule, changePmsPrice, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { sendMail, smtpCheck } from "./mail";
 import { candidate, resetSettings, saveSettings, settings, settingsMeta, settingsView, type AllSettings, type DbSettings, type LdapSettings, type Section, type SmtpSettings } from "./settings";
@@ -87,6 +87,21 @@ function sameOrigin(req: IncomingMessage): boolean {
 async function meResponse(user: SessionUser): Promise<MeResponse> {
   const { groups: _groups, ...visible } = user;
   return { user: visible, testMode: ENV.testMode, permissions: await permissionsFor(user) };
+}
+
+/** Stammdaten: Recht für alle Listen oder genau diese Liste (z. B. Stammdaten › Hersteller), sonst 401/403 und null */
+async function allowedList(req: IncomingMessage, res: ServerResponse, list: { id: string; label: string }, action: "create" | "edit" | "delete"): Promise<SessionUser | null> {
+  const user = sessionFromRequest(req);
+  if (!user) {
+    fail(res, 401, "Nicht angemeldet.");
+    return null;
+  }
+  const permissions = await permissionsFor(user);
+  if (!canChangeList((a, x) => can(permissions, a, x), list.id, action)) {
+    fail(res, 403, `Keine Berechtigung (Stammdaten › ${list.label}: ${ACTIONS.find((a) => a.id === action)?.label}).`);
+    return null;
+  }
+  return user;
 }
 
 /** Angemeldete Person mit dem Recht für Bereich und Aktion, sonst Antwort 401/403 und null */
@@ -243,11 +258,13 @@ function testForm(area: Area): AreaFormResponse {
  * Eingaben prüfen: nur Felder des Formulars, Pflichtfelder gefüllt, Text bis 255 Zeichen, Datum als JJJJ-MM-TT,
  * Auswahlfelder nur mit Werten aus der Liste (wie in GAPTEQ)
  */
-function validValues(area: Area, raw: unknown, form: AreaFormResponse, original?: Record<string, string>): Record<string, string> {
+function validValues(area: Area, raw: unknown, form: AreaFormResponse, original?: Record<string, string>, only?: string[]): Record<string, string> {
   if (!raw || typeof raw !== "object") throw new LoginError("Ungültige Anfrage.", 400);
   const values: Record<string, string> = {};
   for (const f of area.fields) {
     if (!area.createFields?.includes(f.key) || area.createFixed?.[f.key] !== undefined) continue;
+    // Beim Bearbeiten nur die Felder, die die Person ändern darf (Feldgruppen); andere bleiben, wie sie sind
+    if (only && !only.includes(f.key)) continue;
     const v = (raw as Record<string, unknown>)[f.key] ?? "";
     if (typeof v !== "string") throw new LoginError(`${f.label}: ungültiger Wert.`, 400);
     const value = v.trim();
@@ -320,6 +337,8 @@ async function deleteInArea(req: IncomingMessage, res: ServerResponse, area: Are
       if (!row) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
       const meanwhile = area.fields.filter((f) => f.key in original && String(row[f.key] ?? "") !== original[f.key]);
       if (meanwhile.length) throw new DbError(`Der Eintrag wurde inzwischen geändert (${meanwhile.map((f) => f.label).join(", ")}). Bitte neu laden.`, 409);
+      const modules = area.id === PMS_AREA ? testPmsState().filter((m) => m.contractId === id).length : 0;
+      if (modules) throw new DbError(pmsBlocksDelete(id, modules), 409);
       testDeleted.add(`${area.id}:${id}`);
       testEdits.delete(`${area.id}:${id}`);
       testSecrets.delete(`${area.id}:${id}`);
@@ -794,15 +813,15 @@ function statusOnly(area: Area, raw: unknown): Record<string, string> | undefine
  * Eintrag bearbeiten (Recht Bearbeiten des Bereichs) oder mit status nur den Status setzen (PUT …/status, Recht
  * „Auslaufende Kundensysteme: Bearbeiten“). Über das normale Bearbeiten lässt sich der Status nicht setzen.
  */
-async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser, id: number, status = false): Promise<void> {
+async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area, user: SessionUser, id: number, status = false, editable?: string[]): Promise<void> {
   const body = await readJson(req);
   try {
     const original = originalValues(body.original);
     const values = status
       ? (statusOnly(area, body.values) ?? (() => { throw new LoginError("Nur der Status kann hier gesetzt werden.", 400); })())
       : {
-          ...validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area), original),
-          ...secretValue(area, body.values, body.clearSecret === true),
+          ...validValues(area, body.values, ENV.testMode ? testForm(area) : await areaForm(area), original, editable),
+          ...(!editable || (area.secret && editable.includes(area.secret.key)) ? secretValue(area, body.values, body.clearSecret === true) : {}),
         };
     let changed: string[];
     if (ENV.testMode) {
@@ -829,6 +848,125 @@ async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area,
   }
 }
 
+// ---------- PMS-Module am Oracle-ESL-Vertrag ----------
+
+// Testmodus: Module im Speicher (bis zum Neustart)
+let testPms: PmsModule[] | undefined;
+let testPmsPrices: PmsPrice[] = TEST_PMS_PRICES.map((p) => ({ ...p }));
+const testPmsState = () => (testPms ??= testPmsModules(areaRows(AREAS[PMS_AREA]).map((r) => r.id)));
+
+/** Preise aus der Anfrage: je Spalte null oder 0 … PMS_PRICE_MAX mit höchstens zwei Nachkommastellen */
+function pmsPrices(raw: unknown): PmsPrices {
+  if (!raw || typeof raw !== "object") throw new LoginError("Ungültige Anfrage.", 400);
+  const prices = {} as PmsPrices;
+  for (const c of PMS_PRICE_COLUMNS) {
+    const v = (raw as Record<string, unknown>)[c.key] ?? null;
+    if (v !== null && (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > PMS_PRICE_MAX || Math.abs(Math.round(v * 100) - v * 100) > 1e-6))
+      throw new LoginError(`${c.label}: ungültiger Betrag.`, 400);
+    prices[c.key] = v;
+  }
+  return prices;
+}
+
+async function addPms(req: IncomingMessage, res: ServerResponse, user: SessionUser): Promise<void> {
+  const body = await readJson(req);
+  const contractId = Number(body.contractId);
+  const module = typeof body.module === "string" ? body.module.trim() : "";
+  if (!Number.isInteger(contractId) || contractId <= 0 || !module || module.length > 255) return fail(res, 400, "Ungültige Anfrage.");
+  try {
+    let id: number;
+    if (ENV.testMode) {
+      if (!areaRows(AREAS[PMS_AREA]).some((r) => r.id === contractId)) throw new DbError(`Diesen Vertrag (Oracle-ESL ${contractId}) gibt es nicht.`, 404);
+      const price = testPmsPrices.find((p) => p.module === module);
+      if (!price) throw new DbError(`„${module}“ steht nicht in der Preisliste.`, 400);
+      if (testPmsState().some((m) => m.contractId === contractId && m.module === module)) throw new DbError(`${module} ist an Oracle-ESL ${contractId} schon vorhanden.`, 409);
+      id = Math.max(0, ...testPmsState().map((m) => m.id)) + 1;
+      testPms = [...testPmsState(), { ...price, id, contractId }];
+    } else id = await addPmsModule(contractId, module);
+    log(`PMS-Modul hinzugefügt: Oracle-ESL ${contractId} von ${user.username}`);
+    await recordChange(user.username, PMS_AREA, contractId, "geändert", [{ label: "PMS-Modul hinzugefügt", new: module }]);
+    json(res, 201, { id });
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    fail(res, e.status, e.message);
+  }
+}
+
+/** Preise ändern oder Modul entfernen; body.original: Modul und Preise beim Öffnen */
+async function changePms(req: IncomingMessage, res: ServerResponse, user: SessionUser, id: number, remove: boolean): Promise<void> {
+  const body = await readJson(req);
+  try {
+    const raw = body.original as Record<string, unknown> | undefined;
+    const original = { ...pmsPrices(raw), module: typeof raw?.module === "string" ? raw.module : "" };
+    const prices = remove ? ("delete" as const) : pmsPrices(body.prices);
+    let before: PmsModule;
+    if (ENV.testMode) {
+      const found = testPmsState().find((m) => m.id === id);
+      if (!found) throw new DbError("Dieses PMS-Modul gibt es nicht mehr. Bitte neu laden.", 404);
+      if (found.module !== original.module || !samePrices(found, original)) throw new DbError("Das PMS-Modul wurde inzwischen geändert. Bitte neu laden.", 409);
+      before = found;
+      testPms = prices === "delete" ? testPmsState().filter((m) => m.id !== id) : testPmsState().map((m) => (m.id === id ? { ...m, ...prices } : m));
+    } else before = await changePmsModule(id, original, prices);
+    const changes =
+      prices === "delete"
+        ? [{ label: "PMS-Modul entfernt", old: before.module }]
+        : PMS_PRICE_COLUMNS.filter((c) => !samePrices({ ...before, [c.key]: prices[c.key] }, before)).map((c) => ({
+            label: `${before.module}: ${c.label}`,
+            old: euro(before[c.key]),
+            new: euro(prices[c.key]),
+          }));
+    log(`PMS-Modul ${prices === "delete" ? "entfernt" : "geändert"}: Oracle-ESL ${before.contractId} von ${user.username}`);
+    if (changes.length) await recordChange(user.username, PMS_AREA, before.contractId, "geändert", changes);
+    res.writeHead(204, { "Cache-Control": "no-store" });
+    res.end();
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    fail(res, e.status, e.message);
+  }
+}
+
+/** Verwaltung › Stammdaten › PMS-Modularten: Preisliste pflegen (Rechte wie die übrigen Stammdaten) */
+async function changePmsPrices(req: IncomingMessage, res: ServerResponse, method: string): Promise<void> {
+  const action = method === "POST" ? "add" : method === "PUT" ? "edit" : "delete";
+  const user = await allowedList(req, res, PMS_PRICE_LIST, action === "add" ? "create" : action);
+  if (!user) return;
+  const body = await readJson(req);
+  const entry = (raw: unknown): PmsPrice => {
+    const name = typeof (raw as { module?: unknown } | undefined)?.module === "string" ? (raw as { module: string }).module.trim() : "";
+    if (!name) throw new LoginError("Bitte einen Namen für das Modul angeben.", 400);
+    if (name.length > 255) throw new LoginError("Name: höchstens 255 Zeichen.", 400);
+    return { module: name, ...pmsPrices(raw) };
+  };
+  try {
+    const next = action === "delete" ? null : entry(body.entry);
+    const original = action === "add" ? null : entry(body.original);
+    let renamed = 0;
+    if (ENV.testMode) {
+      const has = (name: string) => testPmsPrices.some((p) => p.module === name);
+      if (next && (action === "add" || next.module !== original?.module) && has(next.module)) throw new DbError(`„${next.module}“ steht schon in der Preisliste.`, 409);
+      if (original) {
+        const current = testPmsPrices.find((p) => p.module === original.module);
+        if (!current) throw new DbError(`„${original.module}“ steht nicht mehr in der Preisliste. Bitte neu laden.`, 404);
+        if (!samePrices(current, original)) throw new DbError(`„${original.module}“ wurde inzwischen geändert. Bitte neu laden.`, 409);
+        const used = testPmsState().filter((m) => m.module === original.module).length;
+        if (action === "delete" && used) throw new DbError(`„${original.module}“ hängt noch an ${used} Oracle-ESL-Vertr${used === 1 ? "ag" : "ägen"} und kann nicht gelöscht werden.`, 409);
+        if (next && next.module !== original.module) {
+          renamed = used;
+          testPms = testPmsState().map((m) => (m.module === original.module ? { ...m, module: next.module } : m));
+        }
+      }
+      testPmsPrices =
+        action === "add" ? [...testPmsPrices, next!] : action === "delete" ? testPmsPrices.filter((p) => p.module !== original!.module) : testPmsPrices.map((p) => (p.module === original!.module ? next! : p));
+    } else renamed = await changePmsPrice(action, next, original);
+    const what = action === "add" ? `„${next!.module}“ hinzugefügt` : action === "delete" ? `„${original!.module}“ gelöscht` : `„${original!.module}“ geändert${renamed ? ` (an ${renamed} Verträgen umbenannt)` : ""}`;
+    log(`PMS-Preisliste: ${what} von ${user.username}`);
+    json(res, 200, { renamed });
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    fail(res, e.status, e.message);
+  }
+}
+
 // ---------- Support-Ende je Betriebssystem ----------
 
 // Testmodus: im Speicher, vorbelegt wie die Migration
@@ -850,7 +988,7 @@ async function decorate(area: Area, rows: AreaRow[]): Promise<AreaRow[]> {
 }
 
 async function changeOsSupport(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const user = await allowed(req, res, "stammdaten", "edit");
+  const user = await allowedList(req, res, LOOKUP_LISTS.find((l) => l.id === "server-os")!, "edit");
   if (!user) return;
   const body = await readJson(req);
   const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -893,7 +1031,7 @@ async function changeStammdaten(req: IncomingMessage, res: ServerResponse, listI
   const list = LOOKUP_LISTS.find((l) => l.id === listId);
   if (!list) return fail(res, 404, "Unbekannte Liste.");
   const action = method === "POST" ? "add" : method === "PUT" ? "rename" : "delete";
-  const user = await allowed(req, res, "stammdaten", action === "add" ? "create" : action === "rename" ? "edit" : "delete");
+  const user = await allowedList(req, res, list, action === "add" ? "create" : action === "rename" ? "edit" : "delete");
   if (!user) return;
   const body = await readJson(req);
   const value = typeof body.value === "string" ? body.value.trim() : "";
@@ -960,8 +1098,16 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
     } else if (/^\/api\/areas\/[a-z-]+\/form$/.test(path) && method === "GET") {
       const areaId = path.split("/")[3];
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
+      const user = sessionFromRequest(req);
       if (!area?.createFields) fail(res, 404, "Dieser Bereich kann nicht angelegt werden.");
-      else if (await allowed(req, res, area.id, "create")) await readDb(res, async () => (ENV.testMode ? testForm(area) : await areaForm(area)));
+      else if (!user) fail(res, 401, "Nicht angemeldet.");
+      else {
+        // Auswahllisten fürs Formular: zum Anlegen oder Bearbeiten (auch nur eine Feldgruppe)
+        const permissions = await permissionsFor(user);
+        if (!can(permissions, area.id, "create") && !editableFields(area, (a, action) => can(permissions, a, action)).length)
+          fail(res, 403, `Keine Berechtigung (${area.plural ?? area.singular}: Anlegen).`);
+        else await readDb(res, async () => (ENV.testMode ? testForm(area) : await areaForm(area)));
+      }
     } else if (/^\/api\/areas\/[a-z-]+$/.test(path) && method === "POST") {
       const areaId = path.split("/")[3];
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
@@ -975,20 +1121,25 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
     } else if (/^\/api\/areas\/[a-z-]+\/\d+$/.test(path) && method === "PUT") {
       const [, , , areaId, rawId] = path.split("/");
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
-      if (!area?.createFields) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Dieser Bereich kann nicht bearbeitet werden." : "Nicht angemeldet.");
+      const user = sessionFromRequest(req);
+      if (!user) fail(res, 401, "Nicht angemeldet.");
+      else if (!area?.createFields) fail(res, 404, "Dieser Bereich kann nicht bearbeitet werden.");
       else {
-        const user = await allowed(req, res, area.id, "edit");
-        if (user) await editInArea(req, res, area, user, Number(rawId));
+        // Recht Bearbeiten des Bereichs (alle Felder) oder einer Feldgruppe (nur deren Felder)
+        const permissions = await permissionsFor(user);
+        const editable = editableFields(area, (a, action) => can(permissions, a, action));
+        if (!editable.length) fail(res, 403, `Keine Berechtigung (${area.plural ?? area.singular}: Bearbeiten).`);
+        else await editInArea(req, res, area, user, Number(rawId), false, editable);
       }
     } else if (/^\/api\/areas\/[a-z-]+\/\d+\/documents(\/\d+)?$/.test(path) && (method === "GET" || method === "POST")) {
       const [, , , areaId, rawId, , rawDoc] = path.split("/");
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
-      if (!area?.createFields || (method === "POST" && rawDoc)) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Unbekannte Adresse." : "Nicht angemeldet.");
+      if (!area?.createFields || area.noDocuments || (method === "POST" && rawDoc)) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Unbekannte Adresse." : "Nicht angemeldet.");
       else await systemDocuments(req, res, area, Number(rawId), rawDoc ? Number(rawDoc) : undefined, method);
     } else if (/^\/api\/areas\/[a-z-]+\/\d+$/.test(path) && method === "DELETE") {
       const [, , , areaId, rawId] = path.split("/");
       const area = Object.hasOwn(AREAS, areaId) ? AREAS[areaId] : undefined;
-      if (!area?.createFields) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Dieser Bereich kann nicht gelöscht werden." : "Nicht angemeldet.");
+      if (!area?.createFields || area.noDelete) fail(res, sessionFromRequest(req) ? 404 : 401, sessionFromRequest(req) ? "Dieser Bereich kann nicht gelöscht werden." : "Nicht angemeldet.");
       else {
         const user = await allowed(req, res, area.id, "delete");
         if (user) await deleteInArea(req, res, area, user, Number(rawId));
@@ -1067,9 +1218,17 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       if (await allowed(req, res, PMS_AREA, "read"))
         await readDb(res, async () =>
           (ENV.testMode
-            ? { source: "test", items: testPmsModules(areaRows(AREAS[PMS_AREA]).map((r) => r.id)), prices: TEST_PMS_PRICES }
+            ? { source: "test", items: testPmsState(), prices: testPmsPrices }
             : { source: "db", ...(await listPms()) }) satisfies PmsResponse,
         );
+    } else if (path === "/api/pms-preisliste" && ["POST", "PUT", "DELETE"].includes(method)) {
+      await changePmsPrices(req, res, method);
+    } else if (path === "/api/pms-module" && method === "POST") {
+      const user = await allowed(req, res, PMS_WRITE, "create");
+      if (user) await addPms(req, res, user);
+    } else if (/^\/api\/pms-module\/\d+$/.test(path) && (method === "PUT" || method === "DELETE")) {
+      const user = await allowed(req, res, PMS_WRITE, method === "PUT" ? "edit" : "delete");
+      if (user) await changePms(req, res, user, Number(path.split("/")[3]), method === "DELETE");
     } else if (path === "/api/os-support" && method === "GET") {
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
       else json(res, 200, { items: await osSupport() });

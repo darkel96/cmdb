@@ -20,9 +20,24 @@ export const LOOKUP_LISTS: LookupList[] = [
   { id: "servertyp", label: "Servertyp", table: "DD_Servertyp", column: "Servertyp", maxLength: 50, testKey: "serverType" },
   { id: "vertragstyp", label: "Vertragstyp (Wartungstyp)", table: "DD_Vertragstyp", column: "Vertragstyp", maxLength: 100, testKey: "maintenanceType" },
   { id: "zeichensatz", label: "Zeichensatz", table: "DD_Zeichensatz", column: "Zeichensatz", maxLength: 50, testKey: "charset" },
+  { id: "oracle-vertragsstatus", label: "Oracle-Vertragsstatus", table: "DD_OracleVertragsdaten", column: "Status", maxLength: 50, testKey: "contractStatus" },
   { id: "server-os", label: "Server-OS", table: "DD_FW_Server_OS", column: "Server_OS", maxLength: 255, testKey: "os" },
 ];
 
 export interface StammdatenResponse {
   lists: { id: string; label: string; maxLength: number; values: string[]; error?: string }[];
+}
+
+/** Preisliste der PMS-Module: unter Stammdaten wie eine Liste, aber mit Preisen (eigene Tabelle, siehe lib/pms.ts) */
+export const PMS_PRICE_LIST = { id: "pms-modularten", label: "PMS-Modularten" };
+
+/** Alle Listen unter Verwaltung › Stammdaten, je mit eigenem Recht in der Rechte-Tabelle */
+export const STAMMDATEN_LISTS: { id: string; label: string }[] = [...LOOKUP_LISTS, PMS_PRICE_LIST];
+
+/** Recht für eine einzelne Liste, z. B. „stammdaten.hersteller“ */
+export const listPermission = (listId: string) => `stammdaten.${listId}`;
+
+/** Eine Liste ändern: Recht der Stammdaten insgesamt (alle Listen) oder dieser einen Liste */
+export function canChangeList(can: (area: string, action: "create" | "edit" | "delete") => boolean, listId: string, action: "create" | "edit" | "delete"): boolean {
+  return can("stammdaten", action) || can(listPermission(listId), action);
 }

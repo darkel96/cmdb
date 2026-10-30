@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, FileDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { DataTable, type Column } from "@/components/DataTable";
 import { SecretValue } from "@/components/SecretValue";
 import { SystemDocuments } from "@/components/SystemDocuments";
 import { HistoryPanel } from "@/components/HistoryPanel";
-import { EslPanels } from "@/components/EslPanels";
+import { EslOraclePanel, EslPmsPanel } from "@/components/EslPanels";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { AREAS, type Area, type AreaListResponse, type AreaRow } from "@/lib/areas";
+import { AREAS, editableFields, type Area, type AreaListResponse, type AreaRow } from "@/lib/areas";
 import { longDate, shortDate } from "@/lib/format";
 import { PMS_AREA } from "@/lib/pms";
 import { useAuth } from "@/state/auth";
@@ -95,6 +95,38 @@ export function AreaPage({ area }: { area: Area }) {
   );
 }
 
+/**
+ * Felder in den Abschnitten des Formulars (z. B. Oracle-ESL), platzsparend in bis zu drei Spalten; Felder ohne
+ * Abschnitt (z. B. Oracle-System) stehen im ersten
+ */
+function SectionedFields({ area, row }: { area: Area; row: AreaRow }) {
+  const sections = area.formSections ?? [];
+  const placed = new Set(sections.flatMap((s) => s.fields));
+  const rest = area.fields.filter((f) => !placed.has(f.key) && !f.detailOnly).map((f) => f.key);
+  return (
+    <div className="grid gap-x-8 gap-y-4 p-4 text-sm md:grid-cols-2 xl:grid-cols-3">
+      {sections.map((section, i) => (
+        <section key={section.label} aria-label={section.label} className="min-w-0">
+          <h2 className="mb-1.5 border-b pb-1 text-sm font-semibold text-brand">{section.label}</h2>
+          <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-4 gap-y-1">
+            {[...section.fields, ...(i === 0 ? rest : [])].map((key) => {
+              const f = area.fields.find((x) => x.key === key);
+              if (!f) return null;
+              const value = String(row[f.key] ?? "");
+              return (
+                <div key={key} className="contents">
+                  <dt className="text-muted-foreground">{f.formLabel ?? f.label}</dt>
+                  <dd className="min-w-0 break-words">{(f.date ? longDate(value) : value) || "–"}</dd>
+                </div>
+              );
+            })}
+          </dl>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 /** Ein Eintrag eines Bereichs mit allen Feldern, nur lesend (Bearbeiten kommt mit Phase 2) */
 export function AreaDetailPage() {
   const { id = "", itemId = "" } = useParams();
@@ -131,6 +163,8 @@ export function AreaDetailPage() {
 
   if (!area) return <NotFoundPage />;
   const tag = row && (row.serviceTag || row.serialNumber);
+  // Bearbeiten mit dem Recht des Bereichs oder einer Feldgruppe (z. B. Oracle-ESL › Service)
+  const canEdit = Boolean(area.createFields) && editableFields(area, can).length > 0;
 
   return (
     <div className="flex w-full flex-col gap-3">
@@ -142,7 +176,7 @@ export function AreaDetailPage() {
         </Link>
       </Button>
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {row && area.createFields && can(area.id, "delete") && !confirmDelete && (
+        {row && area.createFields && !area.noDelete && can(area.id, "delete") && !confirmDelete && (
           <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setConfirmDelete(true)}>
             <Trash2 aria-hidden />
             Löschen
@@ -159,7 +193,15 @@ export function AreaDetailPage() {
             </Button>
           </span>
         )}
-        {row && area.createFields && can(area.id, "edit") && (
+        {row && area.id === PMS_AREA && (
+          <Button size="sm" variant="outline" asChild>
+            <Link to={`/bereich/${area.id}/${row.id}/datenblatt`} viewTransition>
+              <FileDown aria-hidden />
+              Datenblatt (PDF)
+            </Link>
+          </Button>
+        )}
+        {row && canEdit && (
           <Button size="sm" asChild>
             <Link to={`/bereich/${area.id}/${row.id}/bearbeiten`} viewTransition state={{ back: state?.back }}>
               <Pencil aria-hidden />
@@ -191,6 +233,9 @@ export function AreaDetailPage() {
             {area.singular} {row.id}
             {tag ? ` · ${tag}` : ""}
           </h1>
+          {area.formSections ? (
+            <SectionedFields area={area} row={row} />
+          ) : (
           <dl className="grid gap-x-6 gap-y-3 p-4 text-sm sm:grid-cols-[10rem_1fr] xl:grid-cols-[10rem_1fr_10rem_1fr]">
             <div className="contents">
               <dt className="text-muted-foreground">ID</dt>
@@ -222,16 +267,18 @@ export function AreaDetailPage() {
               </div>
             )}
           </dl>
+          )}
           <p className="border-t px-4 py-2 text-xs text-muted-foreground">
-            {area.createFields && can(area.id, "edit") ? "Ändern über „Bearbeiten“ oder weiterhin in GAPTEQ." : "Nur lesend."}
+            {canEdit ? "Ändern über „Bearbeiten“ oder weiterhin in GAPTEQ." : "Nur lesend."}
           </p>
         </section>
-        {area.id === PMS_AREA && <EslPanels row={row} />}
+        {area.id === PMS_AREA && <EslPmsPanel contractId={row.id} />}
         </div>
       )}
       {row && (
         <div className="flex min-w-0 flex-col gap-3">
-          {area.createFields && <SystemDocuments area={area} id={row.id} />}
+          {area.createFields && !area.noDocuments && <SystemDocuments area={area} id={row.id} />}
+          {area.id === PMS_AREA && <EslOraclePanel row={row} />}
           <HistoryPanel area={area.id} id={row.id} compact />
         </div>
       )}

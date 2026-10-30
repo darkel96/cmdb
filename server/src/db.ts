@@ -4,7 +4,7 @@
 import sql from "mssql";
 import type { Area, AreaFormResponse, AreaRow, CustomerDocument } from "@/lib/areas";
 import type { OsSupportEntry } from "@/lib/osSupport";
-import type { PmsModule, PmsPrices, PmsResponse } from "@/lib/pms";
+import { PMS_AREA, pmsBlocksDelete, samePrices, type PmsModule, type PmsPrice, type PmsPrices, type PmsResponse } from "@/lib/pms";
 import type { LookupList } from "@/lib/stammdaten";
 import type { CheckResult, Customer } from "@/lib/types";
 import { CUSTOMER_LINKS } from "./customerLinks";
@@ -324,6 +324,12 @@ export async function deleteAreaRow(area: Area, id: number, original: Record<str
     const docs = await new sql.Request(tx).input("id", sql.Int, id).query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.Anhang WHERE Vertrag_ID = @id");
     if (docs.recordset[0].n)
       throw new DbError(`An ${area.singular} ${id} hängen noch ${docs.recordset[0].n} Dokument(e). Die CMDB löscht keine Dokumente; bitte zuerst in GAPTEQ entfernen.`, 409);
+    // Oracle-ESL: nur ohne PMS-Module (dbo.PMS_Module.ID = Vertrags-ID); die werden nicht stillschweigend mit gelöscht
+    if (area.id === PMS_AREA) {
+      object = "dbo.PMS_Module";
+      const modules = await new sql.Request(tx).input("id", sql.Int, id).query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.PMS_Module WITH (UPDLOCK, HOLDLOCK) WHERE ID = @id");
+      if (modules.recordset[0].n) throw new DbError(pmsBlocksDelete(id, modules.recordset[0].n), 409);
+    }
     object = objectOf(area);
     if (area.identity) await new sql.Request(tx).input("id", sql.Int, id).query(`DELETE FROM ${tableOf(area)} WHERE ID = @id`);
     else {
@@ -522,6 +528,125 @@ export async function listPms(): Promise<Pick<PmsResponse, "items" | "prices" | 
     return { items, prices: result.recordset.map((r: Record<string, unknown>) => ({ module: String(r.module), ...toPrices(r) })) };
   } catch (e) {
     return { items, prices: [], pricesError: translate(e, "dbo.PMS_Module_Stammdaten").message };
+  }
+}
+
+const PMS_ROW = `ID AS contractId, LTRIM(RTRIM([PMS-Modul])) AS module, ${PMS_PRICES}`;
+
+function pmsPriceInputs(request: sql.Request, prices: PmsPrices): sql.Request {
+  return request
+    .input("lp", sql.Decimal(10, 2), prices.listPrice)
+    .input("lc", sql.Decimal(10, 2), prices.licenseCost)
+    .input("mc", sql.Decimal(10, 2), prices.maintenanceCost);
+}
+
+/** Modul an einen Oracle-ESL-Vertrag hängen (wie GAPTEQ „Anlage PMS-Modul“): Preise aus der Preisliste übernommen */
+export async function addPmsModule(contractId: number, module: string): Promise<number> {
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
+  let object = "dbo.Vertragsdaten";
+  try {
+    const contract = await new sql.Request(tx)
+      .input("id", sql.Int, contractId)
+      .query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.Vertragsdaten WHERE ID = @id AND NULLIF(LTRIM(RTRIM(Kunde)), '') IS NOT NULL");
+    if (!contract.recordset[0].n) throw new DbError(`Diesen Vertrag (Oracle-ESL ${contractId}) gibt es nicht.`, 404);
+    object = "dbo.PMS_Module_Stammdaten";
+    const price = await new sql.Request(tx)
+      .input("m", sql.VarChar(255), module)
+      .query(`SELECT TOP 1 ${PMS_PRICES} FROM dbo.PMS_Module_Stammdaten WHERE LTRIM(RTRIM([PMS-Modul])) = @m`);
+    if (!price.recordset[0]) throw new DbError(`„${module}“ steht nicht in der Preisliste.`, 400);
+    object = "dbo.PMS_Module";
+    // Sperre bis zum Ende, damit dasselbe Modul nicht gleichzeitig zweimal dazukommt
+    const twice = await new sql.Request(tx)
+      .input("id", sql.Int, contractId)
+      .input("m", sql.VarChar(255), module)
+      .query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.PMS_Module WITH (UPDLOCK, HOLDLOCK) WHERE ID = @id AND LTRIM(RTRIM([PMS-Modul])) = @m");
+    if (twice.recordset[0].n) throw new DbError(`${module} ist an Oracle-ESL ${contractId} schon vorhanden.`, 409);
+    const result = await pmsPriceInputs(new sql.Request(tx).input("id", sql.Int, contractId).input("m", sql.VarChar(255), module), toPrices(price.recordset[0])).query<{ id: number }>(
+      "INSERT INTO dbo.PMS_Module (ID, [PMS-Modul], [PMS-Listenpreis], [Oracle-Lizenzkosten], [Oracle-Wartungskosten]) OUTPUT INSERTED.PMS_Module_ID AS id VALUES (@id, @m, @lp, @lc, @mc)",
+    );
+    await tx.commit();
+    return result.recordset[0].id;
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, object);
+  }
+}
+
+/**
+ * Preise eines Moduls am Vertrag ändern (delete: Modul entfernen). Weicht der Stand vom Öffnen ab (auch in GAPTEQ
+ * geändert), wird nichts geschrieben.
+ */
+export async function changePmsModule(id: number, original: PmsPrices & { module: string }, prices: PmsPrices | "delete"): Promise<PmsModule> {
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
+  try {
+    const current = await new sql.Request(tx).input("id", sql.Int, id).query(`SELECT ${PMS_ROW} FROM dbo.PMS_Module WITH (UPDLOCK, ROWLOCK) WHERE PMS_Module_ID = @id`);
+    const r = current.recordset[0] as Record<string, unknown> | undefined;
+    if (!r) throw new DbError("Dieses PMS-Modul gibt es nicht mehr. Bitte neu laden.", 404);
+    const before: PmsModule = { id, contractId: Number(r.contractId), module: String(r.module), ...toPrices(r) };
+    if (before.module !== original.module || !samePrices(before, original)) throw new DbError("Das PMS-Modul wurde inzwischen geändert. Bitte neu laden.", 409);
+    const request = new sql.Request(tx).input("id", sql.Int, id);
+    if (prices === "delete") await request.query("DELETE FROM dbo.PMS_Module WHERE PMS_Module_ID = @id");
+    else
+      await pmsPriceInputs(request, prices).query(
+        "UPDATE dbo.PMS_Module SET [PMS-Listenpreis] = @lp, [Oracle-Lizenzkosten] = @lc, [Oracle-Wartungskosten] = @mc WHERE PMS_Module_ID = @id",
+      );
+    await tx.commit();
+    return before;
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, "dbo.PMS_Module");
+  }
+}
+
+/**
+ * Preisliste (Arten der PMS-Module, dbo.PMS_Module_Stammdaten) pflegen. Schlüssel ist der Name. Umbenennen ändert
+ * den Namen an den Verträgen mit (dbo.PMS_Module), deren Preise bleiben; Löschen nur, wenn kein Vertrag das Modul hat.
+ * Weicht der Stand vom Öffnen ab, wird nichts geschrieben. Rückgabe: Anzahl der mit umbenannten Module an Verträgen.
+ */
+export async function changePmsPrice(action: "add" | "edit" | "delete", next: PmsPrice | null, original: PmsPrice | null): Promise<number> {
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
+  let object = "dbo.PMS_Module_Stammdaten";
+  const named = (name: string) => new sql.Request(tx).input("m", sql.VarChar(255), name);
+  const taken = async (name: string) =>
+    (await named(name).query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.PMS_Module_Stammdaten WITH (UPDLOCK, HOLDLOCK) WHERE LTRIM(RTRIM([PMS-Modul])) = @m")).recordset[0].n > 0;
+  try {
+    let renamed = 0;
+    if (action === "add" && next) {
+      if (await taken(next.module)) throw new DbError(`„${next.module}“ steht schon in der Preisliste.`, 409);
+      await pmsPriceInputs(named(next.module), next).query(
+        "INSERT INTO dbo.PMS_Module_Stammdaten ([PMS-Modul], [PMS-Listenpreis], [Oracle-Lizenzkosten], [Oracle-Wartungskosten]) VALUES (@m, @lp, @lc, @mc)",
+      );
+    } else if (original) {
+      const current = await named(original.module).query(`SELECT TOP 1 ${PMS_PRICES} FROM dbo.PMS_Module_Stammdaten WITH (UPDLOCK, ROWLOCK) WHERE LTRIM(RTRIM([PMS-Modul])) = @m`);
+      if (!current.recordset[0]) throw new DbError(`„${original.module}“ steht nicht mehr in der Preisliste. Bitte neu laden.`, 404);
+      if (!samePrices(toPrices(current.recordset[0]), original)) throw new DbError(`„${original.module}“ wurde inzwischen geändert. Bitte neu laden.`, 409);
+      object = "dbo.PMS_Module";
+      const used = (await named(original.module).query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.PMS_Module WHERE LTRIM(RTRIM([PMS-Modul])) = @m")).recordset[0].n;
+      object = "dbo.PMS_Module_Stammdaten";
+      if (action === "delete") {
+        if (used) throw new DbError(`„${original.module}“ hängt noch an ${used} Oracle-ESL-Vertr${used === 1 ? "ag" : "ägen"} und kann nicht gelöscht werden.`, 409);
+        await named(original.module).query("DELETE FROM dbo.PMS_Module_Stammdaten WHERE LTRIM(RTRIM([PMS-Modul])) = @m");
+      } else if (next) {
+        const rename = next.module !== original.module;
+        if (rename && (await taken(next.module))) throw new DbError(`„${next.module}“ steht schon in der Preisliste.`, 409);
+        await pmsPriceInputs(named(original.module).input("n", sql.VarChar(255), next.module), next).query(
+          "UPDATE dbo.PMS_Module_Stammdaten SET [PMS-Modul] = @n, [PMS-Listenpreis] = @lp, [Oracle-Lizenzkosten] = @lc, [Oracle-Wartungskosten] = @mc WHERE LTRIM(RTRIM([PMS-Modul])) = @m",
+        );
+        if (rename && used) {
+          object = "dbo.PMS_Module";
+          const r = await named(original.module).input("n", sql.VarChar(255), next.module).query("UPDATE dbo.PMS_Module SET [PMS-Modul] = @n WHERE LTRIM(RTRIM([PMS-Modul])) = @m");
+          renamed = r.rowsAffected[0] ?? 0;
+        }
+      }
+    }
+    await tx.commit();
+    return renamed;
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, object);
   }
 }
 

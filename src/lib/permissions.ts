@@ -1,5 +1,7 @@
 /** Rollen und Rechte je Bereich (gemeinsam für Dienst und Frontend) */
-import { AREAS } from "./areas";
+import { AREAS, groupPermission } from "./areas";
+import { PMS_WRITE } from "./pms";
+import { STAMMDATEN_LISTS, listPermission } from "./stammdaten";
 
 export type Action = "read" | "create" | "edit" | "delete";
 
@@ -23,8 +25,16 @@ export const ACTIONS: { id: Action; label: string }[] = [
 /** Bereiche in der Rechte-Tabelle; actions: nur diese Rechte sind dort sinnvoll (sonst alle vier) */
 export const PERMISSION_AREAS: { id: string; label: string; actions?: Action[] }[] = [
   { id: "kunden", label: "Kunden" },
-  ...Object.values(AREAS).map((a) => ({ id: a.id, label: a.plural ?? a.singular })),
-  { id: "stammdaten", label: "Stammdaten (Auswahllisten)" },
+  ...Object.values(AREAS).flatMap((a) => [
+    { id: a.id, label: a.plural ?? a.singular },
+    // Feldgruppen (z. B. Oracle-ESL › Einkauf): nur Bearbeiten, Lesen hängt am Bereich
+    ...(a.fieldGroups ?? []).map((g) => ({ id: groupPermission(a, g.id), label: `${a.plural ?? a.singular} › ${g.label}`, actions: ["edit"] as Action[] })),
+  ]),
+  // Lesen hängt an Oracle-ESL (siehe lib/pms.ts)
+  { id: PMS_WRITE, label: "PMS-Module am Oracle-ESL-Vertrag", actions: ["create", "edit", "delete"] },
+  // Lesen: Reiter Stammdaten sehen; Anlegen/Bearbeiten/Löschen hier gilt für alle Listen, darunter je Liste einzeln
+  { id: "stammdaten", label: "Stammdaten (alle Listen)" },
+  ...STAMMDATEN_LISTS.map((l) => ({ id: listPermission(l.id), label: `Stammdaten › ${l.label}`, actions: ["create", "edit", "delete"] as Action[] })),
   // Lesen: Seite sehen (welche Systeme, hängt am Leserecht der Bereiche); Bearbeiten: Status setzen
   { id: "auslaufend", label: "Auslaufende Kundensysteme", actions: ["read", "edit"] },
 ];
