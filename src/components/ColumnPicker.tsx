@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { Popover } from "radix-ui";
 import { cn } from "@/lib/utils";
+import { ClearButton } from "@/components/ui/clear-button";
 
 /** Anzeige für leere Werte in der Auswahl */
 export const EMPTY_VALUE = "(leer)";
@@ -64,8 +65,9 @@ export function ColumnPicker({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Werte suchen …"
                 aria-label={`Werte ${label} durchsuchen`}
-                className="h-9 w-full bg-transparent pr-3 pl-8 outline-none placeholder:text-muted-foreground"
+                className="h-9 w-full bg-transparent pr-8 pl-8 outline-none placeholder:text-muted-foreground"
               />
+              <ClearButton value={query} label="Wertesuche löschen" onClear={() => setQuery("")} />
             </div>
           )}
           <ul role="listbox" aria-multiselectable="true" aria-label={`Werte ${label}`} className="scroll-thin max-h-72 p-1">

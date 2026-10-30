@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, FileSpreadsheet, FolderOpen, MoveHorizontal, RotateCcw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ClearButton } from "@/components/ui/clear-button";
 import { readView, writeView } from "@/lib/sessionView";
 import { cn } from "@/lib/utils";
 import { ColumnPicker, EMPTY_VALUE } from "./ColumnPicker";
@@ -322,7 +323,8 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
         </Button>
         <div className="relative w-full max-w-60">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Suchen …" aria-label="Suchen" className="h-8 pl-8" />
+          <Input value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} placeholder="Suchen …" aria-label="Suchen" className="h-8 pr-8 pl-8" />
+          <ClearButton value={search} label="Suche löschen" onClear={() => { setSearch(""); setPage(0); }} />
         </div>
       </div>
       {/* Kompakt (mehrere Tabellen auf einer Seite): kein eigenes senkrechtes Scrollen, sonst fängt die Tabelle das
@@ -378,7 +380,14 @@ export function DataTable<T>({ title, columns, rows, rowKey, exportName, emptyTe
                       value={filters[c.key] ?? ""}
                       onChange={(e) => { setFilters((f) => ({ ...f, [c.key]: e.target.value })); setPage(0); }}
                       aria-label={`Filter ${c.label}`}
-                      className={cn("h-7 border-transparent pl-7 shadow-none focus-visible:border-input", pickable.has(c.key) && "pr-9")}
+                      className={cn("h-7 border-transparent pl-7 shadow-none focus-visible:border-input", pickable.has(c.key) ? "pr-14" : "pr-7")}
+                    />
+                    {/* Links neben der Werteliste, falls es eine gibt */}
+                    <ClearButton
+                      value={filters[c.key] ?? ""}
+                      label={`${c.label}: Filter löschen`}
+                      className={pickable.has(c.key) ? "right-8" : "right-1"}
+                      onClear={() => { setFilters((f) => ({ ...f, [c.key]: "" })); setPage(0); }}
                     />
                     {pickable.has(c.key) && (
                       <span className="absolute top-1/2 right-1 -translate-y-1/2">

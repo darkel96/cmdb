@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { DataTable, type Column } from "@/components/DataTable";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
+import { ClearButton } from "@/components/ui/clear-button";
 import { api } from "@/lib/api";
 import { AREAS, SYSTEM_STATUS, type Area, type AreaRow } from "@/lib/areas";
 import { cn } from "@/lib/utils";
@@ -246,7 +247,8 @@ export function ExpiringPage() {
           <div className="flex flex-col gap-1 border-b p-2">
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-              <Input value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} placeholder="Kunde suchen …" aria-label="Kunde suchen" className="h-8 pl-8" />
+              <Input value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} placeholder="Kunde suchen …" aria-label="Kunde suchen" className="h-8 pr-8 pl-8" />
+              <ClearButton value={customerSearch} label="Kundensuche löschen" onClear={() => setCustomerSearch("")} />
             </div>
             <button
               type="button"

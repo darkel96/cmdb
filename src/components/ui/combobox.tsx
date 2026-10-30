@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
 import { Popover } from "radix-ui";
 import { cn } from "@/lib/utils";
+import { ClearButton } from "./clear-button";
 
 /**
  * Auswahlliste im Design der CMDB (die Liste des Browsers lässt sich nicht gestalten):
@@ -123,7 +124,15 @@ export function Combobox({
               aria-label="Auswahl durchsuchen"
               aria-controls={listId}
               aria-activedescendant={listId && items[active] !== undefined ? `${listId}-${active}` : undefined}
-              className="h-9 w-full bg-transparent pr-3 pl-8 text-sm outline-none placeholder:text-muted-foreground"
+              className="h-9 w-full bg-transparent pr-8 pl-8 text-sm outline-none placeholder:text-muted-foreground"
+            />
+            <ClearButton
+              value={query}
+              label="Suche löschen"
+              onClear={() => {
+                setQuery("");
+                setActive(0);
+              }}
             />
           </div>
           <div ref={listRef} id={listId} role="listbox" className="scroll-thin max-h-72 p-1">

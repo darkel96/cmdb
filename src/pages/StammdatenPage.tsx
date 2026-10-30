@@ -3,6 +3,7 @@ import { CalendarClock, Check, Pencil, Plus, Search, Trash2, X } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
+import { ClearButton } from "@/components/ui/clear-button";
 import { api } from "@/lib/api";
 import type { OsSupportEntry } from "@/lib/osSupport";
 import type { StammdatenResponse } from "@/lib/stammdaten";
@@ -99,7 +100,8 @@ function LookupPanel({
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Suchen …" aria-label={`${list.label} durchsuchen`} className="h-8 pl-8" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Suchen …" aria-label={`${list.label} durchsuchen`} className="h-8 pr-8 pl-8" />
+          <ClearButton value={search} label="Suche löschen" onClear={() => setSearch("")} />
         </div>
         {can("stammdaten", "create") && (
           <Button type="button" size="sm" aria-label={`${list.label}: Wert hinzufügen`} onClick={() => { setAdding(true); setDraft(""); setEditing(null); }}>
