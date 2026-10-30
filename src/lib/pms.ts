@@ -28,6 +28,8 @@ export interface PmsResponse {
   source: "db" | "test";
   items: PmsModule[];
   prices: PmsPrice[];
+  /** Preisliste nicht lesbar (z. B. fehlendes Leserecht des Datenbank-Logins); Module gibt es trotzdem */
+  pricesError?: string;
 }
 
 export const PMS_PRICE_COLUMNS: { key: keyof PmsPrices; label: string }[] = [

@@ -17,10 +17,13 @@ const COLUMNS: Column<Row>[] = [
   ),
 ];
 
-function PriceTable({ caption, first, rows }: { caption: string; first: string; rows: ({ module: string } & PmsPrices)[] }) {
+function PriceTable({ caption, first, rows, error }: { caption: string; first: string; rows: ({ module: string } & PmsPrices)[]; error?: string }) {
   return (
     <section aria-label={caption} className="animate-appear min-w-0 overflow-hidden rounded-lg border bg-card shadow-xs">
       <h2 className="bg-brand px-4 py-2 font-medium text-brand-foreground">{caption}</h2>
+      {error ? (
+        <p className="px-4 py-3 text-sm text-muted-foreground">{error}</p>
+      ) : (
       <div className="scroll-thin overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b">
@@ -47,6 +50,7 @@ function PriceTable({ caption, first, rows }: { caption: string; first: string; 
           </tbody>
         </table>
       </div>
+      )}
     </section>
   );
 }
@@ -74,7 +78,7 @@ export function PmsPage() {
       {data && (
         <>
           <div className="grid shrink-0 gap-3 xl:grid-cols-2">
-            <PriceTable caption="Preisliste" first="PMS-Modul" rows={data.prices} />
+            <PriceTable caption="Preisliste" first="PMS-Modul" rows={data.prices} error={data.pricesError} />
             <PriceTable caption="Summen" first="Vergebene Module" rows={[total]} />
           </div>
           <DataTable

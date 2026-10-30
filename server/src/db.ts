@@ -9,6 +9,7 @@ import type { LookupList } from "@/lib/stammdaten";
 import type { CheckResult, Customer } from "@/lib/types";
 import { CUSTOMER_LINKS } from "./customerLinks";
 import { DB_CA, ENV } from "./env";
+import { log } from "./log";
 import { settings, type DbSettings } from "./settings";
 
 export class DbError extends Error {
@@ -69,6 +70,8 @@ function translate(e: unknown, object: string): DbError {
   }
   if (number === 208) return new DbError(`${object} gibt es in der Datenbank nicht.`, 503);
   if (e instanceof DbError) return e;
+  // Nur die Fehlernummer, die Meldung kann Werte aus der Datenbank enthalten
+  if (number !== undefined) log(`SQL-Fehler ${number} bei ${object}`);
   return new DbError("Die Datenbank ist gerade nicht erreichbar.", 503);
 }
 
@@ -500,8 +503,8 @@ function toPrices(r: Record<string, unknown>): PmsPrices {
   return { listPrice: num(r.listPrice), licenseCost: num(r.licenseCost), maintenanceCost: num(r.maintenanceCost) };
 }
 
-/** PMS-Module aller Oracle-ESL-Verträge und die Preisliste, nur lesend */
-export async function listPms(): Promise<Pick<PmsResponse, "items" | "prices">> {
+/** PMS-Module aller Oracle-ESL-Verträge und die Preisliste, nur lesend; ohne Leserecht auf die Preisliste nur die Module */
+export async function listPms(): Promise<Pick<PmsResponse, "items" | "prices" | "pricesError">> {
   const p = await pool().catch((e: unknown) => {
     throw translate(e, "dbo.PMS_Module");
   });
@@ -509,7 +512,7 @@ export async function listPms(): Promise<Pick<PmsResponse, "items" | "prices">> 
   try {
     const result = await p
       .request()
-      .query(`SELECT PMS_Module_ID AS id, ID AS contractId, LTRIM(RTRIM([PMS-Modul])) AS module, ${PMS_PRICES} FROM dbo.PMS_Module WHERE NULLIF(LTRIM(RTRIM([PMS-Modul])), '') IS NOT NULL ORDER BY ID, PMS_Module_ID`);
+      .query(`SELECT PMS_Module_ID AS id, ID AS contractId, LTRIM(RTRIM([PMS-Modul])) AS module, ${PMS_PRICES} FROM dbo.PMS_Module WHERE NULLIF(LTRIM(RTRIM([PMS-Modul])), '') IS NOT NULL ORDER BY contractId, id`);
     items = result.recordset.map((r: Record<string, unknown>) => ({ id: Number(r.id), contractId: Number(r.contractId), module: String(r.module), ...toPrices(r) }));
   } catch (e) {
     throw translate(e, "dbo.PMS_Module");
@@ -518,7 +521,7 @@ export async function listPms(): Promise<Pick<PmsResponse, "items" | "prices">> 
     const result = await p.request().query(`SELECT LTRIM(RTRIM([PMS-Modul])) AS module, ${PMS_PRICES} FROM dbo.PMS_Module_Stammdaten ORDER BY [PMS-Modul]`);
     return { items, prices: result.recordset.map((r: Record<string, unknown>) => ({ module: String(r.module), ...toPrices(r) })) };
   } catch (e) {
-    throw translate(e, "dbo.PMS_Module_Stammdaten");
+    return { items, prices: [], pricesError: translate(e, "dbo.PMS_Module_Stammdaten").message };
   }
 }
 
