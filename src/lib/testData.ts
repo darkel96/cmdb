@@ -4,6 +4,7 @@
  */
 import type { Area, AreaRow } from "./areas";
 import type { ConfigurationItem, Customer, SessionUser } from "./types";
+import type { PmsModule, PmsPrice } from "./pms";
 
 export const TEST_PASSWORD = "test";
 
@@ -124,4 +125,18 @@ export function testRows(area: Area): AreaRow[] {
     }
     return row;
   });
+}
+
+/** Testmodus: erfundene Preisliste der PMS-Module */
+export const TEST_PMS_PRICES: PmsPrice[] = [
+  { module: "Testmodul Basis", listPrice: 10000, licenseCost: 1200, maintenanceCost: 240 },
+  { module: "Testmodul Lager", listPrice: 4500, licenseCost: 600, maintenanceCost: 120 },
+  { module: "Testmodul Versand", listPrice: 2500, licenseCost: 300, maintenanceCost: 60 },
+];
+
+/** Testmodus: Module an den Oracle-ESL-Verträgen (jeder dritte ohne Module) */
+export function testPmsModules(contractIds: number[]): PmsModule[] {
+  return contractIds.flatMap((contractId, i) =>
+    i % 3 === 2 ? [] : TEST_PMS_PRICES.slice(0, 1 + (i % 3) + (i % 2)).map((p, j) => ({ id: 1 + i * 10 + j, contractId, ...p })),
+  );
 }
