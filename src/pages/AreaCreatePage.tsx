@@ -219,12 +219,19 @@ export function AreaCreatePage() {
             ))}
           </div>
           {area.formSections ? (
-            area.formSections.map((section) => (
-              <fieldset key={section.label} className="grid gap-x-6 gap-y-4 sm:col-span-2 sm:grid-cols-2 2xl:col-span-3 2xl:grid-cols-3">
-                <legend className="mb-3 w-full border-b pb-1 text-sm font-semibold text-brand">{section.label}</legend>
-                {section.fields.map((key) => fields.find((f) => f.key === key)).filter((f): f is AreaField => Boolean(f)).map(renderField)}
-              </fieldset>
-            ))
+            // Abschnitte in zwei Spalten (column: 2 rechts), damit alles auf eine Seite passt
+            <div className="grid gap-x-8 gap-y-4 sm:col-span-2 xl:grid-cols-2 2xl:col-span-3">
+              {[1, 2].map((column) => (
+                <div key={column} className="flex min-w-0 flex-col gap-4">
+                  {area.formSections!.filter((section) => (section.column ?? 1) === column).map((section) => (
+                    <fieldset key={section.label} className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                      <legend className="mb-2 w-full border-b pb-1 text-sm font-semibold text-brand">{section.label}</legend>
+                      {section.fields.map((key) => fields.find((f) => f.key === key)).filter((f): f is AreaField => Boolean(f)).map(renderField)}
+                    </fieldset>
+                  ))}
+                </div>
+              ))}
+            </div>
           ) : (
             fields.map(renderField)
           )}

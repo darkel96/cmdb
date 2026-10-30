@@ -73,8 +73,11 @@ export interface Area {
    * Rechte-Tabelle als „<Bereich> › <Gruppe>“; das Recht Bearbeiten des Bereichs selbst erlaubt alle Felder.
    */
   fieldGroups?: { id: string; label: string; fields: string[] }[];
-  /** Abschnitte im Formular (wie GAPTEQ); fehlt es, stehen alle Felder in einem Block */
-  formSections?: { label: string; fields: string[] }[];
+  /**
+   * Abschnitte im Formular (wie GAPTEQ); fehlt es, stehen alle Felder in einem Block. column: 2 = auf breiten
+   * Bildschirmen in der rechten Spalte, damit das Formular ohne Scrollen auf eine Seite passt
+   */
+  formSections?: { label: string; fields: string[]; column?: 2 }[];
   /** Kein Löschen (z. B. Oracle-ESL: kein DELETE auf dbo.Vertragsdaten freigegeben) */
   noDelete?: boolean;
   /** Keine Dokumente am Eintrag */
@@ -522,9 +525,9 @@ export const AREAS: Record<string, Area> = {
     formSections: [
       { label: "Grunddaten", fields: ["company", "sapProject", "goLive"] },
       { label: "Oracle-Lizenzdaten", fields: ["oracleFrameworkContract", "csiNumber", "oracleProjectSupportEnd", "oracleLicenseReport", "oracleLicenseReportDate"] },
-      { label: "Oracle-Supportvertrag", fields: ["oracleSupportContract", "oracleSupportStatus", "oracleSupportUntil"] },
-      { label: "Kunden-Hotlinevertrag", fields: ["hotlineSapOrder", "hotlineStatus", "hotlineUntil"] },
-      { label: "Buchhaltung", fields: ["costsBooked"] },
+      { label: "Oracle-Supportvertrag", fields: ["oracleSupportContract", "oracleSupportStatus", "oracleSupportUntil"], column: 2 },
+      { label: "Kunden-Hotlinevertrag", fields: ["hotlineSapOrder", "hotlineStatus", "hotlineUntil"], column: 2 },
+      { label: "Buchhaltung", fields: ["costsBooked"], column: 2 },
     ],
     // Wie die Rollen-Knöpfe in GAPTEQ; „Administrator“ ist das Recht Bearbeiten von Oracle-ESL selbst
     fieldGroups: [

@@ -5,7 +5,7 @@ import { DataTable, type Column } from "@/components/DataTable";
 import { SecretValue } from "@/components/SecretValue";
 import { SystemDocuments } from "@/components/SystemDocuments";
 import { HistoryPanel } from "@/components/HistoryPanel";
-import { EslPanels } from "@/components/EslPanels";
+import { EslOraclePanel, EslPmsPanel } from "@/components/EslPanels";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { AREAS, editableFields, type Area, type AreaListResponse, type AreaRow } from "@/lib/areas";
@@ -91,6 +91,38 @@ export function AreaPage({ area }: { area: Area }) {
         />
       )}
       {data?.source === "test" && <p className="shrink-0 text-xs text-muted-foreground">Alle Einträge sind erfunden.</p>}
+    </div>
+  );
+}
+
+/**
+ * Felder in den Abschnitten des Formulars (z. B. Oracle-ESL), platzsparend in bis zu drei Spalten; Felder ohne
+ * Abschnitt (z. B. Oracle-System) stehen im ersten
+ */
+function SectionedFields({ area, row }: { area: Area; row: AreaRow }) {
+  const sections = area.formSections ?? [];
+  const placed = new Set(sections.flatMap((s) => s.fields));
+  const rest = area.fields.filter((f) => !placed.has(f.key) && !f.detailOnly).map((f) => f.key);
+  return (
+    <div className="grid gap-x-8 gap-y-4 p-4 text-sm md:grid-cols-2 xl:grid-cols-3">
+      {sections.map((section, i) => (
+        <section key={section.label} aria-label={section.label} className="min-w-0">
+          <h2 className="mb-1.5 border-b pb-1 text-sm font-semibold text-brand">{section.label}</h2>
+          <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-4 gap-y-1">
+            {[...section.fields, ...(i === 0 ? rest : [])].map((key) => {
+              const f = area.fields.find((x) => x.key === key);
+              if (!f) return null;
+              const value = String(row[f.key] ?? "");
+              return (
+                <div key={key} className="contents">
+                  <dt className="text-muted-foreground">{f.formLabel ?? f.label}</dt>
+                  <dd className="min-w-0 break-words">{(f.date ? longDate(value) : value) || "–"}</dd>
+                </div>
+              );
+            })}
+          </dl>
+        </section>
+      ))}
     </div>
   );
 }
@@ -193,6 +225,9 @@ export function AreaDetailPage() {
             {area.singular} {row.id}
             {tag ? ` · ${tag}` : ""}
           </h1>
+          {area.formSections ? (
+            <SectionedFields area={area} row={row} />
+          ) : (
           <dl className="grid gap-x-6 gap-y-3 p-4 text-sm sm:grid-cols-[10rem_1fr] xl:grid-cols-[10rem_1fr_10rem_1fr]">
             <div className="contents">
               <dt className="text-muted-foreground">ID</dt>
@@ -224,16 +259,18 @@ export function AreaDetailPage() {
               </div>
             )}
           </dl>
+          )}
           <p className="border-t px-4 py-2 text-xs text-muted-foreground">
             {canEdit ? "Ändern über „Bearbeiten“ oder weiterhin in GAPTEQ." : "Nur lesend."}
           </p>
         </section>
-        {area.id === PMS_AREA && <EslPanels row={row} />}
+        {area.id === PMS_AREA && <EslPmsPanel contractId={row.id} />}
         </div>
       )}
       {row && (
         <div className="flex min-w-0 flex-col gap-3">
           {area.createFields && !area.noDocuments && <SystemDocuments area={area} id={row.id} />}
+          {area.id === PMS_AREA && <EslOraclePanel row={row} />}
           <HistoryPanel area={area.id} id={row.id} compact />
         </div>
       )}

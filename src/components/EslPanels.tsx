@@ -8,12 +8,13 @@ import { PMS_PRICE_COLUMNS, PMS_WRITE, euro, euroInput, parseEuro, pmsSum, type 
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
-function Panel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+function Panel({ title, action, small, children }: { title: string; action?: ReactNode; small?: boolean; children: ReactNode }) {
   return (
     <section className="animate-appear min-w-0 overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={title}>
-      <div className="flex items-center justify-between gap-2 bg-brand px-4 py-2.5 text-brand-foreground">
-        <h2 className="text-lg font-medium">{title}</h2>
+      <div className={cn("flex items-center justify-between gap-2 px-4 py-2.5", small ? "border-b" : "bg-brand text-brand-foreground")}>
+        <h2 className={small ? "font-medium" : "text-lg font-medium"}>{title}</h2>
         {action}
       </div>
       <div className="scroll-thin overflow-x-auto">{children}</div>
@@ -28,7 +29,7 @@ const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 type Draft = Record<keyof PmsPrices, string>;
 
 /** PMS-Module des Vertrags mit Summe; mit Recht PMS-Module hinzufügen (aus der Preisliste), Preise ändern, entfernen */
-function PmsPanel({ contractId }: { contractId: number }) {
+export function EslPmsPanel({ contractId }: { contractId: number }) {
   const { can } = useAuth();
   const [data, setData] = useState<PmsResponse | null>(null);
   const [error, setError] = useState("");
@@ -229,64 +230,50 @@ function PmsPanel({ contractId }: { contractId: number }) {
   );
 }
 
-/** Oracle-Systeme desselben Kunden (Bereich Oracle), wie GAPTEQ „Oracle Inventarisierungen“ */
-function OraclePanel({ company, back }: { company: string; back: { to: string; label: string } }) {
+/**
+ * Oracle-Systeme desselben Kunden (Bereich Oracle), wie GAPTEQ „Oracle Inventarisierungen“; als kurze Liste für die
+ * schmale rechte Spalte. Nur mit Leserecht Oracle.
+ */
+export function EslOraclePanel({ row }: { row: AreaRow }) {
+  const { can } = useAuth();
+  const company = String(row.company ?? "");
+  const back = { to: `/bereich/oracle-esl/${row.id}`, label: `Zurück zu Oracle-ESL ${row.id}` };
   const [rows, setRows] = useState<AreaRow[] | null>(null);
   const [error, setError] = useState("");
+  const allowed = can("oracle", "read");
 
   useEffect(() => {
+    if (!allowed) return;
     const name = company.trim().toLowerCase();
     api.area("oracle").then((r) => setRows(r.items.filter((o) => String(o.company ?? "").trim().toLowerCase() === name)), (e: unknown) => setError(errorText(e)));
-  }, [company]);
+  }, [company, allowed]);
 
+  if (!allowed) return null;
   return (
-    <Panel title="Oracle-Inventarisierungen">
+    <Panel title="Oracle-Inventarisierungen" small>
       {error ? (
-        <p className="p-4 text-sm text-muted-foreground">{error}</p>
+        <p className="px-4 py-3 text-sm text-muted-foreground">{error}</p>
       ) : !rows ? (
-        <p className="p-4 text-sm text-muted-foreground">Wird geladen …</p>
+        <p className="px-4 py-3 text-sm text-muted-foreground">Wird geladen …</p>
       ) : rows.length === 0 ? (
-        <p className="p-4 text-sm text-muted-foreground">Keine Oracle-Systeme bei diesem Kunden</p>
+        <p className="px-4 py-3 text-sm text-muted-foreground">Keine Oracle-Systeme bei diesem Kunden</p>
       ) : (
-        <table className="w-full text-sm">
-          <thead className="border-b">
-            <tr>
-              <th className={th}>ID</th>
-              <th className={th}>DB-Typ</th>
-              <th className={th}>DB-Version</th>
-              <th className={th}>Hostname</th>
-              <th className={th}>Besonderheiten</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((o) => (
-              <tr key={o.id} className="border-b last:border-0">
-                <td className={`${td} tabular-nums`}>
-                  <Link to={`/bereich/oracle/${o.id}`} state={{ back }} viewTransition className="text-brand underline-offset-4 hover:underline">
-                    {o.id}
-                  </Link>
-                </td>
-                <td className={td}>{o.dbType}</td>
-                <td className={`${td} tabular-nums`}>{o.dbVersion}</td>
-                <td className={td}>{o.hostname}</td>
-                <td className={td}>{o.notes}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ul className="divide-y text-sm">
+          {rows.map((o) => (
+            <li key={o.id} className="flex items-baseline gap-3 px-4 py-2">
+              <Link to={`/bereich/oracle/${o.id}`} state={{ back }} viewTransition className="shrink-0 tabular-nums text-brand underline-offset-4 hover:underline">
+                {o.id}
+              </Link>
+              <span className="min-w-0">
+                <span className="block">
+                  {[o.dbType, o.dbVersion].filter(Boolean).join(" · ") || "–"}
+                </span>
+                {(o.hostname || o.notes) && <span className="block truncate text-xs text-muted-foreground">{[o.hostname, o.notes].filter(Boolean).join(" · ")}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </Panel>
-  );
-}
-
-/** Zusätzliche Kästen am Oracle-ESL-Vertrag: PMS-Module und Oracle-Systeme des Kunden */
-export function EslPanels({ row }: { row: AreaRow }) {
-  const { can } = useAuth();
-  const back = { to: `/bereich/oracle-esl/${row.id}`, label: `Zurück zu Oracle-ESL ${row.id}` };
-  return (
-    <div className="grid gap-3 min-[120rem]:grid-cols-2">
-      <PmsPanel contractId={row.id} />
-      {can("oracle", "read") && <OraclePanel company={String(row.company ?? "")} back={back} />}
-    </div>
   );
 }
