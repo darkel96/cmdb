@@ -2,12 +2,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { AREAS, SYSTEM_STATUS, firstFreeId, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
 import type { CheckResult, CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
-import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "@/lib/testData";
+import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_PMS_PRICES, TEST_USERS, testPmsModules, testRows } from "@/lib/testData";
+import { PMS_AREA, type PmsResponse } from "@/lib/pms";
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "@/lib/stammdaten";
-import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, followOsRename, listOsSupport, saveOsSupport, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listDocuments, updateCustomer, type CustomerValues } from "./db";
+import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, followOsRename, listOsSupport, saveOsSupport, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listPms, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { sendMail, smtpCheck } from "./mail";
 import { candidate, resetSettings, saveSettings, settings, settingsMeta, settingsView, type AllSettings, type DbSettings, type LdapSettings, type Section, type SmtpSettings } from "./settings";
@@ -1062,6 +1063,13 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
           json(res, 200, { items: [], available: false } satisfies HistoryResponse);
         }
       }
+    } else if (path === "/api/pms-module" && method === "GET") {
+      if (await allowed(req, res, PMS_AREA, "read"))
+        await readDb(res, async () =>
+          (ENV.testMode
+            ? { source: "test", items: testPmsModules(areaRows(AREAS[PMS_AREA]).map((r) => r.id)), prices: TEST_PMS_PRICES }
+            : { source: "db", ...(await listPms()) }) satisfies PmsResponse,
+        );
     } else if (path === "/api/os-support" && method === "GET") {
       if (!sessionFromRequest(req)) fail(res, 401, "Nicht angemeldet.");
       else json(res, 200, { items: await osSupport() });

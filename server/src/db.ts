@@ -4,6 +4,7 @@
 import sql from "mssql";
 import type { Area, AreaFormResponse, AreaRow, CustomerDocument } from "@/lib/areas";
 import type { OsSupportEntry } from "@/lib/osSupport";
+import type { PmsModule, PmsPrices, PmsResponse } from "@/lib/pms";
 import type { LookupList } from "@/lib/stammdaten";
 import type { CheckResult, Customer } from "@/lib/types";
 import { CUSTOMER_LINKS } from "./customerLinks";
@@ -489,6 +490,35 @@ export async function listAreaForCompany(area: Area, company: string): Promise<A
     return result.recordset.map((r) => toAreaRow(area, r));
   } catch (e) {
     throw translate(e, objectOf(area));
+  }
+}
+
+const PMS_PRICES = "[PMS-Listenpreis] AS listPrice, [Oracle-Lizenzkosten] AS licenseCost, [Oracle-Wartungskosten] AS maintenanceCost";
+
+function toPrices(r: Record<string, unknown>): PmsPrices {
+  const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
+  return { listPrice: num(r.listPrice), licenseCost: num(r.licenseCost), maintenanceCost: num(r.maintenanceCost) };
+}
+
+/** PMS-Module aller Oracle-ESL-Verträge und die Preisliste, nur lesend */
+export async function listPms(): Promise<Pick<PmsResponse, "items" | "prices">> {
+  const p = await pool().catch((e: unknown) => {
+    throw translate(e, "dbo.PMS_Module");
+  });
+  let items: PmsModule[];
+  try {
+    const result = await p
+      .request()
+      .query(`SELECT PMS_Module_ID AS id, ID AS contractId, LTRIM(RTRIM([PMS-Modul])) AS module, ${PMS_PRICES} FROM dbo.PMS_Module WHERE NULLIF(LTRIM(RTRIM([PMS-Modul])), '') IS NOT NULL ORDER BY ID, PMS_Module_ID`);
+    items = result.recordset.map((r: Record<string, unknown>) => ({ id: Number(r.id), contractId: Number(r.contractId), module: String(r.module), ...toPrices(r) }));
+  } catch (e) {
+    throw translate(e, "dbo.PMS_Module");
+  }
+  try {
+    const result = await p.request().query(`SELECT LTRIM(RTRIM([PMS-Modul])) AS module, ${PMS_PRICES} FROM dbo.PMS_Module_Stammdaten ORDER BY [PMS-Modul]`);
+    return { items, prices: result.recordset.map((r: Record<string, unknown>) => ({ module: String(r.module), ...toPrices(r) })) };
+  } catch (e) {
+    throw translate(e, "dbo.PMS_Module_Stammdaten");
   }
 }
 

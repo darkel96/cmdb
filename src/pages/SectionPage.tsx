@@ -5,6 +5,7 @@ import { NotFoundPage } from "./NotFoundPage";
 import { AREAS } from "@/lib/areas";
 import { AreaPage } from "./AreaPage";
 import { ReportsIndex } from "./ReportsPage";
+import { PmsPage } from "./PmsPage";
 
 function Placeholder({ title, group }: { title: string; group?: string }) {
   return (
@@ -24,5 +25,6 @@ export function SectionPage() {
   if (!found) return <NotFoundPage />;
   if (id === NAV_LISTS.id) return <ReportsIndex />;
   if (Object.hasOwn(AREAS, id)) return <AreaPage area={AREAS[id]} />;
+  if (id === "pms-module") return <PmsPage />;
   return <Placeholder title={found.leaf.label} group={found.group?.label} />;
 }

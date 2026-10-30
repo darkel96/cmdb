@@ -5,10 +5,12 @@ import { DataTable, type Column } from "@/components/DataTable";
 import { SecretValue } from "@/components/SecretValue";
 import { SystemDocuments } from "@/components/SystemDocuments";
 import { HistoryPanel } from "@/components/HistoryPanel";
+import { EslPanels } from "@/components/EslPanels";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { AREAS, type Area, type AreaListResponse, type AreaRow } from "@/lib/areas";
 import { longDate, shortDate } from "@/lib/format";
+import { PMS_AREA } from "@/lib/pms";
 import { useAuth } from "@/state/auth";
 import { NotFoundPage } from "./NotFoundPage";
 
@@ -183,6 +185,7 @@ export function AreaDetailPage() {
       {/* Breite Bildschirme: rechts Dokumente und Verlauf in eigener Spalte, damit die Seite nicht scrollt */}
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_26rem]">
       {row && (
+        <div className="flex min-w-0 flex-col gap-3">
         <section className="animate-appear overflow-hidden rounded-lg border bg-card shadow-xs" aria-label={`${area.singular} ${row.id}`}>
           <h1 className="bg-brand px-4 py-2.5 text-lg font-medium text-brand-foreground">
             {area.singular} {row.id}
@@ -223,6 +226,8 @@ export function AreaDetailPage() {
             {area.createFields && can(area.id, "edit") ? "Ändern über „Bearbeiten“ oder weiterhin in GAPTEQ." : "Nur lesend."}
           </p>
         </section>
+        {area.id === PMS_AREA && <EslPanels row={row} />}
+        </div>
       )}
       {row && (
         <div className="flex min-w-0 flex-col gap-3">

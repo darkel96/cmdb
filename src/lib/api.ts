@@ -9,7 +9,8 @@ import type { HistoryResponse } from "./history";
 import { READ_ALL, allPermissions, PERMISSION_AREAS, type Action, type LoginLogEntry, type Role } from "./permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
 import type { CheckResult, CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
-import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_USERS, testRows } from "./testData";
+import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_PMS_PRICES, TEST_USERS, testPmsModules, testRows } from "./testData";
+import type { PmsResponse } from "./pms";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -43,6 +44,8 @@ export interface Api {
   history(area: string, id: number): Promise<HistoryResponse>;
   /** Support-Ende je Betriebssystem (Stammdaten › Server-OS) */
   osSupport(): Promise<{ items: OsSupportEntry[] }>;
+  /** PMS-Module aller Oracle-ESL-Verträge und Preisliste (Leserecht Oracle-ESL) */
+  pms(): Promise<PmsResponse>;
   saveOsSupport(entry: OsSupportEntry): Promise<{ items: OsSupportEntry[] }>;
   /** Dokumente eines Systems (wie GAPTEQ: dbo.Anhang, Vertrag_ID = ID) */
   systemDocuments(areaId: string, id: number): Promise<{ documents: CustomerDocument[] }>;
@@ -123,6 +126,7 @@ const serverApi: Api = {
   customers: () => request<CustomerListResponse>("/api/customers"),
   area: (areaId) => request<AreaListResponse>(`/api/areas/${areaId}`),
   osSupport: () => request<{ items: OsSupportEntry[] }>("/api/os-support"),
+  pms: () => request<PmsResponse>("/api/pms-module"),
   history: (area, id) => request<HistoryResponse>(`/api/history/${area}/${id}`),
   saveOsSupport: (entry) => request<{ items: OsSupportEntry[] }>("/api/os-support", { method: "PUT", body: JSON.stringify(entry) }),
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
@@ -262,6 +266,10 @@ const browserTestApi: Api = {
     return { source: "test", items: browserDecorated(areaId) };
   },
   osSupport: async () => ({ items: browserOsSupport }),
+  pms: async () => {
+    if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
+    return { source: "test", items: testPmsModules(browserRows("oracle-esl").map((r) => r.id)), prices: TEST_PMS_PRICES };
+  },
   // Testseite: kein Verlauf (kein Dienst)
   history: async () => ({ items: [], available: false }),
   saveOsSupport: async (entry) => {
