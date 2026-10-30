@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { PMS_PRICE_COLUMNS, euro, euroInput, parseEuro, type PmsPrice, type PmsPrices } from "@/lib/pms";
+import { PMS_PRICE_LIST, canChangeList } from "@/lib/stammdaten";
 import { useAuth } from "@/state/auth";
 
 type Draft = { module: string } & Record<keyof PmsPrices, string>;
@@ -15,7 +16,7 @@ const th = "whitespace-nowrap px-3 py-2 text-left font-medium text-muted-foregro
 const td = "px-3 py-1.5";
 
 /**
- * Verwaltung › Stammdaten › PMS-Modularten: Preisliste (dbo.PMS_Module_Stammdaten) mit Rechten der Stammdaten.
+ * Verwaltung › Stammdaten › PMS-Modularten: Preisliste (dbo.PMS_Module_Stammdaten); Recht Stammdaten oder Stammdaten › PMS-Modularten.
  * Neue Preise gelten für künftig hinzugefügte Module; Module an Verträgen behalten ihre Preise. Umbenennen ändert den
  * Namen an den Verträgen mit, Löschen nur ohne Verträge.
  */
@@ -28,8 +29,8 @@ export function PmsPriceListPanel({ prices, error: loadError, onChanged }: { pri
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const mayEdit = can("stammdaten", "edit");
-  const mayDelete = can("stammdaten", "delete");
+  const mayEdit = canChangeList(can, PMS_PRICE_LIST.id, "edit");
+  const mayDelete = canChangeList(can, PMS_PRICE_LIST.id, "delete");
 
   async function run(action: "add" | "edit" | "delete", entry: PmsPrice | null, original: PmsPrice | null) {
     setBusy(true);
@@ -107,7 +108,7 @@ export function PmsPriceListPanel({ prices, error: loadError, onChanged }: { pri
             Preisliste für „Modul hinzufügen“ am Oracle-ESL-Vertrag. Neue Preise gelten für künftig hinzugefügte Module, vorhandene behalten ihre Preise.
           </p>
         </div>
-        {can("stammdaten", "create") && !loadError && (
+        {canChangeList(can, PMS_PRICE_LIST.id, "create") && !loadError && (
           <Button type="button" size="sm" onClick={() => (setEditing(""), setDraft(emptyDraft), setConfirm(null), setError(""))}>
             <Plus aria-hidden />
             Modul hinzufügen

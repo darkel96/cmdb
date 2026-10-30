@@ -1,6 +1,7 @@
 /** Rollen und Rechte je Bereich (gemeinsam für Dienst und Frontend) */
 import { AREAS, groupPermission } from "./areas";
 import { PMS_WRITE } from "./pms";
+import { STAMMDATEN_LISTS, listPermission } from "./stammdaten";
 
 export type Action = "read" | "create" | "edit" | "delete";
 
@@ -31,7 +32,9 @@ export const PERMISSION_AREAS: { id: string; label: string; actions?: Action[] }
   ]),
   // Lesen hängt an Oracle-ESL (siehe lib/pms.ts)
   { id: PMS_WRITE, label: "PMS-Module am Oracle-ESL-Vertrag", actions: ["create", "edit", "delete"] },
-  { id: "stammdaten", label: "Stammdaten (Auswahllisten)" },
+  // Lesen: Reiter Stammdaten sehen; Anlegen/Bearbeiten/Löschen hier gilt für alle Listen, darunter je Liste einzeln
+  { id: "stammdaten", label: "Stammdaten (alle Listen)" },
+  ...STAMMDATEN_LISTS.map((l) => ({ id: listPermission(l.id), label: `Stammdaten › ${l.label}`, actions: ["create", "edit", "delete"] as Action[] })),
   // Lesen: Seite sehen (welche Systeme, hängt am Leserecht der Bereiche); Bearbeiten: Status setzen
   { id: "auslaufend", label: "Auslaufende Kundensysteme", actions: ["read", "edit"] },
 ];

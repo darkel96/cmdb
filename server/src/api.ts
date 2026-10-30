@@ -7,7 +7,7 @@ import { PMS_AREA, PMS_PRICE_COLUMNS, PMS_PRICE_MAX, PMS_WRITE, euro, samePrices
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
-import { LOOKUP_LISTS, type StammdatenResponse } from "@/lib/stammdaten";
+import { LOOKUP_LISTS, PMS_PRICE_LIST, canChangeList, type StammdatenResponse } from "@/lib/stammdaten";
 import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, followOsRename, listOsSupport, saveOsSupport, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listPms, addPmsModule, changePmsModule, changePmsPrice, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { sendMail, smtpCheck } from "./mail";
@@ -87,6 +87,21 @@ function sameOrigin(req: IncomingMessage): boolean {
 async function meResponse(user: SessionUser): Promise<MeResponse> {
   const { groups: _groups, ...visible } = user;
   return { user: visible, testMode: ENV.testMode, permissions: await permissionsFor(user) };
+}
+
+/** Stammdaten: Recht für alle Listen oder genau diese Liste (z. B. Stammdaten › Hersteller), sonst 401/403 und null */
+async function allowedList(req: IncomingMessage, res: ServerResponse, list: { id: string; label: string }, action: "create" | "edit" | "delete"): Promise<SessionUser | null> {
+  const user = sessionFromRequest(req);
+  if (!user) {
+    fail(res, 401, "Nicht angemeldet.");
+    return null;
+  }
+  const permissions = await permissionsFor(user);
+  if (!canChangeList((a, x) => can(permissions, a, x), list.id, action)) {
+    fail(res, 403, `Keine Berechtigung (Stammdaten › ${list.label}: ${ACTIONS.find((a) => a.id === action)?.label}).`);
+    return null;
+  }
+  return user;
 }
 
 /** Angemeldete Person mit dem Recht für Bereich und Aktion, sonst Antwort 401/403 und null */
@@ -911,7 +926,7 @@ async function changePms(req: IncomingMessage, res: ServerResponse, user: Sessio
 /** Verwaltung › Stammdaten › PMS-Modularten: Preisliste pflegen (Rechte wie die übrigen Stammdaten) */
 async function changePmsPrices(req: IncomingMessage, res: ServerResponse, method: string): Promise<void> {
   const action = method === "POST" ? "add" : method === "PUT" ? "edit" : "delete";
-  const user = await allowed(req, res, "stammdaten", action === "add" ? "create" : action);
+  const user = await allowedList(req, res, PMS_PRICE_LIST, action === "add" ? "create" : action);
   if (!user) return;
   const body = await readJson(req);
   const entry = (raw: unknown): PmsPrice => {
@@ -971,7 +986,7 @@ async function decorate(area: Area, rows: AreaRow[]): Promise<AreaRow[]> {
 }
 
 async function changeOsSupport(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const user = await allowed(req, res, "stammdaten", "edit");
+  const user = await allowedList(req, res, LOOKUP_LISTS.find((l) => l.id === "server-os")!, "edit");
   if (!user) return;
   const body = await readJson(req);
   const name = typeof body.name === "string" ? body.name.trim() : "";
@@ -1014,7 +1029,7 @@ async function changeStammdaten(req: IncomingMessage, res: ServerResponse, listI
   const list = LOOKUP_LISTS.find((l) => l.id === listId);
   if (!list) return fail(res, 404, "Unbekannte Liste.");
   const action = method === "POST" ? "add" : method === "PUT" ? "rename" : "delete";
-  const user = await allowed(req, res, "stammdaten", action === "add" ? "create" : action === "rename" ? "edit" : "delete");
+  const user = await allowedList(req, res, list, action === "add" ? "create" : action === "rename" ? "edit" : "delete");
   if (!user) return;
   const body = await readJson(req);
   const value = typeof body.value === "string" ? body.value.trim() : "";

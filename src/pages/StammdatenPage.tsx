@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { ClearButton } from "@/components/ui/clear-button";
 import { api } from "@/lib/api";
 import type { OsSupportEntry } from "@/lib/osSupport";
-import type { StammdatenResponse } from "@/lib/stammdaten";
+import { PMS_PRICE_LIST, canChangeList, type StammdatenResponse } from "@/lib/stammdaten";
 import { PMS_AREA, type PmsPrice } from "@/lib/pms";
 import { PmsPriceListPanel } from "@/components/PmsPriceList";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ import { useAuth } from "@/state/auth";
 type List = StammdatenResponse["lists"][number];
 
 /** Auswahl links für die PMS-Preisliste (keine Liste aus LOOKUP_LISTS) */
-const PMS_LIST = "pms-modularten";
+const PMS_LIST = PMS_PRICE_LIST.id;
 
 /** Die gewählte Auswahlliste: Suchen, Hinzufügen, Bearbeiten (Stift), Löschen (Papierkorb mit Rückfrage) */
 const deDate = (iso: string) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "–");
@@ -108,7 +108,7 @@ function LookupPanel({
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Suchen …" aria-label={`${list.label} durchsuchen`} className="h-8 pr-8 pl-8" />
           <ClearButton value={search} label="Suche löschen" onClear={() => setSearch("")} />
         </div>
-        {can("stammdaten", "create") && (
+        {canChangeList(can, list.id, "create") && (
           <Button type="button" size="sm" aria-label={`${list.label}: Wert hinzufügen`} onClick={() => { setAdding(true); setDraft(""); setEditing(null); }}>
             <Plus aria-hidden />
             Wert hinzufügen
@@ -169,7 +169,7 @@ function LookupPanel({
                     </Button>
                   </span>
                 )}
-                {support && dating !== v && can("stammdaten", "edit") && (
+                {support && dating !== v && canChangeList(can, list.id, "edit") && (
                   <Button
                     type="button"
                     variant="ghost"
@@ -186,12 +186,12 @@ function LookupPanel({
                     <CalendarClock aria-hidden />
                   </Button>
                 )}
-                {can("stammdaten", "edit") && (
+                {canChangeList(can, list.id, "edit") && (
                   <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100" aria-label={`${v} bearbeiten`} onClick={() => { setEditing(v); setDraft(v); setAdding(false); }}>
                     <Pencil aria-hidden />
                   </Button>
                 )}
-                {can("stammdaten", "delete") && (
+                {canChangeList(can, list.id, "delete") && (
                   <Button type="button" variant="ghost" size="sm" className="h-7 px-1.5 text-destructive opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:text-destructive" aria-label={`${v} löschen`} onClick={() => setConfirm(v)}>
                     <Trash2 aria-hidden />
                   </Button>
@@ -236,7 +236,7 @@ export function StammdatenPage() {
       <div className="grid items-start gap-4 md:grid-cols-[15rem_minmax(0,1fr)]">
         <nav aria-label="Auswahllisten" className="animate-appear overflow-hidden rounded-lg border bg-card p-1 shadow-xs">
           <ul className="flex flex-col gap-0.5">
-            {[...data.lists, ...(showPms ? [{ id: PMS_LIST, label: "PMS-Modularten", values: pms?.prices.map((p) => p.module) ?? [], error: pms?.error }] : [])].map((l) => (
+            {[...data.lists, ...(showPms ? [{ id: PMS_LIST, label: PMS_PRICE_LIST.label, values: pms?.prices.map((p) => p.module) ?? [], error: pms?.error }] : [])].map((l) => (
               <li key={l.id}>
                 <button
                   type="button"
