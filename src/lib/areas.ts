@@ -509,9 +509,8 @@ export const AREAS: Record<string, Area> = {
     typeValue: "Oracle-ESL",
     testCount: 7,
     testIdBase: 1000000,
-    // dbo.Vertragsdaten hat IDENTITY: Anlegen ist ein INSERT (freigegeben 30.10.2026), Löschen nicht
+    // dbo.Vertragsdaten hat IDENTITY: Anlegen ist ein INSERT, Löschen ein DELETE nur ohne PMS-Module (freigegeben 30.10.2026)
     identity: true,
-    noDelete: true,
     noDocuments: true,
     createOnly: ["company"],
     createFields: [

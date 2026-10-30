@@ -4,7 +4,7 @@
 import sql from "mssql";
 import type { Area, AreaFormResponse, AreaRow, CustomerDocument } from "@/lib/areas";
 import type { OsSupportEntry } from "@/lib/osSupport";
-import { samePrices, type PmsModule, type PmsPrice, type PmsPrices, type PmsResponse } from "@/lib/pms";
+import { PMS_AREA, pmsBlocksDelete, samePrices, type PmsModule, type PmsPrice, type PmsPrices, type PmsResponse } from "@/lib/pms";
 import type { LookupList } from "@/lib/stammdaten";
 import type { CheckResult, Customer } from "@/lib/types";
 import { CUSTOMER_LINKS } from "./customerLinks";
@@ -324,6 +324,12 @@ export async function deleteAreaRow(area: Area, id: number, original: Record<str
     const docs = await new sql.Request(tx).input("id", sql.Int, id).query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.Anhang WHERE Vertrag_ID = @id");
     if (docs.recordset[0].n)
       throw new DbError(`An ${area.singular} ${id} hängen noch ${docs.recordset[0].n} Dokument(e). Die CMDB löscht keine Dokumente; bitte zuerst in GAPTEQ entfernen.`, 409);
+    // Oracle-ESL: nur ohne PMS-Module (dbo.PMS_Module.ID = Vertrags-ID); die werden nicht stillschweigend mit gelöscht
+    if (area.id === PMS_AREA) {
+      object = "dbo.PMS_Module";
+      const modules = await new sql.Request(tx).input("id", sql.Int, id).query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.PMS_Module WITH (UPDLOCK, HOLDLOCK) WHERE ID = @id");
+      if (modules.recordset[0].n) throw new DbError(pmsBlocksDelete(id, modules.recordset[0].n), 409);
+    }
     object = objectOf(area);
     if (area.identity) await new sql.Request(tx).input("id", sql.Int, id).query(`DELETE FROM ${tableOf(area)} WHERE ID = @id`);
     else {

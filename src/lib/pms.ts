@@ -70,3 +70,7 @@ export function samePrices(a: PmsPrices, b: PmsPrices): boolean {
   const cent = (v: number | null) => (v === null ? null : Math.round(v * 100));
   return PMS_PRICE_COLUMNS.every((c) => cent(a[c.key]) === cent(b[c.key]));
 }
+
+/** Oracle-ESL löschen geht nur ohne PMS-Module am Vertrag */
+export const pmsBlocksDelete = (contractId: number, count: number) =>
+  `An Oracle-ESL ${contractId} ${count === 1 ? "hängt noch 1 PMS-Modul" : `hängen noch ${count} PMS-Module`}. Bitte zuerst im Kasten „PMS-Module“ entfernen.`;

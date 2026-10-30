@@ -34,7 +34,8 @@ Hinweise für Claude Code in diesem Repository.
   Freigegeben (29.10.2026): `INSERT` auf `dbo.Anhang` für Dokumente direkt am Kunden, genau wie GAPTEQ
   (Typ „Angebot“, `Vertrag_ID` = `FirmenID` = Kunden-ID). Kein `UPDATE`/`DELETE` auf `dbo.Anhang`.
   Freigegeben (30.10.2026): `INSERT`/`UPDATE` auf `dbo.Vertragsdaten` (Oracle-ESL anlegen und bearbeiten, auch durch
-  Nicht-Admins mit Feldgruppen-Recht wie „Oracle-ESL › Einkauf“; Kunde nur beim Anlegen), kein `DELETE`.
+  Nicht-Admins mit Feldgruppen-Recht wie „Oracle-ESL › Einkauf“; Kunde nur beim Anlegen); `DELETE` mit dem Recht
+  „Oracle-ESL: Löschen“, nur wenn keine PMS-Module mehr am Vertrag hängen.
   `INSERT`/`UPDATE`/`DELETE` auf `dbo.PMS_Module` (Module am Vertrag, Preise aus `dbo.PMS_Module_Stammdaten`).
   `INSERT`/`UPDATE`/`DELETE` auf `dbo.PMS_Module_Stammdaten` (PMS-Modularten unter Verwaltung › Stammdaten; Umbenennen
   ändert den Namen in `dbo.PMS_Module` mit, Löschen nur ohne Verträge).

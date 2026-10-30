@@ -11,11 +11,10 @@ async function login(page: Page, username: "admin" | "user") {
 // Jedes Projekt (desktop/mobil) nutzt eigene Verträge, die Daten im Testmodus sind gemeinsam
 const contract = (project: string, offset: number) => 1000000 + offset + (project === "desktop" ? 0 : 3);
 
-test("Oracle-ESL bearbeiten: Abschnitte wie GAPTEQ, Kunde fest, Status aus der Liste, kein Löschen", async ({ page }, testInfo) => {
+test("Oracle-ESL bearbeiten: Abschnitte wie GAPTEQ, Kunde fest, Status aus der Liste", async ({ page }, testInfo) => {
   await login(page, "admin");
   const id = contract(testInfo.project.name, 1);
   await page.goto(`/bereich/oracle-esl/${id}`);
-  await expect(page.getByRole("button", { name: "Löschen" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Dokumente" })).toHaveCount(0);
   await page.getByRole("link", { name: "Bearbeiten" }).click();
   await expect(page.getByRole("heading", { name: `Bearbeitung Oracle-ESL ${id}` })).toBeVisible();
@@ -32,8 +31,6 @@ test("Oracle-ESL bearbeiten: Abschnitte wie GAPTEQ, Kunde fest, Status aus der L
   await expect(page.locator("main").getByRole("status")).toHaveText(`Oracle-ESL ${id} wurde gespeichert (geändert: SAP-Projektnummer, Oracle-Support Status).`);
   await expect(page.locator("dd", { hasText: `SAP-${testInfo.project.name}` })).toBeVisible();
 
-  // Löschen gibt es für Oracle-ESL nicht (kein DELETE auf dbo.Vertragsdaten)
-  expect((await page.request.delete(`/api/areas/oracle-esl/${id}`, { data: { original: {} } })).status()).toBe(404);
 });
 
 test("Feldgruppen-Recht: Service ändert nur den Hotlinevertrag", async ({ browser }, testInfo) => {
@@ -100,6 +97,22 @@ test("Oracle-ESL anlegen über Anlage Vertrag", async ({ page }, testInfo) => {
   await expect(page.locator("main").getByRole("status")).toContainText("wurde angelegt");
   await expect(page).toHaveURL(/\/bereich\/oracle-esl\/\d+$/);
   await expect(page.locator("dd", { hasText: `NEU-${testInfo.project.name}` })).toBeVisible();
+
+  // Mit PMS-Modul: Löschen abgelehnt; ohne Module: gelöscht, zurück in der Übersicht
+  const id = Number(page.url().split("/").pop());
+  expect((await page.request.post("/api/pms-module", { data: { contractId: id, module: "Testmodul Basis" } })).status()).toBe(201);
+  await page.reload();
+  await page.getByRole("button", { name: "Löschen" }).click();
+  await page.getByRole("button", { name: "Ja, löschen" }).click();
+  await expect(page.getByRole("alert")).toContainText("hängt noch 1 PMS-Modul");
+  await page.getByRole("region", { name: "PMS-Module" }).getByRole("button", { name: "Testmodul Basis entfernen" }).click();
+  await page.getByRole("region", { name: "PMS-Module" }).getByRole("button", { name: "Ja" }).click();
+  await expect(page.getByRole("region", { name: "PMS-Module" })).toContainText("Keine PMS-Module");
+  await page.getByRole("button", { name: "Löschen" }).click();
+  await page.getByRole("button", { name: "Ja, löschen" }).click();
+  await expect(page).toHaveURL(/\/bereich\/oracle-esl$/);
+  await expect(page.locator("main").getByRole("status")).toContainText(`Oracle-ESL ${id} wurde gelöscht`);
+  expect((await page.request.get(`/api/areas/oracle-esl/${id}`)).status()).toBe(404);
 });
 
 test("PMS-Module am Vertrag: hinzufügen aus der Preisliste, Preise ändern, entfernen; Grundrolle nur lesen", async ({ page, browser }, testInfo) => {

@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { AREAS, SYSTEM_STATUS, editableFields, firstFreeId, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
 import type { CheckResult, CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_PMS_PRICES, TEST_USERS, testPmsModules, testRows } from "@/lib/testData";
-import { PMS_AREA, PMS_PRICE_COLUMNS, PMS_PRICE_MAX, PMS_WRITE, euro, samePrices, type PmsModule, type PmsPrice, type PmsPrices, type PmsResponse } from "@/lib/pms";
+import { PMS_AREA, PMS_PRICE_COLUMNS, pmsBlocksDelete, PMS_PRICE_MAX, PMS_WRITE, euro, samePrices, type PmsModule, type PmsPrice, type PmsPrices, type PmsResponse } from "@/lib/pms";
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
@@ -337,6 +337,8 @@ async function deleteInArea(req: IncomingMessage, res: ServerResponse, area: Are
       if (!row) throw new DbError(`Diesen Eintrag (${area.singular} ${id}) gibt es nicht.`, 404);
       const meanwhile = area.fields.filter((f) => f.key in original && String(row[f.key] ?? "") !== original[f.key]);
       if (meanwhile.length) throw new DbError(`Der Eintrag wurde inzwischen geändert (${meanwhile.map((f) => f.label).join(", ")}). Bitte neu laden.`, 409);
+      const modules = area.id === PMS_AREA ? testPmsState().filter((m) => m.contractId === id).length : 0;
+      if (modules) throw new DbError(pmsBlocksDelete(id, modules), 409);
       testDeleted.add(`${area.id}:${id}`);
       testEdits.delete(`${area.id}:${id}`);
       testSecrets.delete(`${area.id}:${id}`);
