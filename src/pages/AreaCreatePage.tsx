@@ -92,6 +92,10 @@ export function AreaCreatePage() {
     setMissing((m) => m.filter((k) => k !== key));
   };
 
+  // Gibt es Felder nur zur Anzeige (Feldgruppen, Kunde), sind die änderbaren leicht hervorgehoben (wie gelb in GAPTEQ)
+  const highlight = editing && fields.some((f) => !editable.includes(f.key));
+  const marked = highlight ? "border-brand/50 bg-brand/5" : "";
+
   const renderField = (f: AreaField) => {
     // Ohne Recht für dieses Feld (Feldgruppe) bzw. nur beim Anlegen änderbar: Wert nur anzeigen
     if (!editable.includes(f.key)) {
@@ -166,12 +170,13 @@ export function AreaCreatePage() {
             required={f.required}
             invalid={invalid}
             disabled={!options}
+            className={marked}
           />
         ) : (
           f.date ? (
-            <DateInput id={`f-${f.key}`} aria-required={f.required || undefined} invalid={invalid} value={values[f.key] ?? ""} onChange={(v) => set(f.key, v)} />
+            <DateInput id={`f-${f.key}`} aria-required={f.required || undefined} invalid={invalid} value={values[f.key] ?? ""} onChange={(v) => set(f.key, v)} className={cn(highlight && "[&_input]:border-brand/50 [&_input]:bg-brand/5")} />
           ) : (
-            <Input {...common} type="text" maxLength={255} className={cn(invalid && "border-destructive")} value={values[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />
+            <Input {...common} type="text" maxLength={255} className={cn(marked, invalid && "border-destructive")} value={values[f.key] ?? ""} onChange={(e) => set(f.key, e.target.value)} />
           )
         )}
       </div>
@@ -225,6 +230,8 @@ export function AreaCreatePage() {
           )}
         </div>
         <p className="border-t px-4 py-2 text-xs text-muted-foreground">
+          {highlight && <span className="mr-1 inline-block rounded-sm border border-brand/50 bg-brand/5 px-1.5 text-foreground">Hervorgehoben</span>}
+          {highlight && "Felder, die du ändern darfst; die übrigen nur zur Anzeige. "}
           {editing
             ? `Gespeichert wird in ${area.schema ?? "dbo"}.${area.table}, ID ${itemId}. Hat jemand den Eintrag inzwischen geändert${area.schema === "cmdb" ? "" : " (auch in GAPTEQ)"}, speichert die CMDB nicht und meldet das.`
             : area.identity

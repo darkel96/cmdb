@@ -65,6 +65,9 @@ test("Feldgruppen-Recht: Service ändert nur den Hotlinevertrag", async ({ brows
     await expect(user.getByRole("heading", { name: `Bearbeitung Oracle-ESL ${id}` })).toBeVisible();
     // Nur die Felder der Gruppe sind Eingabefelder
     await expect(user.getByRole("textbox", { name: "SAP-Projektnummer" })).toHaveCount(0);
+    // Änderbare Felder sind hervorgehoben
+    await expect(user.getByLabel("Kunde Hotline SAP-Auftrag")).toHaveClass(/bg-brand\/5/);
+    await expect(user.getByText("Felder, die du ändern darfst")).toBeVisible();
     await user.getByLabel("Kunde Hotline SAP-Auftrag").fill(`HL-${testInfo.project.name}`);
     await user.getByRole("button", { name: "Speichern" }).click();
     await expect(user.locator("main").getByRole("status")).toHaveText(`Oracle-ESL ${id} wurde gespeichert (geändert: Kunde Hotline SAP-Auftrag).`);
