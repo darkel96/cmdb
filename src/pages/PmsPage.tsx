@@ -81,6 +81,8 @@ export function PmsPage() {
             <PriceTable caption="Preisliste" first="PMS-Modul" rows={data.prices} error={data.pricesError} />
             <PriceTable caption="Summen" first="Vergebene Module" rows={[total]} />
           </div>
+          {/* Mindesthöhe: auf dem Handy nehmen Preisliste und Summen sonst die ganze Höhe, die Seite scrollt dann */}
+          <div className="flex min-h-[26rem] flex-1 flex-col">
           <DataTable
             title="Übersicht PMS-Module"
             columns={COLUMNS}
@@ -94,6 +96,7 @@ export function PmsPage() {
               navigate(`/bereich/${PMS_AREA}/${r.contractId}`, { viewTransition: true, state: { back: { to: "/bereich/pms-module", label: "Zurück zu PMS-Module" } } })
             }
           />
+          </div>
           {data.source === "test" && <p className="shrink-0 text-xs text-muted-foreground">Alle Einträge sind erfunden.</p>}
         </>
       )}
