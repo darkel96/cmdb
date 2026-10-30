@@ -151,3 +151,56 @@ test("PMS-Module am Vertrag: hinzufügen aus der Preisliste, Preise ändern, ent
   await expect(history).toContainText("PMS-Modul hinzugefügt");
   await expect(history).toContainText("PMS-Modul entfernt");
 });
+
+test("Verwaltung › Stammdaten › PMS-Modularten: Preisliste pflegen, Umbenennen folgt an den Verträgen", async ({ page, browser }, testInfo) => {
+  await login(page, "admin");
+  const name = `Testmodul Neu ${testInfo.project.name}`;
+  await page.goto("/verwaltung?tab=stammdaten");
+  await page.getByRole("navigation", { name: "Auswahllisten" }).getByRole("button", { name: /PMS-Modularten/ }).click();
+  const panel = page.getByRole("region", { name: "PMS-Modularten" });
+
+  // Neues Modul mit Preisen
+  await panel.getByRole("button", { name: "Modul hinzufügen" }).click();
+  await panel.getByLabel("Name des Moduls").fill(name);
+  await panel.getByLabel("PMS-Listenpreis").fill("1.500,00");
+  await panel.getByLabel("Oracle-Lizenzkosten").fill("200");
+  await panel.getByLabel("Oracle-Wartungskosten").fill("40,5");
+  await panel.getByRole("button", { name: "Übernehmen" }).click();
+  const row = panel.locator("tbody tr", { hasText: name });
+  await expect(row).toContainText("1.500,00 €");
+  await expect(row).toContainText("40,50 €");
+
+  // Ein Modul an Verträgen: umbenennen ändert den Namen dort mit, löschen geht nicht
+  const before = (await (await page.request.get("/api/pms-module")).json()) as { items: { module: string }[] };
+  const used = before.items.filter((m) => m.module === "Testmodul Versand").length;
+  expect(used).toBeGreaterThan(0);
+  await panel.getByRole("button", { name: "Testmodul Versand löschen" }).click();
+  await panel.getByRole("button", { name: "Ja, löschen" }).click();
+  await expect(panel.getByRole("alert")).toContainText("hängt noch an");
+  await panel.getByRole("button", { name: "Testmodul Versand bearbeiten" }).click();
+  await panel.getByLabel("Name des Moduls").fill(`Versand ${testInfo.project.name}`);
+  await panel.getByRole("button", { name: "Übernehmen" }).click();
+  await expect(panel.getByRole("status")).toContainText(`an ${used} Oracle-ESL-Vertr`);
+  const after = (await (await page.request.get("/api/pms-module")).json()) as { items: { module: string }[] };
+  expect(after.items.filter((m) => m.module === `Versand ${testInfo.project.name}`)).toHaveLength(used);
+  // Wieder zurück, damit andere Tests den alten Namen finden
+  await panel.getByRole("button", { name: `Versand ${testInfo.project.name} bearbeiten` }).click();
+  await panel.getByLabel("Name des Moduls").fill("Testmodul Versand");
+  await panel.getByRole("button", { name: "Übernehmen" }).click();
+  await expect(panel.locator("tbody tr", { hasText: "Testmodul Versand" })).toHaveCount(1);
+
+  // Die Grundrolle sieht die Preisliste, darf aber nichts ändern
+  const user = await browser.newPage();
+  await login(user, "user");
+  await user.goto("/verwaltung?tab=stammdaten");
+  await user.getByRole("navigation", { name: "Auswahllisten" }).getByRole("button", { name: /PMS-Modularten/ }).click();
+  await expect(user.getByRole("region", { name: "PMS-Modularten" })).toContainText(name);
+  await expect(user.getByRole("region", { name: "PMS-Modularten" }).getByRole("button")).toHaveCount(0);
+  expect((await user.request.post("/api/pms-preisliste", { data: { entry: { module: "x", listPrice: 1, licenseCost: 1, maintenanceCost: 1 } } })).status()).toBe(403);
+  await user.close();
+
+  // Unbenutztes Modul löschen
+  await panel.getByRole("button", { name: `${name} löschen` }).click();
+  await panel.getByRole("button", { name: "Ja, löschen" }).click();
+  await expect(row).toHaveCount(0);
+});

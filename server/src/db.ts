@@ -4,7 +4,7 @@
 import sql from "mssql";
 import type { Area, AreaFormResponse, AreaRow, CustomerDocument } from "@/lib/areas";
 import type { OsSupportEntry } from "@/lib/osSupport";
-import { samePrices, type PmsModule, type PmsPrices, type PmsResponse } from "@/lib/pms";
+import { samePrices, type PmsModule, type PmsPrice, type PmsPrices, type PmsResponse } from "@/lib/pms";
 import type { LookupList } from "@/lib/stammdaten";
 import type { CheckResult, Customer } from "@/lib/types";
 import { CUSTOMER_LINKS } from "./customerLinks";
@@ -591,6 +591,56 @@ export async function changePmsModule(id: number, original: PmsPrices & { module
   } catch (e) {
     await tx.rollback().catch(() => undefined);
     throw translate(e, "dbo.PMS_Module");
+  }
+}
+
+/**
+ * Preisliste (Arten der PMS-Module, dbo.PMS_Module_Stammdaten) pflegen. Schlüssel ist der Name. Umbenennen ändert
+ * den Namen an den Verträgen mit (dbo.PMS_Module), deren Preise bleiben; Löschen nur, wenn kein Vertrag das Modul hat.
+ * Weicht der Stand vom Öffnen ab, wird nichts geschrieben. Rückgabe: Anzahl der mit umbenannten Module an Verträgen.
+ */
+export async function changePmsPrice(action: "add" | "edit" | "delete", next: PmsPrice | null, original: PmsPrice | null): Promise<number> {
+  const tx = new sql.Transaction(await pool());
+  await tx.begin(sql.ISOLATION_LEVEL.READ_COMMITTED);
+  let object = "dbo.PMS_Module_Stammdaten";
+  const named = (name: string) => new sql.Request(tx).input("m", sql.VarChar(255), name);
+  const taken = async (name: string) =>
+    (await named(name).query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.PMS_Module_Stammdaten WITH (UPDLOCK, HOLDLOCK) WHERE LTRIM(RTRIM([PMS-Modul])) = @m")).recordset[0].n > 0;
+  try {
+    let renamed = 0;
+    if (action === "add" && next) {
+      if (await taken(next.module)) throw new DbError(`„${next.module}“ steht schon in der Preisliste.`, 409);
+      await pmsPriceInputs(named(next.module), next).query(
+        "INSERT INTO dbo.PMS_Module_Stammdaten ([PMS-Modul], [PMS-Listenpreis], [Oracle-Lizenzkosten], [Oracle-Wartungskosten]) VALUES (@m, @lp, @lc, @mc)",
+      );
+    } else if (original) {
+      const current = await named(original.module).query(`SELECT TOP 1 ${PMS_PRICES} FROM dbo.PMS_Module_Stammdaten WITH (UPDLOCK, ROWLOCK) WHERE LTRIM(RTRIM([PMS-Modul])) = @m`);
+      if (!current.recordset[0]) throw new DbError(`„${original.module}“ steht nicht mehr in der Preisliste. Bitte neu laden.`, 404);
+      if (!samePrices(toPrices(current.recordset[0]), original)) throw new DbError(`„${original.module}“ wurde inzwischen geändert. Bitte neu laden.`, 409);
+      object = "dbo.PMS_Module";
+      const used = (await named(original.module).query<{ n: number }>("SELECT COUNT(*) AS n FROM dbo.PMS_Module WHERE LTRIM(RTRIM([PMS-Modul])) = @m")).recordset[0].n;
+      object = "dbo.PMS_Module_Stammdaten";
+      if (action === "delete") {
+        if (used) throw new DbError(`„${original.module}“ hängt noch an ${used} Oracle-ESL-Vertr${used === 1 ? "ag" : "ägen"} und kann nicht gelöscht werden.`, 409);
+        await named(original.module).query("DELETE FROM dbo.PMS_Module_Stammdaten WHERE LTRIM(RTRIM([PMS-Modul])) = @m");
+      } else if (next) {
+        const rename = next.module !== original.module;
+        if (rename && (await taken(next.module))) throw new DbError(`„${next.module}“ steht schon in der Preisliste.`, 409);
+        await pmsPriceInputs(named(original.module).input("n", sql.VarChar(255), next.module), next).query(
+          "UPDATE dbo.PMS_Module_Stammdaten SET [PMS-Modul] = @n, [PMS-Listenpreis] = @lp, [Oracle-Lizenzkosten] = @lc, [Oracle-Wartungskosten] = @mc WHERE LTRIM(RTRIM([PMS-Modul])) = @m",
+        );
+        if (rename && used) {
+          object = "dbo.PMS_Module";
+          const r = await named(original.module).input("n", sql.VarChar(255), next.module).query("UPDATE dbo.PMS_Module SET [PMS-Modul] = @n WHERE LTRIM(RTRIM([PMS-Modul])) = @m");
+          renamed = r.rowsAffected[0] ?? 0;
+        }
+      }
+    }
+    await tx.commit();
+    return renamed;
+  } catch (e) {
+    await tx.rollback().catch(() => undefined);
+    throw translate(e, object);
   }
 }
 

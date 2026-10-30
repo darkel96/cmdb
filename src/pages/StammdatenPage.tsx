@@ -7,10 +7,15 @@ import { ClearButton } from "@/components/ui/clear-button";
 import { api } from "@/lib/api";
 import type { OsSupportEntry } from "@/lib/osSupport";
 import type { StammdatenResponse } from "@/lib/stammdaten";
+import { PMS_AREA, type PmsPrice } from "@/lib/pms";
+import { PmsPriceListPanel } from "@/components/PmsPriceList";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/state/auth";
 
 type List = StammdatenResponse["lists"][number];
+
+/** Auswahl links für die PMS-Preisliste (keine Liste aus LOOKUP_LISTS) */
+const PMS_LIST = "pms-modularten";
 
 /** Die gewählte Auswahlliste: Suchen, Hinzufügen, Bearbeiten (Stift), Löschen (Papierkorb mit Rückfrage) */
 const deDate = (iso: string) => (iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "–");
@@ -207,32 +212,43 @@ export function StammdatenPage() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState("");
   const [support, setSupport] = useState<OsSupportEntry[]>([]);
+  // PMS-Modularten (Preisliste): nur mit Leserecht Oracle-ESL, eigene Tabelle mit Preisen statt einfacher Liste
+  const { can } = useAuth();
+  const showPms = can(PMS_AREA, "read");
+  const [pms, setPms] = useState<{ prices: PmsPrice[]; error?: string } | null>(null);
+  const loadPms = () =>
+    api.pms().then(
+      (r) => setPms({ prices: r.prices, error: r.pricesError }),
+      (e: unknown) => setPms({ prices: [], error: e instanceof Error ? e.message : String(e) }),
+    );
   useEffect(() => {
     api.stammdaten().then(setData, (e: unknown) => setError(e instanceof Error ? e.message : String(e)));
     api.osSupport().then((r) => setSupport(r.items), () => undefined);
-  }, []);
+    if (showPms) void loadPms();
+  }, [showPms]);
   if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
   if (!data) return <p className="text-sm text-muted-foreground">Wird geladen …</p>;
   const list = data.lists.find((l) => l.id === selected) ?? data.lists[0];
+  const pmsSelected = showPms && selected === PMS_LIST;
   return (
     <div className="flex w-full flex-col gap-3">
       <p className="text-sm text-muted-foreground">Auswahllisten der Formulare. Ändern oder Löschen eines Werts ändert keine bestehenden Einträge, wie in GAPTEQ.</p>
       <div className="grid items-start gap-4 md:grid-cols-[15rem_minmax(0,1fr)]">
         <nav aria-label="Auswahllisten" className="animate-appear overflow-hidden rounded-lg border bg-card p-1 shadow-xs">
           <ul className="flex flex-col gap-0.5">
-            {data.lists.map((l) => (
+            {[...data.lists, ...(showPms ? [{ id: PMS_LIST, label: "PMS-Modularten", values: pms?.prices.map((p) => p.module) ?? [], error: pms?.error }] : [])].map((l) => (
               <li key={l.id}>
                 <button
                   type="button"
-                  aria-current={l.id === list.id ? "true" : undefined}
+                  aria-current={l.id === (pmsSelected ? PMS_LIST : list.id) ? "true" : undefined}
                   onClick={() => setSelected(l.id)}
                   className={cn(
                     "flex w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors duration-100",
-                    l.id === list.id ? "bg-brand text-brand-foreground" : "hover:bg-accent",
+                    l.id === (pmsSelected ? PMS_LIST : list.id) ? "bg-brand text-brand-foreground" : "hover:bg-accent",
                   )}
                 >
                   <span className="truncate">{l.label}</span>
-                  <span className={cn("rounded px-1.5 text-xs tabular-nums", l.id === list.id ? "bg-white/20" : "bg-muted text-muted-foreground")}>
+                  <span className={cn("rounded px-1.5 text-xs tabular-nums", l.id === (pmsSelected ? PMS_LIST : list.id) ? "bg-white/20" : "bg-muted text-muted-foreground")}>
                     {l.error ? "!" : l.values.length}
                   </span>
                 </button>
@@ -240,6 +256,9 @@ export function StammdatenPage() {
             ))}
           </ul>
         </nav>
+        {pmsSelected ? (
+          <PmsPriceListPanel prices={pms?.prices ?? []} error={pms?.error} onChanged={loadPms} />
+        ) : (
         <LookupPanel
           key={list.id}
           list={list}
@@ -252,6 +271,7 @@ export function StammdatenPage() {
             ? { support: new Map(support.map((e) => [e.name, e])), onSupport: async (entry: OsSupportEntry) => setSupport((await api.saveOsSupport(entry)).items) }
             : {})}
         />
+        )}
       </div>
     </div>
   );

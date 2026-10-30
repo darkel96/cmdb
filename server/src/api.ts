@@ -3,12 +3,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { AREAS, SYSTEM_STATUS, editableFields, firstFreeId, type Area, type AreaCreateResponse, type AreaFormResponse, type AreaListResponse, type AreaRow, type CustomerDetailResponse, type CustomerSaveResponse } from "@/lib/areas";
 import type { CheckResult, CiListResponse, Customer, CustomerListResponse, HealthResponse, MeResponse, SessionUser } from "@/lib/types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_PMS_PRICES, TEST_USERS, testPmsModules, testRows } from "@/lib/testData";
-import { PMS_AREA, PMS_PRICE_COLUMNS, PMS_PRICE_MAX, PMS_WRITE, euro, samePrices, type PmsModule, type PmsPrices, type PmsResponse } from "@/lib/pms";
+import { PMS_AREA, PMS_PRICE_COLUMNS, PMS_PRICE_MAX, PMS_WRITE, euro, samePrices, type PmsModule, type PmsPrice, type PmsPrices, type PmsResponse } from "@/lib/pms";
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
 import { LOOKUP_LISTS, type StammdatenResponse } from "@/lib/stammdaten";
-import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, followOsRename, listOsSupport, saveOsSupport, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listPms, addPmsModule, changePmsModule, listDocuments, updateCustomer, type CustomerValues } from "./db";
+import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, followOsRename, listOsSupport, saveOsSupport, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listPms, addPmsModule, changePmsModule, changePmsPrice, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { sendMail, smtpCheck } from "./mail";
 import { candidate, resetSettings, saveSettings, settings, settingsMeta, settingsView, type AllSettings, type DbSettings, type LdapSettings, type Section, type SmtpSettings } from "./settings";
@@ -835,6 +835,7 @@ async function editInArea(req: IncomingMessage, res: ServerResponse, area: Area,
 
 // Testmodus: Module im Speicher (bis zum Neustart)
 let testPms: PmsModule[] | undefined;
+let testPmsPrices: PmsPrice[] = TEST_PMS_PRICES.map((p) => ({ ...p }));
 const testPmsState = () => (testPms ??= testPmsModules(areaRows(AREAS[PMS_AREA]).map((r) => r.id)));
 
 /** Preise aus der Anfrage: je Spalte null oder 0 … PMS_PRICE_MAX mit höchstens zwei Nachkommastellen */
@@ -859,7 +860,7 @@ async function addPms(req: IncomingMessage, res: ServerResponse, user: SessionUs
     let id: number;
     if (ENV.testMode) {
       if (!areaRows(AREAS[PMS_AREA]).some((r) => r.id === contractId)) throw new DbError(`Diesen Vertrag (Oracle-ESL ${contractId}) gibt es nicht.`, 404);
-      const price = TEST_PMS_PRICES.find((p) => p.module === module);
+      const price = testPmsPrices.find((p) => p.module === module);
       if (!price) throw new DbError(`„${module}“ steht nicht in der Preisliste.`, 400);
       if (testPmsState().some((m) => m.contractId === contractId && m.module === module)) throw new DbError(`${module} ist an Oracle-ESL ${contractId} schon vorhanden.`, 409);
       id = Math.max(0, ...testPmsState().map((m) => m.id)) + 1;
@@ -901,6 +902,48 @@ async function changePms(req: IncomingMessage, res: ServerResponse, user: Sessio
     if (changes.length) await recordChange(user.username, PMS_AREA, before.contractId, "geändert", changes);
     res.writeHead(204, { "Cache-Control": "no-store" });
     res.end();
+  } catch (e) {
+    if (!(e instanceof DbError)) throw e;
+    fail(res, e.status, e.message);
+  }
+}
+
+/** Verwaltung › Stammdaten › PMS-Modularten: Preisliste pflegen (Rechte wie die übrigen Stammdaten) */
+async function changePmsPrices(req: IncomingMessage, res: ServerResponse, method: string): Promise<void> {
+  const action = method === "POST" ? "add" : method === "PUT" ? "edit" : "delete";
+  const user = await allowed(req, res, "stammdaten", action === "add" ? "create" : action);
+  if (!user) return;
+  const body = await readJson(req);
+  const entry = (raw: unknown): PmsPrice => {
+    const name = typeof (raw as { module?: unknown } | undefined)?.module === "string" ? (raw as { module: string }).module.trim() : "";
+    if (!name) throw new LoginError("Bitte einen Namen für das Modul angeben.", 400);
+    if (name.length > 255) throw new LoginError("Name: höchstens 255 Zeichen.", 400);
+    return { module: name, ...pmsPrices(raw) };
+  };
+  try {
+    const next = action === "delete" ? null : entry(body.entry);
+    const original = action === "add" ? null : entry(body.original);
+    let renamed = 0;
+    if (ENV.testMode) {
+      const has = (name: string) => testPmsPrices.some((p) => p.module === name);
+      if (next && (action === "add" || next.module !== original?.module) && has(next.module)) throw new DbError(`„${next.module}“ steht schon in der Preisliste.`, 409);
+      if (original) {
+        const current = testPmsPrices.find((p) => p.module === original.module);
+        if (!current) throw new DbError(`„${original.module}“ steht nicht mehr in der Preisliste. Bitte neu laden.`, 404);
+        if (!samePrices(current, original)) throw new DbError(`„${original.module}“ wurde inzwischen geändert. Bitte neu laden.`, 409);
+        const used = testPmsState().filter((m) => m.module === original.module).length;
+        if (action === "delete" && used) throw new DbError(`„${original.module}“ hängt noch an ${used} Oracle-ESL-Vertr${used === 1 ? "ag" : "ägen"} und kann nicht gelöscht werden.`, 409);
+        if (next && next.module !== original.module) {
+          renamed = used;
+          testPms = testPmsState().map((m) => (m.module === original.module ? { ...m, module: next.module } : m));
+        }
+      }
+      testPmsPrices =
+        action === "add" ? [...testPmsPrices, next!] : action === "delete" ? testPmsPrices.filter((p) => p.module !== original!.module) : testPmsPrices.map((p) => (p.module === original!.module ? next! : p));
+    } else renamed = await changePmsPrice(action, next, original);
+    const what = action === "add" ? `„${next!.module}“ hinzugefügt` : action === "delete" ? `„${original!.module}“ gelöscht` : `„${original!.module}“ geändert${renamed ? ` (an ${renamed} Verträgen umbenannt)` : ""}`;
+    log(`PMS-Preisliste: ${what} von ${user.username}`);
+    json(res, 200, { renamed });
   } catch (e) {
     if (!(e instanceof DbError)) throw e;
     fail(res, e.status, e.message);
@@ -1158,9 +1201,11 @@ export async function api(req: IncomingMessage, res: ServerResponse, path: strin
       if (await allowed(req, res, PMS_AREA, "read"))
         await readDb(res, async () =>
           (ENV.testMode
-            ? { source: "test", items: testPmsState(), prices: TEST_PMS_PRICES }
+            ? { source: "test", items: testPmsState(), prices: testPmsPrices }
             : { source: "db", ...(await listPms()) }) satisfies PmsResponse,
         );
+    } else if (path === "/api/pms-preisliste" && ["POST", "PUT", "DELETE"].includes(method)) {
+      await changePmsPrices(req, res, method);
     } else if (path === "/api/pms-module" && method === "POST") {
       const user = await allowed(req, res, PMS_WRITE, "create");
       if (user) await addPms(req, res, user);

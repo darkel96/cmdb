@@ -10,7 +10,7 @@ import { READ_ALL, allPermissions, PERMISSION_AREAS, type Action, type LoginLogE
 import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
 import type { CheckResult, CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_PMS_PRICES, TEST_USERS, testPmsModules, testRows } from "./testData";
-import type { PmsModule, PmsPrices, PmsResponse } from "./pms";
+import type { PmsModule, PmsPrice, PmsPrices, PmsResponse } from "./pms";
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -51,6 +51,8 @@ export interface Api {
   /** Preise ändern; original: Modul und Preise beim Öffnen */
   updatePmsModule(id: number, prices: PmsPrices, original: PmsModule): Promise<void>;
   deletePmsModule(id: number, original: PmsModule): Promise<void>;
+  /** Preisliste (Arten der PMS-Module) pflegen; original: Stand beim Öffnen. renamed: an Verträgen mit umbenannt */
+  changePmsPrice(action: "add" | "edit" | "delete", entry: PmsPrice | null, original: PmsPrice | null): Promise<{ renamed: number }>;
   saveOsSupport(entry: OsSupportEntry): Promise<{ items: OsSupportEntry[] }>;
   /** Dokumente eines Systems (wie GAPTEQ: dbo.Anhang, Vertrag_ID = ID) */
   systemDocuments(areaId: string, id: number): Promise<{ documents: CustomerDocument[] }>;
@@ -135,6 +137,8 @@ const serverApi: Api = {
   addPmsModule: (contractId, module) => request<{ id: number }>("/api/pms-module", { method: "POST", body: JSON.stringify({ contractId, module }) }),
   updatePmsModule: (id, prices, original) => request<void>(`/api/pms-module/${id}`, { method: "PUT", body: JSON.stringify({ prices, original }) }),
   deletePmsModule: (id, original) => request<void>(`/api/pms-module/${id}`, { method: "DELETE", body: JSON.stringify({ original }) }),
+  changePmsPrice: (action, entry, original) =>
+    request<{ renamed: number }>("/api/pms-preisliste", { method: action === "add" ? "POST" : action === "edit" ? "PUT" : "DELETE", body: JSON.stringify({ entry, original }) }),
   history: (area, id) => request<HistoryResponse>(`/api/history/${area}/${id}`),
   saveOsSupport: (entry) => request<{ items: OsSupportEntry[] }>("/api/os-support", { method: "PUT", body: JSON.stringify(entry) }),
   areaRow: (areaId, id) => request<AreaRow>(`/api/areas/${areaId}/${id}`),
@@ -201,6 +205,7 @@ const renamed = (name: string) => {
 const browserEdits = new Map<string, AreaRow>();
 // Testseite: PMS-Module im Speicher (bis zum Neuladen)
 let browserPmsItems: PmsModule[] | undefined;
+let browserPrices: PmsPrice[] = TEST_PMS_PRICES.map((p) => ({ ...p }));
 const browserPms = () => (browserPmsItems ??= testPmsModules(browserRows("oracle-esl").map((r) => r.id)));
 
 const browserRows = (areaId: string) =>
@@ -280,11 +285,11 @@ const browserTestApi: Api = {
   osSupport: async () => ({ items: browserOsSupport }),
   pms: async () => {
     if (!storedUser()) throw new ApiError("Nicht angemeldet.", 401);
-    return { source: "test", items: browserPms(), prices: TEST_PMS_PRICES };
+    return { source: "test", items: browserPms(), prices: browserPrices };
   },
   addPmsModule: async (contractId, module) => {
     requireAdmin();
-    const price = TEST_PMS_PRICES.find((p) => p.module === module);
+    const price = browserPrices.find((p) => p.module === module);
     if (!price) throw new ApiError(`„${module}“ steht nicht in der Preisliste.`, 400);
     if (browserPms().some((m) => m.contractId === contractId && m.module === module)) throw new ApiError(`${module} ist an Oracle-ESL ${contractId} schon vorhanden.`, 409);
     const id = Math.max(0, ...browserPms().map((m) => m.id)) + 1;
@@ -298,6 +303,17 @@ const browserTestApi: Api = {
   deletePmsModule: async (id) => {
     requireAdmin();
     browserPmsItems = browserPms().filter((m) => m.id !== id);
+  },
+  changePmsPrice: async (action, entry, original) => {
+    requireAdmin();
+    if (entry && (action === "add" || entry.module !== original?.module) && browserPrices.some((p) => p.module === entry.module)) throw new ApiError(`„${entry.module}“ steht schon in der Preisliste.`, 409);
+    const used = original ? browserPms().filter((m) => m.module === original.module).length : 0;
+    if (action === "delete" && used) throw new ApiError(`„${original!.module}“ hängt noch an ${used} Oracle-ESL-Vertr${used === 1 ? "ag" : "ägen"} und kann nicht gelöscht werden.`, 409);
+    const renamed = action === "edit" && entry!.module !== original!.module ? used : 0;
+    if (renamed) browserPmsItems = browserPms().map((m) => (m.module === original!.module ? { ...m, module: entry!.module } : m));
+    browserPrices =
+      action === "add" ? [...browserPrices, entry!] : action === "delete" ? browserPrices.filter((p) => p.module !== original!.module) : browserPrices.map((p) => (p.module === original!.module ? entry! : p));
+    return { renamed };
   },
   // Testseite: kein Verlauf (kein Dienst)
   history: async () => ({ items: [], available: false }),
