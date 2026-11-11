@@ -16,7 +16,7 @@ async function openArea(page: Page, link: string, heading: string) {
 
 const openServers = (page: Page) => openArea(page, "Server", "Übersicht Server");
 
-test("Übersicht Server: Spalten wie in GAPTEQ, Öffnen der markierten Zeile", async ({ page }) => {
+test("Übersicht Server: Spalten in einheitlicher Reihenfolge, Öffnen der markierten Zeile", async ({ page }) => {
   await openServers(page);
   const table = page.getByRole("region", { name: "Übersicht Server" });
   for (const label of ["ID", "Firma", "Lieferant", "Lieferdatum", "Bestellnummer", "Hersteller", "Modell", "Servertyp", "Servicetag", "Wartungstyp", "Support bis", "EOL", "Besonderheiten"]) {
@@ -49,11 +49,11 @@ test("Übersicht Server: Doppelklick öffnet, Datum sortiert chronologisch", asy
   await expect(page.getByRole("heading", { name: /^Server \d+/ })).toBeVisible();
 });
 
-test("Übersicht Switche: Spalten wie in GAPTEQ, Öffnen zeigt alle Felder", async ({ page }) => {
+test("Übersicht Switche: Spalten in einheitlicher Reihenfolge, Öffnen zeigt alle Felder", async ({ page }) => {
   await openArea(page, "Switche", "Übersicht Switche");
   const table = page.getByRole("region", { name: "Übersicht Switche" });
   const headers = await table.getByRole("columnheader").allTextContents();
-  expect(headers.slice(0, 10).map((h) => h.trim())).toEqual(["ID", "Firma", "Lieferant", "Bestellnummer", "Support bis", "Hersteller", "Modell", "LWL-Typ", "Servicetag", "Besonderheiten"]);
+  expect(headers.slice(0, 10).map((h) => h.trim())).toEqual(["ID", "Firma", "Hersteller", "Modell", "Servicetag", "LWL-Typ", "Lieferant", "Bestellnummer", "Support bis", "Besonderheiten"]);
   // 18 erfundene Switche, dazu ggf. der im Test „Anlage Switch“ angelegte
   await expect(page.getByTestId("table-status")).toHaveText(/^Seite 1 von 1 \((1[89]|2[0-9]) Elemente\)$/);
 
@@ -71,15 +71,15 @@ test("Seitenleiste Hardware in der Reihenfolge wie GAPTEQ", async ({ page }) => 
   await expect(items).toHaveText(["Server", "Switche", "MDE", "Storage", "Client"]);
 });
 
-test("Software- und Lizenzbereiche: Spalten wie in GAPTEQ", async ({ page }) => {
+test("Software- und Lizenzbereiche: Spalten in einheitlicher Reihenfolge", async ({ page }) => {
   await openArea(page, "Server", "Übersicht Server");
   const expected: Record<string, string[]> = {
-    vmware: ["ID", "Firma", "Lieferant", "Bestellnummer", "Lizenztyp", "Lizenznehmer", "Lizenz", "Support bis", "Besonderheiten"],
-    tsplus: ["ID", "Firma", "Lieferant", "Bestellnummer", "Lizenztyp", "Lizenz", "Anzahl Lizenzen", "Support bis", "Besonderheiten"],
-    veeam: ["ID", "Firma", "Lieferant", "Bestellnummer", "Lizenztyp", "Lizenznehmer", "Lizenz", "Support bis", "Besonderheiten"],
-    prtg: ["ID", "Firma", "Lieferant", "Lieferdatum", "Bestellnummer", "Anzahl Sensoren", "Support bis", "EOL", "Besonderheiten"],
-    windows: ["ID", "Typ", "Firma", "Funktion", "Hostname", "IP", "Subnetz", "Gateway", "OS", "WinCC", "Hardware", "Bereitgestellt", "EOL", "Support bis", "Besonderheiten"],
-    "oracle-esl": ["ID", "Kunde", "SAP-Projektnummer", "Oracle-Rahmenvertrag", "Oracle Ende Projektsupport", "Oracle-Lizenzmeldung", "Lizenzmeldung Datum", "CSI-Nummer"],
+    vmware: ["ID", "Firma", "Lizenztyp", "Lizenz", "Lizenznehmer", "Lieferant", "Bestellnummer", "Support bis", "Besonderheiten"],
+    tsplus: ["ID", "Firma", "Lizenztyp", "Lizenz", "Anzahl Lizenzen", "Lieferant", "Bestellnummer", "Support bis", "Besonderheiten"],
+    veeam: ["ID", "Firma", "Lizenztyp", "Lizenz", "Lizenznehmer", "Lieferant", "Bestellnummer", "Support bis", "Besonderheiten"],
+    prtg: ["ID", "Firma", "Anzahl Sensoren", "Lieferant", "Bestellnummer", "Lieferdatum", "Support bis", "EOL", "Besonderheiten"],
+    windows: ["ID", "Firma", "Typ", "Funktion", "Hostname", "IP-Adresse", "Subnetz", "Gateway", "OS", "WinCC", "Hardware", "Bereitgestellt", "Support bis", "EOL", "Besonderheiten"],
+    "oracle-esl": ["ID", "Kunde", "SAP-Projektnummer", "GoLive", "Oracle-Rahmenvertrag", "CSI-Nummer", "Oracle Ende Projektsupport", "Oracle-Lizenzmeldung"],
   };
   for (const [id, headers] of Object.entries(expected)) {
     await page.goto(`/bereich/${id}`);

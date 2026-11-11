@@ -17,10 +17,7 @@ test("KEPware: Übersicht, Anlage über Anlage Vertrag, Nummernkreis ab 130000, 
   await page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link", { name: "KEPware", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Anlage KEPware-Lizenz" })).toBeVisible();
   const labels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
-  expect(labels).toEqual([
-    "Firma *", "Produkt/Edition *", "Version", "Lizenznehmer", "Lieferant", "Bestellnummer", "Lieferdatum", "Lizenzkey", "Notfall-Key",
-    "Server/Hostname", "Support bis", "EOL", "Besonderheiten",
-  ]);
+  expect(labels).toEqual(["Firma *", "Produkt/Edition *", "Version", "Lizenzkey", "Notfall-Key", "Lizenznehmer", "Server/Hostname", "Lieferant", "Bestellnummer", "Lieferdatum", "Support bis", "EOL", "Besonderheiten"]);
   const nextId = Number((await page.getByTestId("next-id").textContent())?.trim());
   expect(nextId).toBeGreaterThanOrEqual(130000);
 
