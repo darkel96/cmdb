@@ -194,10 +194,10 @@ test("Auswahlliste: Suche filtert, Pfeiltasten und Enter wählen, Hand als Zeige
 test("Software- und Lizenzanlagen: Felder wie in GAPTEQ, Lieferant als Freitext", async ({ page }) => {
   await login(page, "admin");
   const forms: Record<string, { title: string; labels: string[] }> = {
-    vmware: { title: "Anlage VMware", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
+    vmware: { title: "Anlage VMware-Lizenz", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
     tsplus: { title: "Anlage TSPLUS", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenztyp", "Lizenz", "Anzahl Lizenzen", "Support bis", "Besonderheiten"] },
     prtg: { title: "Anlage PRTG", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lieferdatum", "Anzahl Sensoren", "Support bis", "EOL", "Besonderheiten"] },
-    veeam: { title: "Anlage VEEAM", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
+    veeam: { title: "Anlage Veeam-Lizenz", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
     lizenzen: { title: "Anlage Windows-Lizenzen", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
   };
   for (const [id, form] of Object.entries(forms)) {
@@ -217,7 +217,7 @@ test("Software- und Lizenzanlagen: Felder wie in GAPTEQ, Lieferant als Freitext"
   await expect(page.locator("dd", { hasText: "Windows Server 2025 Standard" })).toBeVisible();
 });
 
-test("Anlage Oracle mit Hostname und RMAN-Passwort, Anlage Windows-System mit festem EOL", async ({ page, context }) => {
+test("Anlage Oracle mit Hostname und RMAN-Passwort, Anlage Virtuelle Maschine mit festem EOL", async ({ page, context }) => {
   await login(page, "admin");
   await page.goto("/bereich/oracle/neu");
   await expect(page.getByRole("heading", { name: "Anlage Oracle" })).toBeVisible();
@@ -275,16 +275,16 @@ test("Anlage Oracle mit Hostname und RMAN-Passwort, Anlage Windows-System mit fe
   expect((await (await page.request.get(`/api/areas/oracle/${id}/secret`)).json()).value).toBe("");
 
   await page.goto("/bereich/windows/neu");
-  await expect(page.getByRole("heading", { name: "Anlage Windows-System" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Anlage Virtuelle Maschine" })).toBeVisible();
   const windowsLabels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
   expect(windowsLabels).toEqual(["Firma *", "Servertyp *", "Hostname", "IP", "Subnetz", "Gateway", "OS", "WinCC", "Hardware", "Bereitgestellt", "Besonderheiten"]);
-  await expect(page.locator("section", { hasText: "Anlage Windows-System" }).getByText("EOL", { exact: true })).toBeVisible();
+  await expect(page.locator("section", { hasText: "Anlage Virtuelle Maschine" }).getByText("EOL", { exact: true })).toBeVisible();
   await choose(page, "Firma", 7);
   await choose(page, "Servertyp", "APP-Server");
   await choose(page, "OS", "Windows Server 2025");
   await page.getByLabel("Hostname").fill("app-demo-neu");
   await page.getByRole("button", { name: "Speichern" }).click();
-  await expect(page.locator("main").getByRole("status")).toHaveText(/^Windows-System \d+ wurde angelegt\.$/);
+  await expect(page.locator("main").getByRole("status")).toHaveText(/^Virtuelle Maschine \d+ wurde angelegt\.$/);
   await expect(page.locator("dd", { hasText: "app-demo-neu" })).toBeVisible();
   await expect(page.locator("dt", { hasText: "EOL" }).locator("xpath=following-sibling::dd[1]")).toHaveText("Nein");
 });

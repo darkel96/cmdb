@@ -347,9 +347,10 @@ export const AREAS: Record<string, Area> = {
   windows: {
     id: "windows",
     table: "Windowssysteme_manuell",
-    title: "Übersicht Windows-Systeme",
-    singular: "Windows-System",
-    plural: "Windows-Systeme",
+    // Seit 11.11.2026 „Virtuelle Maschinen“; Tabelle und Typ-Wert bleiben wie in GAPTEQ
+    title: "Übersicht Virtuelle Maschinen",
+    singular: "Virtuelle Maschine",
+    plural: "Virtuelle Maschinen",
     typeValue: "Windows-System",
     createFields: ["company", "function", "hostname", "ipAddress", "subnet", "gateway", "os", "wincc", "hardware", "providedBy", "notes"],
     createFixed: { eol: "Nein" },
@@ -377,8 +378,10 @@ export const AREAS: Record<string, Area> = {
   vmware: {
     id: "vmware",
     table: "VMware_manuell",
-    title: "Übersicht VMware",
-    singular: "VMware",
+    // Seit 11.11.2026 mit Zusatz „Lizenzen“ (wie Windows-Lizenzen); Typ-Wert bleibt wie in GAPTEQ
+    title: "Übersicht VMware-Lizenzen",
+    singular: "VMware-Lizenz",
+    plural: "VMware-Lizenzen",
     typeValue: "VMware",
     createFields: ["company", "orderNumber", "supplier", "licensee", "licenseType", "license", "supportUntil", "notes"],
     testCount: 14,
@@ -400,12 +403,12 @@ export const AREAS: Record<string, Area> = {
   veeam: {
     id: "veeam",
     table: "VEEAM_manuell",
-    title: "Übersicht VEEAM",
-    singular: "Veeam",
-    plural: "Veeam",
+    title: "Übersicht Veeam-Lizenzen",
+    singular: "Veeam-Lizenz",
+    plural: "Veeam-Lizenzen",
     typeValue: "VEEAM",
     createFields: ["company", "orderNumber", "supplier", "licensee", "licenseType", "license", "supportUntil", "notes"],
-    createTitle: "Anlage VEEAM",
+    createTitle: "Anlage Veeam-Lizenz",
     testCount: 13,
     testIdBase: 70000,
     fields: [
