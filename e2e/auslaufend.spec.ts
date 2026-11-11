@@ -130,7 +130,7 @@ test("Status in der Zeile: Verlängert verschiebt ins Archiv, zurück auf offen 
   await expect(rowOf(page, area, id)).toBeVisible();
 
   // Ungültiger Status wird abgelehnt
-  const areaId = { Server: "server", Switche: "switche", Storage: "storage", VMware: "vmware", TSPLUS: "tsplus", PRTG: "prtg", Veeam: "veeam", KEPware: "kepware", "Windows-Systeme": "windows" }[area];
+  const areaId = { Server: "server", Switche: "switche", Storage: "storage", "VMware-Lizenzen": "vmware", TSPLUS: "tsplus", PRTG: "prtg", "Veeam-Lizenzen": "veeam", KEPware: "kepware", "Virtuelle Maschinen": "windows" }[area];
   expect((await page.request.put(`/api/areas/${areaId}/${id}/status`, { data: { values: { status: "Erfunden" }, original: { status: "" } } })).status()).toBe(400);
 
 });
@@ -143,7 +143,7 @@ test("Status: Grundrolle sieht die Liste, kann den Status aber nicht setzen", as
   await expect(table(page).getByRole("combobox")).toHaveCount(0);
   const id = (await row.locator("td").nth(1).textContent())!.trim();
   const area = (await row.locator("td").nth(0).textContent())!.trim();
-  const areaId = { Server: "server", Switche: "switche", Storage: "storage", VMware: "vmware", TSPLUS: "tsplus", PRTG: "prtg", Veeam: "veeam", KEPware: "kepware", "Windows-Systeme": "windows" }[area];
+  const areaId = { Server: "server", Switche: "switche", Storage: "storage", "VMware-Lizenzen": "vmware", TSPLUS: "tsplus", PRTG: "prtg", "Veeam-Lizenzen": "veeam", KEPware: "kepware", "Virtuelle Maschinen": "windows" }[area];
   expect((await page.request.put(`/api/areas/${areaId}/${id}/status`, { data: { values: { status: "Angeboten" }, original: { status: "" } } })).status()).toBe(403);
 });
 

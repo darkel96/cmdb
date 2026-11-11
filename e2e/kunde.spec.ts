@@ -17,7 +17,7 @@ test("Kunde öffnen zeigt Kundeninformation und alle Systeme je Bereich", async 
   await expect(page.getByTestId("customer-name")).toHaveText(name!);
   await expect(page.getByRole("heading", { name: "Kundeninformation" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Dokumente" })).toBeVisible();
-  for (const title of ["Übersicht Server", "Übersicht Switche", "Übersicht MDEs", "Übersicht Oracle", "Übersicht Windows-Systeme"]) {
+  for (const title of ["Übersicht Server", "Übersicht Switche", "Übersicht MDEs", "Übersicht Oracle", "Übersicht Virtuelle Maschinen"]) {
     await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
   }
   // Firma steht oben, nicht noch einmal in jeder Tabelle; 5/10/20 je Seite

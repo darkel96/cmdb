@@ -37,8 +37,8 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: Code,
     items: [
       { id: "oracle", label: "Oracle" },
-      { id: "veeam", label: "Veeam" },
-      { id: "vmware", label: "VMware" },
+      { id: "veeam", label: "Veeam-Lizenzen" },
+      { id: "vmware", label: "VMware-Lizenzen" },
       { id: "tsplus", label: "TSplus" },
       { id: "prtg", label: "PRTG" },
       { id: "kepware", label: "KEPware" },
@@ -50,7 +50,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "OS-Systeme",
     icon: Monitor,
     items: [
-      { id: "windows", label: "Windows" },
+      { id: "windows", label: "Virtuelle Maschinen" },
       { id: "linux", label: "Linux" },
     ],
   },
