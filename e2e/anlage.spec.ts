@@ -86,13 +86,13 @@ test("API prüft Pflichtfelder und Auswahllisten", async ({ page }) => {
   expect(unknown.status()).toBe(404);
 });
 
-test("Anlage Switch: Felder wie in GAPTEQ, LWL-Typ als Freitext", async ({ page }) => {
+test("Anlage Switch: Felder in einheitlicher Reihenfolge, LWL-Typ als Freitext", async ({ page }) => {
   await login(page, "admin");
   await page.goto("/anlage-vertrag");
   await page.getByRole("region", { name: "Anlage Vertrag" }).getByRole("link", { name: "Switche", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Anlage Switch" })).toBeVisible();
   const labels = (await page.locator("form label").allTextContents()).map((l) => l.replace("*", "").trim());
-  expect(labels).toEqual(["Firma", "Bestellnummer", "Lieferant", "Hersteller", "Modell", "Servicetag", "LWL-Typ", "Support bis", "Besonderheiten"]);
+  expect(labels).toEqual(["Firma", "Hersteller", "Modell", "Servicetag", "LWL-Typ", "Lieferant", "Bestellnummer", "Support bis", "Besonderheiten"]);
   await expect(page.getByLabel("Lieferant")).toHaveAttribute("role", "combobox");
   await expect(page.getByLabel("LWL-Typ")).toHaveJSProperty("tagName", "INPUT");
 
@@ -111,7 +111,7 @@ test("MDE: Übersicht mit Typ, Anlage mit Lieferant und Hersteller als Freitext"
   await expect(page.getByRole("heading", { name: "Übersicht MDEs" })).toBeVisible();
   const table = page.getByRole("region", { name: "Übersicht MDEs" });
   const headers = (await table.getByRole("columnheader").allTextContents()).map((h) => h.trim()).slice(0, 9);
-  expect(headers).toEqual(["ID", "Firma", "Lieferant", "Bestellnummer", "Hersteller", "Seriennummer", "Support bis", "Besonderheiten", "Typ"]);
+  expect(headers).toEqual(["ID", "Firma", "Typ", "Hersteller", "Seriennummer", "Lieferant", "Bestellnummer", "Support bis", "Besonderheiten"]);
 
   await page.getByRole("link", { name: "Anlegen" }).click();
   await expect(page.getByRole("heading", { name: "Anlage MDE" })).toBeVisible();
@@ -125,17 +125,17 @@ test("MDE: Übersicht mit Typ, Anlage mit Lieferant und Hersteller als Freitext"
   await expect(page.locator("dd", { hasText: "SN-TEST-1" })).toBeVisible();
 });
 
-test("Storage: Spalten wie in GAPTEQ, Anlage mit Lieferant als Pflicht und Hersteller als Freitext", async ({ page }) => {
+test("Storage: Spalten in einheitlicher Reihenfolge, Anlage mit Lieferant als Pflicht und Hersteller als Freitext", async ({ page }) => {
   await login(page, "admin");
   await page.goto("/bereich/storage");
   await expect(page.getByRole("heading", { name: "Übersicht Storage" })).toBeVisible();
   const headers = (await page.getByRole("region", { name: "Übersicht Storage" }).getByRole("columnheader").allTextContents()).map((h) => h.trim()).slice(0, 16);
-  expect(headers).toEqual(["ID", "Firma", "Bestellnummer", "Lieferant", "Hersteller", "Modell", "Servicetag", "RAID", "Festplatten-Typ", "Anzahl Festplatten", "IP-Adresse", "Subnetz", "Gateway", "Wartungstyp", "Support bis", "Besonderheiten"]);
+  expect(headers).toEqual(["ID", "Firma", "Hersteller", "Modell", "Servicetag", "RAID", "Festplatten-Typ", "Anzahl Festplatten", "IP-Adresse", "Subnetz", "Gateway", "Lieferant", "Bestellnummer", "Wartungstyp", "Support bis", "Besonderheiten"]);
 
   await page.getByRole("link", { name: "Anlegen" }).click();
   await expect(page.getByRole("heading", { name: "Anlage Storage" })).toBeVisible();
   const labels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
-  expect(labels).toEqual(["Firma *", "Bestellnummer", "Lieferant *", "Hersteller *", "Modell", "Servicetag", "Wartungstyp", "Festplatten-Typ", "Anzahl Festplatten", "RAID", "IP-Adresse", "Subnetz", "Gateway", "Support bis", "Besonderheiten"]);
+  expect(labels).toEqual(["Firma *", "Hersteller *", "Modell", "Servicetag", "RAID", "Festplatten-Typ", "Anzahl Festplatten", "IP-Adresse", "Subnetz", "Gateway", "Lieferant *", "Bestellnummer", "Wartungstyp", "Support bis", "Besonderheiten"]);
   await expect(page.getByLabel("Hersteller")).toHaveJSProperty("tagName", "INPUT");
   await expect(page.getByLabel("RAID")).toHaveAttribute("role", "combobox");
 
@@ -154,12 +154,12 @@ test("Client: Monitor nur beim Öffnen, Anlage mit Monitor als Auswahl", async (
   await page.goto("/bereich/client");
   await expect(page.getByRole("heading", { name: "Übersicht Client" })).toBeVisible();
   const headers = (await page.getByRole("region", { name: "Übersicht Client" }).getByRole("columnheader").allTextContents()).map((h) => h.trim()).slice(0, 7);
-  expect(headers).toEqual(["ID", "Firma", "Lieferant", "Bestellnummer", "Hersteller", "Servicetag", "Besonderheiten"]);
+  expect(headers).toEqual(["ID", "Firma", "Hersteller", "Servicetag", "Lieferant", "Bestellnummer", "Besonderheiten"]);
 
   await page.getByRole("link", { name: "Anlegen" }).click();
   await expect(page.getByRole("heading", { name: "Anlage Client" })).toBeVisible();
   const labels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
-  expect(labels).toEqual(["Firma *", "Bestellnummer", "Lieferant", "Hersteller *", "Servicetag", "Monitor", "Besonderheiten"]);
+  expect(labels).toEqual(["Firma *", "Hersteller *", "Servicetag", "Lieferant", "Bestellnummer", "Monitor", "Besonderheiten"]);
   await choose(page, "Firma", 4);
   await page.getByLabel("Hersteller").fill("Industrie-PC");
   await choose(page, "Monitor", "Ja");
@@ -191,14 +191,14 @@ test("Auswahlliste: Suche filtert, Pfeiltasten und Enter wählen, Hand als Zeige
   await expect(page.getByLabel("Lieferant")).toHaveText("– bitte wählen –");
 });
 
-test("Software- und Lizenzanlagen: Felder wie in GAPTEQ, Lieferant als Freitext", async ({ page }) => {
+test("Software- und Lizenzanlagen: Felder in einheitlicher Reihenfolge, Lieferant als Freitext", async ({ page }) => {
   await login(page, "admin");
   const forms: Record<string, { title: string; labels: string[] }> = {
-    vmware: { title: "Anlage VMware-Lizenz", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
-    tsplus: { title: "Anlage TSPLUS", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenztyp", "Lizenz", "Anzahl Lizenzen", "Support bis", "Besonderheiten"] },
-    prtg: { title: "Anlage PRTG", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lieferdatum", "Anzahl Sensoren", "Support bis", "EOL", "Besonderheiten"] },
-    veeam: { title: "Anlage Veeam-Lizenz", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
-    lizenzen: { title: "Anlage Windows-Lizenzen", labels: ["Firma *", "Bestellnummer", "Lieferant", "Lizenznehmer", "Lizenztyp", "Lizenz", "Support bis", "Besonderheiten"] },
+    vmware: { title: "Anlage VMware-Lizenz", labels: ["Firma *", "Lizenztyp", "Lizenz", "Lizenznehmer", "Lieferant", "Bestellnummer", "Support bis", "Besonderheiten"] },
+    tsplus: { title: "Anlage TSPLUS", labels: ["Firma *", "Lizenztyp", "Lizenz", "Anzahl Lizenzen", "Lieferant", "Bestellnummer", "Support bis", "Besonderheiten"] },
+    prtg: { title: "Anlage PRTG", labels: ["Firma *", "Anzahl Sensoren", "Lieferant", "Bestellnummer", "Lieferdatum", "Support bis", "EOL", "Besonderheiten"] },
+    veeam: { title: "Anlage Veeam-Lizenz", labels: ["Firma *", "Lizenztyp", "Lizenz", "Lizenznehmer", "Lieferant", "Bestellnummer", "Support bis", "Besonderheiten"] },
+    lizenzen: { title: "Anlage Windows-Lizenzen", labels: ["Firma *", "Lizenztyp", "Lizenz", "Lizenznehmer", "Lieferant", "Bestellnummer", "Support bis", "Besonderheiten"] },
   };
   for (const [id, form] of Object.entries(forms)) {
     await page.goto(`/bereich/${id}/neu`);
@@ -222,10 +222,7 @@ test("Anlage Oracle mit Hostname und RMAN-Passwort, Anlage Virtuelle Maschine mi
   await page.goto("/bereich/oracle/neu");
   await expect(page.getByRole("heading", { name: "Anlage Oracle" })).toBeVisible();
   const oracleLabels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
-  expect(oracleLabels).toEqual([
-    "Firma *", "DB-Typ *", "DB-Version", "Linux/Windows", "Hostname", "Zeichensatz", "SGA", "PGA", "RMAN-Copy-Job *", "RMAN-Pfad", "RMAN-Benutzer",
-    "RMAN-Passwort", "DNS-Server", "IP-Adresse", "Gateway", "Softwarepflege *", "Softwarepflege bis", "IT-Servicevertrag *", "IT-Service bis", "Besonderheiten",
-  ]);
+  expect(oracleLabels).toEqual(["Firma *", "DB-Typ *", "DB-Version", "Linux/Windows", "Hostname", "IP-Adresse", "Gateway", "DNS-Server", "Zeichensatz", "SGA", "PGA", "RMAN-Copy-Job *", "RMAN-Pfad", "RMAN-Benutzer", "RMAN-Passwort", "Softwarepflege *", "Softwarepflege bis", "IT-Servicevertrag *", "IT-Service bis", "Besonderheiten"]);
   // Passwortfeld verdeckt, Auge zeigt die Eingabe
   const pw = page.getByLabel("RMAN-Passwort", { exact: true });
   await expect(pw).toHaveAttribute("type", "password");
@@ -277,7 +274,7 @@ test("Anlage Oracle mit Hostname und RMAN-Passwort, Anlage Virtuelle Maschine mi
   await page.goto("/bereich/windows/neu");
   await expect(page.getByRole("heading", { name: "Anlage Virtuelle Maschine" })).toBeVisible();
   const windowsLabels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
-  expect(windowsLabels).toEqual(["Firma *", "Servertyp *", "Hostname", "IP", "Subnetz", "Gateway", "OS", "WinCC", "Hardware", "Bereitgestellt", "Besonderheiten"]);
+  expect(windowsLabels).toEqual(["Firma *", "Servertyp *", "Hostname", "IP-Adresse", "Subnetz", "Gateway", "OS", "WinCC", "Hardware", "Bereitgestellt", "Besonderheiten"]);
   await expect(page.locator("section", { hasText: "Anlage Virtuelle Maschine" }).getByText("EOL", { exact: true })).toBeVisible();
   await choose(page, "Firma", 7);
   await choose(page, "Servertyp", "APP-Server");
