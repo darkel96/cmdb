@@ -238,7 +238,8 @@ function areaRows(area: Area): AreaRow[] {
     .filter((r) => !testDeleted.has(`${area.id}:${r.id}`))
     .map((r) => (area.secret ? { ...r, secretSet: (testSecrets.get(`${area.id}:${r.id}`) ?? "x") ? 1 : 0 } : r))
     .map((r) => testEdits.get(`${area.id}:${r.id}`) ?? r)
-    .map((r) => (typeof r.company === "string" ? { ...r, company: renamedCompany(r.company) } : r));
+    .map((r) => (typeof r.company === "string" ? { ...r, company: renamedCompany(r.company) } : r))
+    .map((r) => (typeof r.licensee === "string" ? { ...r, licensee: renamedCompany(r.licensee) } : r));
 }
 
 
@@ -582,6 +583,8 @@ async function saveCustomer(req: IncomingMessage, res: ServerResponse, user: Ses
         for (const area of Object.values(AREAS)) {
           const count = areaRows(area).filter((r) => r.company === current.name).length;
           if (count) renamed.push({ label: area.plural ?? area.singular, count });
+          const licensee = areaRows(area).filter((r) => r.licensee === current.name).length;
+          if (licensee) renamed.push({ label: `${area.plural ?? area.singular} (Lizenznehmer)`, count: licensee });
         }
         testRenames.set(current.name, values.name);
       }

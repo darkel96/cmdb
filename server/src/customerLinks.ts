@@ -19,6 +19,10 @@ export const CUSTOMER_LINKS: { schema?: "dbo" | "cmdb"; table: string; column: s
   { table: "PRTG_manuell", column: "Firma", label: "PRTG", maxLength: 255 },
   { table: "VEEAM_manuell", column: "Firma", label: "Veeam", maxLength: 255 },
   { table: "Lizenzen_manuell", column: "Firma", label: "Lizenzen", maxLength: 255 },
+  // Lizenznehmer: meist der Kundenname; geändert wird nur, wo genau der alte Name steht
+  { table: "Lizenzen_manuell", column: "Lizenznehmer", label: "Lizenzen (Lizenznehmer)", maxLength: 255 },
+  { table: "VEEAM_manuell", column: "Lizenznehmer", label: "Veeam (Lizenznehmer)", maxLength: 255 },
+  { table: "VMware_manuell", column: "Lizenznehmer", label: "VMware (Lizenznehmer)", maxLength: 255 },
   { table: "IT_Service_manuell", column: "Firma", label: "IT-Service", maxLength: 255 },
   { table: "Servicevertrag_manuell", column: "Firma", label: "Serviceverträge", maxLength: 255 },
   { table: "Vertragsdaten", column: "Kunde", label: "Oracle-ESL", maxLength: 255 },
