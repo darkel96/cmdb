@@ -68,9 +68,14 @@ test("Umbenennen nimmt die Systeme mit, Löschen mit Systemen wird abgelehnt", a
   const res = await page.request.put(`/api/customers/${id}`, { data: { values: { ...before.customer, name: `${before.customer.name} (umbenannt)` } } });
   expect(res.status()).toBe(200);
   const saved = await res.json();
-  expect(saved.renamed.reduce((n: number, r: { count: number }) => n + r.count, 0)).toBe(systems);
+  // Systeme über die Firma, dazu Lizenznehmer mit genau dem Kundennamen
+  const counted = (rows: { label: string; count: number }[], licensee: boolean) => rows.filter((r) => r.label.endsWith("(Lizenznehmer)") === licensee).reduce((n, r) => n + r.count, 0);
+  expect(counted(saved.renamed, false)).toBe(systems);
+  const licensees = Object.values(before.systems as Record<string, { licensee?: string }[]>).flat().filter((r) => r.licensee === before.customer.name).length;
+  expect(counted(saved.renamed, true)).toBe(licensees);
   const after = await (await page.request.get(`/api/customers/${id}`)).json();
   expect(Object.values(after.systems as Record<string, unknown[]>).reduce((n, rows) => n + rows.length, 0)).toBe(systems);
+  expect(Object.values(after.systems as Record<string, { licensee?: string }[]>).flat().filter((r) => r.licensee === after.customer.name).length).toBe(licensees);
 
   const del = await page.request.delete(`/api/customers/${id}`, { data: {} });
   expect(del.status()).toBe(409);
