@@ -72,6 +72,7 @@ export function AreaPage({ area }: { area: Area }) {
           key={`${area.id}?${params}`}
           title={area.title}
           initialFilters={initialFilters}
+          initialSearch={params.get("suche") ?? undefined}
           columns={columns}
           rows={data.items}
           rowKey={(r) => r.id}
