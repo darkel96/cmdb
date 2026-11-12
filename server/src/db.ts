@@ -5,7 +5,7 @@ import sql from "mssql";
 import type { Area, AreaFormResponse, AreaRow, CustomerDocument } from "@/lib/areas";
 import type { OsSupportEntry } from "@/lib/osSupport";
 import { PMS_AREA, pmsBlocksDelete, samePrices, type PmsModule, type PmsPrice, type PmsPrices, type PmsResponse } from "@/lib/pms";
-import type { LookupList } from "@/lib/stammdaten";
+import { listTable, type LookupList } from "@/lib/stammdaten";
 import type { CheckResult, Customer } from "@/lib/types";
 import { CUSTOMER_LINKS } from "./customerLinks";
 import { DB_CA, ENV } from "./env";
@@ -238,10 +238,10 @@ export async function areaForm(area: Area): Promise<AreaFormResponse> {
         );
         options[f.key] = result.recordset.map((r) => r.v);
       } else {
-        object = `dbo.${f.options.table}`;
+        object = listTable(f.options);
         const column = quote(f.options.column);
         const result = await p.request().query<{ v: string }>(
-          `SELECT DISTINCT LTRIM(RTRIM(${column})) AS v FROM dbo.${quote(f.options.table)} WHERE NULLIF(LTRIM(RTRIM(${column})), '') IS NOT NULL ORDER BY v`,
+          `SELECT DISTINCT LTRIM(RTRIM(${column})) AS v FROM ${f.options.schema ?? "dbo"}.${quote(f.options.table)} WHERE NULLIF(LTRIM(RTRIM(${column})), '') IS NOT NULL ORDER BY v`,
         );
         options[f.key] = result.recordset.map((r) => r.v);
       }
@@ -812,17 +812,17 @@ export async function lookupValues(list: LookupList): Promise<string[]> {
   const column = quote(list.column);
   try {
     const r = await (await pool()).request().query<{ v: string }>(
-      `SELECT DISTINCT LTRIM(RTRIM(${column})) AS v FROM dbo.${quote(list.table)} WHERE NULLIF(LTRIM(RTRIM(${column})), '') IS NOT NULL ORDER BY v`,
+      `SELECT DISTINCT LTRIM(RTRIM(${column})) AS v FROM ${list.schema ?? "dbo"}.${quote(list.table)} WHERE NULLIF(LTRIM(RTRIM(${column})), '') IS NOT NULL ORDER BY v`,
     );
     return r.recordset.map((x) => x.v);
   } catch (e) {
-    throw translate(e, `dbo.${list.table}`);
+    throw translate(e, listTable(list));
   }
 }
 
 /** Wert hinzufügen, ändern (old → value) oder löschen (value leer); doppelte Werte werden abgelehnt */
 export async function changeLookup(list: LookupList, action: "add" | "rename" | "delete", value: string, old?: string): Promise<void> {
-  const table = `dbo.${quote(list.table)}`;
+  const table = `${list.schema ?? "dbo"}.${quote(list.table)}`;
   const column = quote(list.column);
   const tx = new sql.Transaction(await pool());
   await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
@@ -844,7 +844,7 @@ export async function changeLookup(list: LookupList, action: "add" | "rename" | 
     await tx.commit();
   } catch (e) {
     await tx.rollback().catch(() => undefined);
-    throw translate(e, `dbo.${list.table}`);
+    throw translate(e, listTable(list));
   }
 }
 

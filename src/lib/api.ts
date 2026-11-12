@@ -7,7 +7,7 @@ import type { SettingsInput, SettingsResponse, SettingsSectionId } from "./setti
 import { OS_SUPPORT_SEED, withOsSupport, type OsSupportEntry } from "./osSupport";
 import type { HistoryResponse } from "./history";
 import { READ_ALL, allPermissions, PERMISSION_AREAS, type Action, type LoginLogEntry, type Role } from "./permissions";
-import { LOOKUP_LISTS, type StammdatenResponse } from "./stammdaten";
+import { LOOKUP_LISTS, listOfOption, type StammdatenResponse } from "./stammdaten";
 import type { CheckResult, CiListResponse, CustomerListResponse, HealthResponse, MeResponse } from "./types";
 import { TEST_CIS, TEST_COUNTRIES, TEST_CUSTOMERS, TEST_OPTIONS, TEST_PASSWORD, TEST_PMS_PRICES, TEST_USERS, testPmsModules, testRows } from "./testData";
 import type { PmsModule, PmsPrice, PmsPrices, PmsResponse } from "./pms";
@@ -334,7 +334,7 @@ const browserTestApi: Api = {
     const options: Record<string, string[]> = {};
     for (const f of area.fields) {
       if (!f.options || !area.createFields?.includes(f.key)) continue;
-      const list = typeof f.options === "object" ? LOOKUP_LISTS.find((l) => l.table === (f.options as { table: string }).table) : undefined;
+      const list = listOfOption(f.options);
       options[f.key] = f.options === "customers" ? browserCustomers.map((c) => c.name) : list ? [...(browserLookups.get(list.id) ?? [])] : (TEST_OPTIONS[f.key] ?? []);
     }
     return { nextId: firstFreeId(AREAS[areaId], browserRows(areaId).map((r) => r.id)), options };

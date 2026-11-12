@@ -19,8 +19,8 @@ export interface AreaField {
   detailOnly?: boolean;
   /** Pflichtfeld beim Anlegen */
   required?: boolean;
-  /** Auswahlliste beim Anlegen: Kunden aus dbo.DS_Kunden, eine DD_*-Tabelle oder die schon vorkommenden Werte der Spalte */
-  options?: "customers" | "distinct" | { table: string; column: string };
+  /** Auswahlliste beim Anlegen: Kunden aus dbo.DS_Kunden, eine Listen-Tabelle (dbo.DD_* oder eigene in cmdb) oder die schon vorkommenden Werte der Spalte */
+  options?: "customers" | "distinct" | { table: string; column: string; schema?: "dbo" | "cmdb" };
   /** Beschriftung im Formular, falls abweichend (wie in GAPTEQ) */
   formLabel?: string;
   /** Vorbelegung beim Anlegen */
@@ -361,7 +361,7 @@ export const AREAS: Record<string, Area> = {
     fields: [
       f.company,
       { ...f.type, detailOnly: false, width: 130 },
-      { key: "function", column: "Funktion", label: "Funktion", formLabel: "Servertyp", width: 130, required: true, options: "distinct" },
+      { key: "function", column: "Funktion", label: "Funktion", formLabel: "Servertyp", width: 130, required: true, options: { schema: "cmdb", table: "VmServertyp", column: "Servertyp" } },
       { key: "hostname", column: "Hostname", label: "Hostname", width: 130 },
       { key: "ipAddress", column: "IP", label: "IP-Adresse", width: 120 },
       { key: "subnet", column: "Subnetz", label: "Subnetz", width: 120 },
