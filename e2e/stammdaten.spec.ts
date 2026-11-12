@@ -40,6 +40,27 @@ test("Stammdaten: Wert hinzufügen, umbenennen, löschen; Formular nutzt die neu
   await expect(card.getByRole("listitem").filter({ hasText: value })).toHaveCount(0);
 });
 
+test("Stammdaten: Servertypen der virtuellen Maschinen pflegen, Anlage nutzt die Liste", async ({ page }, testInfo) => {
+  const value = `VM-Typ ${testInfo.project.name}`;
+  const label = "Servertyp (Virtuelle Maschinen)";
+  await login(page, "admin");
+  await page.goto("/stammdaten");
+  await page.getByRole("navigation", { name: "Auswahllisten" }).getByRole("button", { name: /^Servertyp \(Virtuelle Maschinen\)/ }).click();
+  const card = page.getByRole("region", { name: label, exact: true });
+  await expect(card.getByRole("list", { name: `Werte ${label}` })).toContainText("APP-Server");
+
+  await card.getByRole("button", { name: `${label}: Wert hinzufügen` }).click();
+  await card.getByLabel(`Wert für ${label}`).fill(value);
+  await card.getByRole("button", { name: "Übernehmen" }).click();
+  await expect(card.getByRole("listitem").filter({ hasText: value })).toBeVisible();
+  const form = await (await page.request.get("/api/areas/windows/form")).json();
+  expect(form.options.function).toContain(value);
+
+  await card.getByRole("button", { name: `${value} löschen` }).click();
+  await card.getByRole("button", { name: "Ja, löschen" }).click();
+  await expect(card.getByRole("listitem").filter({ hasText: value })).toHaveCount(0);
+});
+
 test("Stammdaten: Grundrolle darf nur lesen", async ({ page }) => {
   await login(page, "user");
   await page.goto("/stammdaten");

@@ -7,7 +7,7 @@ import { PMS_AREA, PMS_PRICE_COLUMNS, pmsBlocksDelete, PMS_PRICE_MAX, PMS_WRITE,
 import { CUSTOMER_NAME_MAX } from "./customerLinks";
 import { deleteRole, initAdminStore, listLogins, listRoles, permissionsFor, recordLogin, saveRole, schemaState } from "./admin";
 import { ACTIONS, PERMISSION_AREAS, can, type Action, type Permissions } from "@/lib/permissions";
-import { LOOKUP_LISTS, PMS_PRICE_LIST, canChangeList, type StammdatenResponse } from "@/lib/stammdaten";
+import { LOOKUP_LISTS, PMS_PRICE_LIST, canChangeList, listOfOption, type StammdatenResponse } from "@/lib/stammdaten";
 import { DbError, areaForm, changeLookup, lookupValues, createAreaRow, updateAreaRow, createCustomer, dbCheck, deleteCustomer, deleteAreaRow, getAreaRow, getAreaSecret, getCustomer, resetPool, addCustomerDocument, followOsRename, listOsSupport, saveOsSupport, addSystemDocument, getDocument, getSystemDocument, listSystemDocuments, listArea, listAreaForCompany, listCustomers, listPms, addPmsModule, changePmsModule, changePmsPrice, listDocuments, updateCustomer, type CustomerValues } from "./db";
 import { ENV } from "./env";
 import { sendMail, smtpCheck } from "./mail";
@@ -249,7 +249,7 @@ function testForm(area: Area): AreaFormResponse {
   for (const f of area.fields) {
     if (!f.options || !area.createFields?.includes(f.key)) continue;
     // Listen aus den Stammdaten (im Testmodus gepflegt im Speicher), sonst die festen Testwerte
-    const list = typeof f.options === "object" ? LOOKUP_LISTS.find((l) => l.table === (f.options as { table: string }).table) : undefined;
+    const list = listOfOption(f.options);
     options[f.key] = f.options === "customers" ? testCustomers.map((c) => c.name) : list ? [...(testLookups.get(list.id) ?? [])] : (TEST_OPTIONS[f.key] ?? []);
   }
   return { nextId: firstFreeId(area, areaRows(area).map((r) => r.id)), options };

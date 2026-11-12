@@ -131,6 +131,7 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | Lizenzen › Windows-Lizenzen; Anlage VMware, VEEAM, TSPLUS, PRTG, Windows-Lizenzen (nur Admins) | `SELECT` auf `dbo.Lizenzen_manuell`, `UPDATE` auf `dbo.VMware_manuell`, `dbo.VEEAM_manuell`, `dbo.TSPLUS_manuell`, `dbo.PRTG_manuell`, `dbo.Lizenzen_manuell` | 28.10.2026 |
 | Anlage Oracle (ohne Passwortspalte), Anlage Windows-System | `UPDATE` auf die Oracle-Spalten ohne `RMAN_Copy_Job_PW`, `UPDATE` auf `dbo.Windowssysteme_manuell`, Leserecht auf `dbo.DD_DB_Typ`, `dbo.DD_Zeichensatz`, `dbo.DD_FW_Server_OS` | 28.10.2026 |
 | Stammdaten (Auswahllisten pflegen) | `INSERT`, `UPDATE`, `DELETE` auf `dbo.DD_DB_Typ`, `DD_Hersteller`, `DD_Lieferant`, `DD_RAID`, `DD_Servertyp`, `DD_Vertragstyp`, `DD_Zeichensatz`, `DD_FW_Server_OS` | offen |
+| Stammdaten › Servertyp (Virtuelle Maschinen) | eigene Tabelle `cmdb.VmServertyp` (Migration 005, vorbelegt aus `dbo.Windowssysteme_manuell.Funktion`); keine Rechte in `dbo` nötig | 12.11.2026 |
 | Anlage Vertrag › Server (nur Admins) | `UPDATE` auf `dbo.Server_manuell`, Leserecht auf `dbo.DD_Lieferant`, `dbo.DD_Hersteller`, `dbo.DD_Servertyp`, `dbo.DD_Vertragstyp`, `dbo.DD_Ja_Nein` | 28.10.2026 (erste Anlage: Server 10064) |
 
 ```sql
