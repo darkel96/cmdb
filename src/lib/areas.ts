@@ -319,7 +319,7 @@ export const AREAS: Record<string, Area> = {
     plural: "Oracle",
     typeValue: "Oracle",
     // RMAN_Copy_Job_PW nur als secret: nie in Listen, Anzeigen mit Klick und Recht Bearbeiten
-    createFields: ["company", "dbType", "dbVersion", "os", "hostname", "ipAddress", "gateway", "dnsServer", "charset", "sga", "pga", "rmanCopyJob", "rmanCopyJobPath", "rmanCopyJobUser", "rmanPassword", "softwareContract", "softwareContractEnd", "itServiceContract", "itServiceContractEnd", "notes"],
+    createFields: ["company", "dbType", "dbVersion", "os", "hostname", "ipAddress", "gateway", "dnsServer", "ntp", "charset", "sga", "pga", "rmanCopyJob", "rmanCopyJobPath", "rmanCopyJobUser", "rmanPassword", "softwareContract", "softwareContractEnd", "itServiceContract", "itServiceContractEnd", "notes"],
     secret: { key: "rmanPassword", column: "RMAN_Copy_Job_PW", label: "RMAN-Passwort" },
     testCount: 12,
     testIdBase: 100000,
@@ -332,6 +332,8 @@ export const AREAS: Record<string, Area> = {
       { key: "ipAddress", column: "IP_Adresse", label: "IP-Adresse", width: 120 },
       { key: "gateway", column: "Gateway", label: "Gateway", width: 120 },
       { key: "dnsServer", column: "DNS_Server", label: "DNS-Server", width: 130 },
+      // Spalte NTP gibt es erst seit 13.11.2026 (vom DBA ergänzt, siehe docs/server.md)
+      { key: "ntp", column: "NTP", label: "NTP-Server", width: 130 },
       { key: "charset", column: "Zeichensatz", label: "Zeichensatz", width: 100, options: { table: "DD_Zeichensatz", column: "Zeichensatz" } },
       { key: "sga", column: "SGA", label: "SGA", width: 70 },
       { key: "pga", column: "PGA", label: "PGA", width: 70 },

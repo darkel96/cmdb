@@ -129,6 +129,7 @@ Rechte von `svc_cmdb`: nur lesen, nie schreiben auf `dbo`. Je Bereich ein Lesere
 | Software › VMware, Veeam, TSPLUS, PRTG; Lizenzen › Oracle-ESL | `dbo.VMware_manuell`, `dbo.VEEAM_manuell`, `dbo.TSPLUS_manuell`, `dbo.PRTG_manuell`, `dbo.Vertragsdaten` | 28.10.2026 |
 | Kunden anlegen, bearbeiten, löschen (nur Admins) | `INSERT`, `UPDATE`, `DELETE` auf `dbo.DS_Kunden`; Lesen und Ändern nur der Namensspalte in 28 verknüpften Tabellen | 28.10.2026 |
 | Lizenzen › Windows-Lizenzen; Anlage VMware, VEEAM, TSPLUS, PRTG, Windows-Lizenzen (nur Admins) | `SELECT` auf `dbo.Lizenzen_manuell`, `UPDATE` auf `dbo.VMware_manuell`, `dbo.VEEAM_manuell`, `dbo.TSPLUS_manuell`, `dbo.PRTG_manuell`, `dbo.Lizenzen_manuell` | 28.10.2026 |
+| Oracle › NTP-Server | neue Spalte `NTP varchar(255) NULL` in `dbo.Oracle_manuell` (vom DBA), `SELECT`/`UPDATE` darauf | 13.11.2026 |
 | Anlage Oracle (ohne Passwortspalte), Anlage Windows-System | `UPDATE` auf die Oracle-Spalten ohne `RMAN_Copy_Job_PW`, `UPDATE` auf `dbo.Windowssysteme_manuell`, Leserecht auf `dbo.DD_DB_Typ`, `dbo.DD_Zeichensatz`, `dbo.DD_FW_Server_OS` | 28.10.2026 |
 | Stammdaten (Auswahllisten pflegen) | `INSERT`, `UPDATE`, `DELETE` auf `dbo.DD_DB_Typ`, `DD_Hersteller`, `DD_Lieferant`, `DD_RAID`, `DD_Servertyp`, `DD_Vertragstyp`, `DD_Zeichensatz`, `DD_FW_Server_OS` | offen |
 | Stammdaten › Servertyp (Virtuelle Maschinen) | eigene Tabelle `cmdb.VmServertyp` (Migration 005, vorbelegt aus `dbo.Windowssysteme_manuell.Funktion`); keine Rechte in `dbo` nötig | 12.11.2026 |
@@ -184,6 +185,10 @@ GRANT UPDATE (Typ, Firma, DB_Typ, DB_Version, LinuxOS_WinOS, Zeichensatz, SGA, P
 -- Die CMDB liest die Spalte nur einzeln auf Klick (wird protokolliert), nie in Listen oder Exporten.
 GRANT UPDATE (Hostname, RMAN_Copy_Job_PW) ON dbo.Oracle_manuell TO svc_cmdb;
 GRANT SELECT (RMAN_Copy_Job_PW) ON dbo.Oracle_manuell TO svc_cmdb;
+-- Oracle: NTP-Server pflegen (neue Spalte, freigegeben 13.11.2026; GAPTEQ zeigt sie erst nach Anpassung der Seite)
+ALTER TABLE dbo.Oracle_manuell ADD NTP varchar(255) NULL;
+GO
+GRANT SELECT (NTP), UPDATE (NTP) ON dbo.Oracle_manuell TO svc_cmdb;
 -- Anlage Windows-System
 GRANT UPDATE ON dbo.Windowssysteme_manuell TO svc_cmdb;
 GRANT SELECT ON dbo.DD_DB_Typ TO svc_cmdb;

@@ -222,7 +222,7 @@ test("Anlage Oracle mit Hostname und RMAN-Passwort, Anlage Virtuelle Maschine mi
   await page.goto("/bereich/oracle/neu");
   await expect(page.getByRole("heading", { name: "Anlage Oracle" })).toBeVisible();
   const oracleLabels = (await page.locator("form label").allTextContents()).map((l) => l.trim());
-  expect(oracleLabels).toEqual(["Firma *", "DB-Typ *", "DB-Version", "Linux/Windows", "Hostname", "IP-Adresse", "Gateway", "DNS-Server", "Zeichensatz", "SGA", "PGA", "RMAN-Copy-Job *", "RMAN-Pfad", "RMAN-Benutzer", "RMAN-Passwort", "Softwarepflege *", "Softwarepflege bis", "IT-Servicevertrag *", "IT-Service bis", "Besonderheiten"]);
+  expect(oracleLabels).toEqual(["Firma *", "DB-Typ *", "DB-Version", "Linux/Windows", "Hostname", "IP-Adresse", "Gateway", "DNS-Server", "NTP-Server", "Zeichensatz", "SGA", "PGA", "RMAN-Copy-Job *", "RMAN-Pfad", "RMAN-Benutzer", "RMAN-Passwort", "Softwarepflege *", "Softwarepflege bis", "IT-Servicevertrag *", "IT-Service bis", "Besonderheiten"]);
   // Passwortfeld verdeckt, Auge zeigt die Eingabe
   const pw = page.getByLabel("RMAN-Passwort", { exact: true });
   await expect(pw).toHaveAttribute("type", "password");
