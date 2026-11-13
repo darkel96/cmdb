@@ -39,6 +39,8 @@ Hinweise für Claude Code in diesem Repository.
   `INSERT`/`UPDATE`/`DELETE` auf `dbo.PMS_Module` (Module am Vertrag, Preise aus `dbo.PMS_Module_Stammdaten`).
   `INSERT`/`UPDATE`/`DELETE` auf `dbo.PMS_Module_Stammdaten` (PMS-Modularten unter Verwaltung › Stammdaten; Umbenennen
   ändert den Namen in `dbo.PMS_Module` mit, Löschen nur ohne Verträge).
+  Freigegeben (13.11.2026): neue Spalte `NTP varchar(255) NULL` in `dbo.Oracle_manuell` (NTP-Server), angelegt vom DBA,
+  dazu `SELECT`/`UPDATE` auf diese Spalte. Sonst bleibt die Tabelle unverändert.
 - Sprache: Doku und Commit-Messages auf Deutsch, Code-Bezeichner auf Englisch.
 - Änderungen über Branch und Pull Request gegen `main`. Vor dem PR: `npm run typecheck`, `npm run build`, `npm run test:e2e`.
 - Testdaten (`src/lib/testData.ts`) und die Pages-Seite enthalten nur erfundene Werte: keine echten Hostnamen, IP-Adressen,

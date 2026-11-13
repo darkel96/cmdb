@@ -85,6 +85,7 @@ const VALUES: Record<string, string[]> = {
   rmanCopyJobPath: ["//backup-demo/rman"],
   rmanCopyJobUser: ["rman_demo"],
   dnsServer: ["192.0.2.53"],
+  ntp: ["192.0.2.123", "198.51.100.123"],
   softwareContract: ["Ja", "Nein"],
   itServiceContract: ["Ja", "Nein"],
   function: ["APP-Server", "DB-Server", "WinCC-Server", "Terminalserver"],
